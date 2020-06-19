@@ -1,15 +1,18 @@
 package cerebro
 
 import (
-	"trader/broker"
-	"trader/store"
+	"github.com/BumwooPark/trader/broker"
+	"github.com/BumwooPark/trader/store"
 )
 
-type Cerebro struct {
+type Cerebroker interface {
+}
+
+type cerebro struct {
 	broker broker.Broker
 	store  store.Storer
 }
 
-func NewCerebro(broker broker.Broker, store store.Storer) *Cerebro {
-	return &Cerebro{broker: broker, store: store}
+func NewCerebro(broker broker.Broker, store store.Storer) Cerebroker {
+	return &cerebro{broker: broker, store: store}
 }

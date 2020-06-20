@@ -6,10 +6,11 @@ import (
 	"github.com/BumwooPark/trader/broker"
 	"github.com/BumwooPark/trader/store"
 	"github.com/BumwooPark/trader/store/model"
+	"go.uber.org/zap"
 )
 
 type Cerebroker interface {
-	Start()
+	Start() error
 	Stop()
 	AddStore(store.Storer)
 }
@@ -19,14 +20,26 @@ type cerebro struct {
 	store  []store.Storer
 	ctx    context.Context
 	cancel context.CancelFunc
+	log    *zap.Logger
 }
 
 func NewCerebro(broker broker.Broker) Cerebroker {
 	ctx, cancel := context.WithCancel(context.Background())
-	return &cerebro{broker: broker, store: []store.Storer{}, ctx: ctx, cancel: cancel}
+	logger, err := zap.NewProduction()
+	if err != nil {
+		panic(err)
+	}
+	return &cerebro{
+		broker: broker,
+		store:  []store.Storer{},
+		ctx:    ctx,
+		cancel: cancel,
+		log:    logger,
+	}
 }
 
-func (c *cerebro) Start() {
+func (c *cerebro) Start() error {
+
 	for _, s := range c.store {
 		s.Start(c.ctx)
 
@@ -41,6 +54,7 @@ func (c *cerebro) Start() {
 			}
 		}(s.Data())
 	}
+	return nil
 }
 
 func (c *cerebro) AddStore(store store.Storer) {

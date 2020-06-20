@@ -8,7 +8,34 @@ type Broker interface {
 	GetPosition()
 }
 
-type Broke struct {
+type broke struct {
 	cash      int32
 	commision float32
+}
+
+func NewBroker(cash int32, commision float32) Broker {
+	return &broke{
+		cash:      cash,
+		commision: commision,
+	}
+}
+
+func (b broke) Buy() {
+	panic("implement me")
+}
+
+func (b broke) Sell() {
+	panic("implement me")
+}
+
+func (b broke) Cancel() {
+	panic("implement me")
+}
+
+func (b broke) Submit() {
+	panic("implement me")
+}
+
+func (b broke) GetPosition() {
+	panic("implement me")
 }

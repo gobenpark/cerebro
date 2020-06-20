@@ -10,9 +10,6 @@ type Storer interface {
 	// Start Market data stream
 	Start(ctx context.Context)
 
-	// Stop All Market data stream
-	Stop()
-
 	// Get Market Stream channel
 	Data() <-chan model.Chart
 }
@@ -35,6 +32,7 @@ func (s *store) Start(ctx context.Context) {
 			default:
 				time.Sleep(1 * time.Second)
 				s.input <- model.Chart{
+					Code:   "samsung",
 					Low:    1,
 					High:   2,
 					Open:   3,
@@ -44,9 +42,6 @@ func (s *store) Start(ctx context.Context) {
 			}
 		}
 	}()
-}
-
-func (s *store) Stop() {
 }
 
 func (s *store) Data() <-chan model.Chart {

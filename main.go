@@ -17,7 +17,7 @@ func main() {
 	bk := broker.NewBroker(100000, 0.031)
 	cb := cerebro.NewCerebro(bk)
 
-	st := store.NewStore()
+	st := store.NewAlpaSquareStore()
 	cb.AddStore(st)
 
 	err := cb.Start()

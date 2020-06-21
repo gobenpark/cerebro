@@ -67,7 +67,6 @@ func (c *cerebro) Start() error {
 		for {
 			select {
 			case data := <-c.ChartData:
-				fmt.Println("this")
 				fmt.Println(data)
 			}
 		}

@@ -6,6 +6,8 @@ import (
 	"github.com/BumwooPark/trader/broker"
 	"github.com/BumwooPark/trader/store"
 	"github.com/BumwooPark/trader/store/model"
+	"github.com/BumwooPark/trader/strategy"
+	"github.com/go-playground/validator/v10"
 	"go.uber.org/zap"
 )
 
@@ -16,11 +18,12 @@ type Cerebroker interface {
 }
 
 type cerebro struct {
-	broker broker.Broker
-	store  []store.Storer
-	ctx    context.Context
-	cancel context.CancelFunc
-	log    *zap.Logger
+	Broker    broker.Broker       `json:"broker" validate:"required"`
+	Store     []store.Storer      `json:"store" validate:"gte=1,dive,required"`
+	Ctx       context.Context     `json:"ctx" validate:"required"`
+	Cancel    context.CancelFunc  `json:"cancel" validate:"required"`
+	Strategis []strategy.Strategy `json:"strategis" validate:"gte=1,dive,required"`
+	Log       *zap.Logger         `json:"log" validate:"required"`
 }
 
 func NewCerebro(broker broker.Broker) Cerebroker {
@@ -30,23 +33,27 @@ func NewCerebro(broker broker.Broker) Cerebroker {
 		panic(err)
 	}
 	return &cerebro{
-		broker: broker,
-		store:  []store.Storer{},
-		ctx:    ctx,
-		cancel: cancel,
-		log:    logger,
+		Broker: broker,
+		Store:  []store.Storer{},
+		Ctx:    ctx,
+		Cancel: cancel,
+		Log:    logger,
 	}
 }
 
 func (c *cerebro) Start() error {
+	validate := validator.New()
+	if err := validate.Struct(c); err != nil {
+		return err
+	}
 
-	for _, s := range c.store {
-		s.Start(c.ctx)
+	for _, s := range c.Store {
+		s.Start(c.Ctx)
 
 		go func(ch <-chan model.Chart) {
 			for {
 				select {
-				case <-c.ctx.Done():
+				case <-c.Ctx.Done():
 					break
 				case data := <-ch:
 					fmt.Println(data)
@@ -58,9 +65,9 @@ func (c *cerebro) Start() error {
 }
 
 func (c *cerebro) AddStore(store store.Storer) {
-	c.store = append(c.store, store)
+	c.Store = append(c.Store, store)
 }
 
 func (c *cerebro) Stop() {
-	c.cancel()
+	c.Cancel()
 }

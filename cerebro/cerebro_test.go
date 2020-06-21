@@ -18,7 +18,7 @@ func TestCerebro(t *testing.T) {
 	}()
 	sigs := make(chan os.Signal, 1)
 	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM, syscall.SIGKILL)
-	bk := broker.NewBroker(100000, 0.031)
+	bk := broker.NewBroker(100000, 0.015)
 	cerebro := NewCerebro(bk)
 	st := store.NewStore()
 	cerebro.AddStore(st)

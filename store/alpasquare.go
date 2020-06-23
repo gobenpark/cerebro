@@ -3,8 +3,11 @@ package store
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"github.com/BumwooPark/trader/store/model"
+	"github.com/gorilla/websocket"
 	"io/ioutil"
+	"log"
 	"net/http"
 	"time"
 )
@@ -84,7 +87,71 @@ func (a *AlpaSquare) day(ctx context.Context, code string) error {
 	}
 
 	return nil
+}
 
+func (a *AlpaSquare) TickStream(ctx context.Context) {
+	c, _, err := websocket.DefaultDialer.Dial("wss://api.alphasquare.co.kr/socket.io/?EIO=3&transport=websocket", nil)
+	if err != nil {
+		log.Fatal("dial:", err)
+	}
+
+	data := []interface{}{"subscribe_real"}
+	data = append(data, map[string][]string{"codes": []string{"005930"}})
+
+	bt, err := json.Marshal(data)
+	if err != nil {
+		fmt.Println(err)
+	}
+
+	result := fmt.Sprintf("42%s", string(bt))
+	err = c.WriteMessage(websocket.BinaryMessage, []byte(result))
+	if err != nil {
+		fmt.Println(err)
+	}
+
+	go func() {
+		for {
+			select {
+			case <-ctx.Done():
+				break
+			case <-time.After(3 * time.Second):
+				err := c.WriteMessage(websocket.BinaryMessage, []byte("2"))
+				if err != nil {
+					fmt.Println(err)
+				}
+			}
+		}
+	}()
+
+	go func() {
+		for {
+
+			_, message, err := c.ReadMessage()
+			if err != nil {
+				log.Println("read:", err)
+				return
+			}
+
+			//fmt.Println(string(message))
+			var res []interface{}
+			if len(message) > len("0{\"sid\":\"ec6f5ebce6d042e1bad1cd19e6179260\",\"upgrades\":[],\"pingTimeout\":10000,\"pingInterval\":5000}") {
+				err = json.Unmarshal(message[2:], &res)
+				if err != nil {
+					fmt.Println("jsonerror: ", err)
+
+				}
+
+				if result, ok := res[1].(map[string]interface{}); ok {
+					data := result["data"].(string)
+					var tick model.Tick
+					err := json.Unmarshal([]byte(data), &tick)
+					if err != nil {
+						fmt.Println(err)
+					}
+				}
+			}
+		}
+	}()
 }
 
 func (a *AlpaSquare) Start(ctx context.Context) {

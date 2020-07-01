@@ -4,6 +4,7 @@ import (
 	"github.com/BumwooPark/trader/broker"
 	"github.com/BumwooPark/trader/cerebro"
 	"github.com/BumwooPark/trader/store"
+	"github.com/BumwooPark/trader/strategy"
 	"os"
 	"os/signal"
 	"syscall"
@@ -20,6 +21,9 @@ func main() {
 	st := store.NewAlpaSquareStore()
 	cb.AddStore(st)
 
+	smart := strategy.NewSmartStrategy()
+
+	cb.AddStrategy(smart)
 	err := cb.Start()
 	if err != nil {
 		panic(err)

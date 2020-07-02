@@ -6,12 +6,22 @@ import (
 )
 
 type Smart struct {
+	Chart chan model.Chart
 }
 
 func NewSmartStrategy() *Smart {
-	return &Smart{}
+	ch := make(chan model.Chart, 100)
+	return &Smart{ch}
 }
 
-func (s Smart) Logic(data model.Chart) {
-	fmt.Printf("%#v\n", data)
+func (s *Smart) ChartChannel() chan<- model.Chart {
+	return s.Chart
+}
+
+func (s *Smart) Logic() {
+	go func() {
+		for i := range s.Chart {
+			fmt.Printf("%#v\n", i)
+		}
+	}()
 }

@@ -73,7 +73,7 @@ func (c *cerebro) Start() error {
 			select {
 			case data := <-c.ChartData:
 				for _, i := range c.Strategis {
-					i.Logic(data)
+					i.ChartChannel() <- data
 				}
 			}
 		}

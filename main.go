@@ -22,6 +22,7 @@ func main() {
 	cb.AddStore(st)
 
 	smart := strategy.NewSmartStrategy()
+	smart.Logic()
 
 	cb.AddStrategy(smart)
 	err := cb.Start()

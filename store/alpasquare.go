@@ -138,7 +138,6 @@ func (a *AlpaSquare) TickStream(ctx context.Context) {
 				err = json.Unmarshal(message[2:], &res)
 				if err != nil {
 					fmt.Println("jsonerror: ", err)
-
 				}
 
 				if result, ok := res[1].(map[string]interface{}); ok {
@@ -148,6 +147,8 @@ func (a *AlpaSquare) TickStream(ctx context.Context) {
 					if err != nil {
 						fmt.Println(err)
 					}
+
+					fmt.Println(tick)
 				}
 			}
 		}

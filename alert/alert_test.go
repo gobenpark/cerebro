@@ -8,7 +8,7 @@ import (
 )
 
 func TestRunner(t *testing.T) {
-	bot, err := tgbotapi.NewBotAPI("1338566378:AAEZ4wj8sh52xdURwDAWd84tNl_ZgiVAXCU")
+	bot, err := tgbotapi.NewBotAPI("")
 	if err != nil {
 		log.Panic(err)
 	}

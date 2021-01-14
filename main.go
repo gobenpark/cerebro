@@ -1,10 +1,10 @@
 package main
 
 import (
-	"github.com/BumwooPark/trader/broker"
-	"github.com/BumwooPark/trader/cerebro"
-	"github.com/BumwooPark/trader/store"
-	"github.com/BumwooPark/trader/strategy"
+	"github.com/gobenpark/trader/broker"
+	"github.com/gobenpark/trader/cerebro"
+	"github.com/gobenpark/trader/store"
+	"github.com/gobenpark/trader/strategy"
 	"os"
 	"os/signal"
 	"syscall"

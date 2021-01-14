@@ -2,8 +2,8 @@ package cerebro
 
 import (
 	"fmt"
-	"github.com/BumwooPark/trader/broker"
-	"github.com/BumwooPark/trader/store"
+	"github.com/gobenpark/trader/broker"
+	"github.com/gobenpark/trader/store"
 	"os"
 	"os/signal"
 	"syscall"

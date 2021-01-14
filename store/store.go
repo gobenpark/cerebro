@@ -2,7 +2,7 @@ package store
 
 import (
 	"context"
-	"github.com/BumwooPark/trader/store/model"
+	"github.com/gobenpark/trader/store/model"
 	"time"
 )
 

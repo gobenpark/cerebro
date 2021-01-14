@@ -2,7 +2,7 @@ package strategy
 
 import (
 	"fmt"
-	"github.com/BumwooPark/trader/store/model"
+	"github.com/gobenpark/trader/store/model"
 )
 
 type Smart struct {

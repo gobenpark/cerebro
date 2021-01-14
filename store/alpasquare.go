@@ -4,7 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/BumwooPark/trader/store/model"
+	"github.com/gobenpark/trader/store/model"
 	"github.com/gorilla/websocket"
 	"io/ioutil"
 	"log"

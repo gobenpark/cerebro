@@ -1,4 +1,4 @@
-module github.com/BumwooPark/trader
+module github.com/gobenpark/trader
 
 go 1.14
 

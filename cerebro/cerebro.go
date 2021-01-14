@@ -2,11 +2,11 @@ package cerebro
 
 import (
 	"context"
-	"github.com/BumwooPark/trader/broker"
-	"github.com/BumwooPark/trader/store"
-	"github.com/BumwooPark/trader/store/model"
-	"github.com/BumwooPark/trader/strategy"
 	"github.com/go-playground/validator/v10"
+	"github.com/gobenpark/trader/broker"
+	"github.com/gobenpark/trader/store"
+	"github.com/gobenpark/trader/store/model"
+	"github.com/gobenpark/trader/strategy"
 	"go.uber.org/zap"
 )
 
@@ -28,8 +28,8 @@ type cerebro struct {
 }
 
 func NewCerebro(broker broker.Broker) Cerebroker {
-	ctx, cancel := context.WithCancel(context.Background())
 	logger, err := zap.NewProduction()
+	ctx, cancel := context.WithCancel(context.Background())
 	if err != nil {
 		panic(err)
 	}

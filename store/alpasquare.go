@@ -28,25 +28,7 @@ func (a *AlpaSquare) day(ctx context.Context, code string) error {
 
 	cli := http.Client{
 		Transport: &http.Transport{
-			Proxy:                  nil,
-			DialContext:            nil,
-			DialTLSContext:         nil,
-			TLSClientConfig:        nil,
-			TLSHandshakeTimeout:    0,
-			DisableKeepAlives:      false,
-			DisableCompression:     false,
-			MaxIdleConns:           0,
-			MaxIdleConnsPerHost:    0,
-			MaxConnsPerHost:        0,
-			IdleConnTimeout:        10 * time.Second,
-			ResponseHeaderTimeout:  0,
-			ExpectContinueTimeout:  0,
-			TLSNextProto:           nil,
-			ProxyConnectHeader:     nil,
-			MaxResponseHeaderBytes: 0,
-			WriteBufferSize:        0,
-			ReadBufferSize:         0,
-			ForceAttemptHTTP2:      false,
+			IdleConnTimeout: 10 * time.Second,
 		},
 		Timeout: 10 * time.Second,
 	}

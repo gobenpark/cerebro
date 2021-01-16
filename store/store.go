@@ -1,5 +1,7 @@
 package store
 
+//go:generate mockgen -source=./store.go -destination=./mock/mock_store.go
+
 import (
 	"context"
 	"github.com/gobenpark/trader/store/model"

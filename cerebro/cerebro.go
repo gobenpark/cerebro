@@ -32,7 +32,7 @@ type Cerebroker interface {
 
 type cerebro struct {
 	Broker     broker.Broker       `json:"broker" validate:"required"`
-	Store      []store.Storer      `json:"store" validate:"gte=1,dive,required"`
+	Stores     []store.Storer      `json:"store" validate:"gte=1,dive,required"`
 	Ctx        context.Context     `json:"ctx" validate:"required"`
 	Cancel     context.CancelFunc  `json:"cancel" validate:"required"`
 	Strategies []strategy.Strategy `json:"strategis" validate:"gte=1,dive,required"`
@@ -45,7 +45,7 @@ func NewCerebro(broker broker.Broker) Cerebroker {
 	ctx, cancel := context.WithCancel(context.Background())
 	return &cerebro{
 		Broker:    broker,
-		Store:     []store.Storer{},
+		Stores:    []store.Storer{},
 		Ctx:       ctx,
 		Cancel:    cancel,
 		ChartData: make(chan model.Chart, 1000),
@@ -68,7 +68,7 @@ func (c *cerebro) Start() error {
 }
 
 func (c *cerebro) AddStore(store store.Storer) {
-	c.Store = append(c.Store, store)
+	c.Stores = append(c.Stores, store)
 }
 
 func (c *cerebro) Stop() error {

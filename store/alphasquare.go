@@ -6,11 +6,15 @@ import (
 	"fmt"
 	"github.com/gobenpark/trader/store/model"
 	"github.com/gorilla/websocket"
-	"io/ioutil"
-	"log"
+	"github.com/rs/zerolog/log"
 	"net/http"
+	"net/url"
 	"time"
 )
+
+func init() {
+	log.Logger = log.With().Caller().Logger()
+}
 
 type AlpaSquare struct {
 	charts chan model.Chart
@@ -21,7 +25,15 @@ func NewAlpaSquareStore() Storer {
 }
 
 func (a *AlpaSquare) day(ctx context.Context, code string) error {
-	req, err := http.NewRequest(http.MethodGet, "https://api.alphasquare.co.kr/api/square/chart/"+code+"?freq=day", nil)
+	defer close(a.charts)
+	u := url.URL{
+		Scheme:   "https",
+		Host:     "api.alphasquare.co.kr",
+		Path:     "/api/square/chart/" + code,
+		RawQuery: "freq=day",
+	}
+
+	req, err := http.NewRequest(http.MethodGet, u.String(), nil)
 	if err != nil {
 		return err
 	}
@@ -38,13 +50,9 @@ func (a *AlpaSquare) day(ctx context.Context, code string) error {
 		return err
 	}
 	defer res.Body.Close()
-	bt, err := ioutil.ReadAll(res.Body)
-	if err != nil {
-		return err
-	}
 
 	var data map[string]json.RawMessage
-	if err := json.Unmarshal(bt, &data); err != nil {
+	if err := json.NewDecoder(res.Body).Decode(&data); err != nil {
 		return err
 	}
 
@@ -54,7 +62,6 @@ func (a *AlpaSquare) day(ctx context.Context, code string) error {
 	}
 
 	for _, i := range charts {
-
 		result := model.Chart{
 			Code:   code,
 			Low:    i[3].(float64),
@@ -62,10 +69,9 @@ func (a *AlpaSquare) day(ctx context.Context, code string) error {
 			Open:   i[1].(float64),
 			Close:  i[4].(float64),
 			Volume: i[5].(float64),
-			Date:   i[0].(string),
+			//Date:   i[0].(string),
 		}
 		a.charts <- result
-
 	}
 
 	return nil
@@ -74,11 +80,16 @@ func (a *AlpaSquare) day(ctx context.Context, code string) error {
 func (a *AlpaSquare) TickStream(ctx context.Context) {
 	c, _, err := websocket.DefaultDialer.Dial("wss://api.alphasquare.co.kr/socket.io/?EIO=3&transport=websocket", nil)
 	if err != nil {
-		log.Fatal("dial:", err)
+		log.Err(err).Send()
+	}
+
+	err = c.WriteMessage(websocket.BinaryMessage, []byte("42[\"authenticate\", null]"))
+	if err != nil {
+		log.Err(err).Send()
 	}
 
 	data := []interface{}{"subscribe_real"}
-	data = append(data, map[string][]string{"codes": []string{"005930"}})
+	data = append(data, map[string][]string{"codes": {"005930"}})
 
 	bt, err := json.Marshal(data)
 	if err != nil {
@@ -110,11 +121,9 @@ func (a *AlpaSquare) TickStream(ctx context.Context) {
 
 			_, message, err := c.ReadMessage()
 			if err != nil {
-				log.Println("read:", err)
+				log.Err(err).Send()
 				return
 			}
-
-			//fmt.Println(string(message))
 			var res []interface{}
 			if len(message) > len("0{\"sid\":\"ec6f5ebce6d042e1bad1cd19e6179260\",\"upgrades\":[],\"pingTimeout\":10000,\"pingInterval\":5000}") {
 				err = json.Unmarshal(message[2:], &res)

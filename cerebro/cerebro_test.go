@@ -1,32 +1,15 @@
 package cerebro
 
 import (
-	"fmt"
-	"github.com/gobenpark/trader/broker"
-	"github.com/gobenpark/trader/store"
-	"os"
-	"os/signal"
-	"syscall"
+	mock_broker "github.com/gobenpark/trader/broker/mock"
+	"github.com/golang/mock/gomock"
+	"github.com/stretchr/testify/require"
 	"testing"
 )
 
-func TestCerebro(t *testing.T) {
-	defer func() {
-		if err := recover(); err != nil {
-			fmt.Println(err)
-		}
-	}()
-	sigs := make(chan os.Signal, 1)
-	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM, syscall.SIGKILL)
-	bk := broker.NewBroker(100000, 0.015)
-	cerebro := NewCerebro(bk)
-	st := store.NewStore()
-	cerebro.AddStore(st)
-	err := cerebro.Start()
-	if err != nil {
-		fmt.Println(err)
-	}
-
-	<-sigs
-	cerebro.Stop()
+func TestNewCerebro(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	broker := mock_broker.NewMockBroker(ctrl)
+	cerebro := NewCerebro(broker)
+	require.NotNil(t, cerebro)
 }

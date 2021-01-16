@@ -2,14 +2,15 @@ package store
 
 import (
 	"context"
-	"syscall"
+	"fmt"
+	"github.com/gobenpark/trader/store/model"
 	"testing"
 )
 
-func TestAlpaSquare_TickStream(t *testing.T) {
-	ch := make(chan syscall.Signal)
-
-	store := AlpaSquare{}
-	store.TickStream(context.Background())
-	<-ch
+func TestAlpaSquare_day(t *testing.T) {
+	store := &AlpaSquare{charts: make(chan model.Chart, 1000)}
+	go store.day(context.Background(), "005930")
+	for i := range store.charts {
+		fmt.Println(i)
+	}
 }

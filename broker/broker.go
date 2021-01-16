@@ -1,5 +1,7 @@
 package broker
 
+//go:generate mockgen -source=./broker.go -destination=./mock/mock_broker.go
+
 type Broker interface {
 	Buy()
 	Sell()

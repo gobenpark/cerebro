@@ -1,3 +1,4 @@
+//go:generate mockgen -source=./broker.go -destination=./mock/mock_broker.go
 package broker
 
 import (
@@ -6,18 +7,18 @@ import (
 
 	"github.com/gobenpark/trader/domain"
 	"github.com/gobenpark/trader/event"
-	order2 "github.com/gobenpark/trader/order"
+	"github.com/gobenpark/trader/order"
+	"github.com/gobenpark/trader/position"
 	"github.com/satori/go.uuid"
 )
-
-//go:generate mockgen -source=./broker.go -destination=./mock/mock_broker.go
 
 type DefaultBroker struct {
 	cash       int64
 	commission float32
-	orders     map[string]*order2.Order
+	orders     map[string]*order.Order
 	mu         sync.Mutex
 	event      chan<- event.Event
+	positions  map[string]position.Position
 }
 
 func (b *DefaultBroker) AddOrderHistory() {
@@ -34,37 +35,40 @@ func (b *DefaultBroker) CommissionInfo() {
 
 //NewBroker Init new broker with cash,commission
 func NewBroker(cash int64, commission float32) domain.Broker {
+
 	return &DefaultBroker{
 		cash:       cash,
 		commission: commission,
+		orders:     make(map[string]*order.Order),
+		positions:  make(map[string]position.Position),
 	}
 }
 
 func (b *DefaultBroker) Buy(size int64, price float64) {
 	uid := uuid.NewV4().String()
-	order := &order2.Order{
+	o := &order.Order{
 		UUID:      uid,
-		Status:    order2.Submitted,
-		OrderType: order2.Buy,
+		Status:    order.Submitted,
+		OrderType: order.Buy,
 		Size:      size,
 		Price:     price,
 		Broker:    b,
 	}
-	b.orders[order.UUID] = order
-	b.Submit(order.UUID)
+	b.orders[o.UUID] = o
+	b.Submit(o.UUID)
 }
 
 func (b *DefaultBroker) Sell(size int64, price float64) {
 	uid := uuid.NewV4().String()
-	order := &order2.Order{
+	o := &order.Order{
 		UUID:      uid,
-		OrderType: order2.Sell,
+		OrderType: order.Sell,
 		Size:      size,
 		Price:     price,
 		Broker:    b,
 	}
-	b.orders[order.UUID] = order
-	b.Submit(order.UUID)
+	b.orders[o.UUID] = o
+	b.Submit(o.UUID)
 }
 
 func (b *DefaultBroker) Cancel(uid string) {

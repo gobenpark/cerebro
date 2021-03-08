@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/go-playground/validator/v10"
-	"github.com/gobenpark/trader/broker"
+	"github.com/gobenpark/trader/domain"
 	"github.com/gobenpark/trader/event"
 	"github.com/gobenpark/trader/order"
 	"github.com/gobenpark/trader/store"
@@ -37,7 +37,7 @@ type cerebro struct {
 	//isLive flog of live trading
 	isLive bool
 
-	Broker     broker.Broker       `json:"broker" validate:"required"`
+	Broker     domain.Broker       `json:"broker" validate:"required"`
 	Stores     []store.Storer      `json:"store" validate:"gte=1,dive,required"`
 	Ctx        context.Context     `json:"ctx" validate:"required"`
 	Cancel     context.CancelFunc  `json:"cancel" validate:"required"`
@@ -48,7 +48,7 @@ type cerebro struct {
 	order      chan order.Order
 }
 
-func NewCerebro(broker broker.Broker) Cerebroker {
+func NewCerebro(broker domain.Broker) Cerebroker {
 	logger := zerolog.New(zerolog.ConsoleWriter{Out: os.Stdout, TimeFormat: time.RFC3339})
 	ctx, cancel := context.WithCancel(context.Background())
 	return &cerebro{

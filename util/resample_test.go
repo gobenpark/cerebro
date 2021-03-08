@@ -3,6 +3,8 @@ package util
 import (
 	"encoding/csv"
 	"fmt"
+	"github.com/go-echarts/go-echarts/v2/charts"
+	"github.com/go-echarts/go-echarts/v2/opts"
 	"github.com/gobenpark/trader/store/model"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -119,5 +121,16 @@ func Test_Resampling(t *testing.T) {
 		fmt.Println(i.Volume)
 		fmt.Println(i.Date.Format(time.RFC3339))
 	}
+
+}
+
+func TestCharts(t *testing.T) {
+	line := charts.NewKLine()
+	line.SetGlobalOptions(charts.WithTitleOpts(opts.Title{
+		Title: "chart",
+	}))
+
+	da
+	line.SetXAxis()
 
 }

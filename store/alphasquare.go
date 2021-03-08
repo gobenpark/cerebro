@@ -78,7 +78,7 @@ func (a *AlpaSquare) day(ctx context.Context, code string) error {
 }
 
 func (a *AlpaSquare) TickStream(ctx context.Context) {
-	c, _, err := websocket.DefaultDialer.Dial("wss://api.alphasquare.co.kr/socket.io/?EIO=3&transport=websocket", nil)
+	c, _, err := websocket.DefaultDialer.Dial("wss://api.alphasquare.co.kr/socketio/socket.io/?EIO=3&transport=websocket", nil)
 	if err != nil {
 		log.Err(err).Send()
 	}
@@ -89,7 +89,7 @@ func (a *AlpaSquare) TickStream(ctx context.Context) {
 	}
 
 	data := []interface{}{"subscribe_real"}
-	data = append(data, map[string][]string{"codes": {"005930"}})
+	data = append(data, map[string][]string{"codes": {"005930", "035420", "005380"}})
 
 	bt, err := json.Marshal(data)
 	if err != nil {
@@ -118,7 +118,6 @@ func (a *AlpaSquare) TickStream(ctx context.Context) {
 
 	go func() {
 		for {
-
 			_, message, err := c.ReadMessage()
 			if err != nil {
 				log.Err(err).Send()
@@ -138,7 +137,6 @@ func (a *AlpaSquare) TickStream(ctx context.Context) {
 					if err != nil {
 						fmt.Println(err)
 					}
-
 					fmt.Println(tick)
 				}
 			}

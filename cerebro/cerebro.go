@@ -77,5 +77,4 @@ func (c *cerebro) Stop() error {
 }
 
 func (c *cerebro) Resample() {
-
 }

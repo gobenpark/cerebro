@@ -3,7 +3,7 @@ package order
 import (
 	"time"
 
-	"github.com/gobenpark/trader/broker"
+	"github.com/gobenpark/trader/domain"
 )
 
 type (
@@ -37,14 +37,14 @@ const (
 )
 
 type Order struct {
-	UUID string
 	Status
-	Broker     broker.Broker
-	OrderType  OType
-	Size       int64
-	Price      float64
-	CreatedAt  time.Time
-	ExecutedAt time.Time
+	UUID       string        `json:"uuid"`
+	Broker     domain.Broker `json:"broker"`
+	OrderType  OType         `json:"orderType"`
+	Size       int64         `json:"size"`
+	Price      float64       `json:"price"`
+	CreatedAt  time.Time     `json:"createdAt"`
+	ExecutedAt time.Time     `json:"executedAt"`
 }
 
 func (o *Order) Reject() {
@@ -59,12 +59,14 @@ func (o *Order) Cancel() {
 	o.ExecutedAt = time.Now()
 }
 
-func (*Order) Margin() {
-
+func (o *Order) Margin() {
+	o.Status = Margin
+	o.ExecutedAt = time.Now()
 }
 
-func (*Order) Partial() {
-
+func (o *Order) Partial() {
+	o.Status = Partial
+	o.ExecutedAt = time.Now()
 }
 
 func (*Order) Execute() {

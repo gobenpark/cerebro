@@ -34,7 +34,9 @@ type Cerebroker interface {
 }
 
 type cerebro struct {
-	isLive     bool
+	//isLive flog of live trading
+	isLive bool
+
 	Broker     broker.Broker       `json:"broker" validate:"required"`
 	Stores     []store.Storer      `json:"store" validate:"gte=1,dive,required"`
 	Ctx        context.Context     `json:"ctx" validate:"required"`

@@ -4,24 +4,13 @@ import (
 	"sync"
 	"sync/atomic"
 
+	"github.com/gobenpark/trader/domain"
 	"github.com/gobenpark/trader/event"
 	order2 "github.com/gobenpark/trader/order"
 	"github.com/satori/go.uuid"
 )
 
 //go:generate mockgen -source=./broker.go -destination=./mock/mock_broker.go
-
-type Broker interface {
-	Buy(size int64, price float64)
-	Sell(size int64, price float64)
-	Cancel(uuid string)
-	Submit(order *order2.Order)
-	GetPosition()
-	AddOrderHistory()
-	SetFundHistory()
-	CommissionInfo()
-	SetCash(cash int64)
-}
 
 type DefaultBroker struct {
 	cash       int64
@@ -44,7 +33,7 @@ func (b *DefaultBroker) CommissionInfo() {
 }
 
 //NewBroker Init new broker with cash,commission
-func NewBroker(cash int64, commission float32) Broker {
+func NewBroker(cash int64, commission float32) domain.Broker {
 	return &DefaultBroker{
 		cash:       cash,
 		commission: commission,
@@ -62,7 +51,7 @@ func (b *DefaultBroker) Buy(size int64, price float64) {
 		Broker:    b,
 	}
 	b.orders[order.UUID] = order
-	b.Submit(order)
+	b.Submit(order.UUID)
 }
 
 func (b *DefaultBroker) Sell(size int64, price float64) {
@@ -75,7 +64,7 @@ func (b *DefaultBroker) Sell(size int64, price float64) {
 		Broker:    b,
 	}
 	b.orders[order.UUID] = order
-	b.Submit(order)
+	b.Submit(order.UUID)
 }
 
 func (b *DefaultBroker) Cancel(uid string) {
@@ -88,9 +77,12 @@ func (b *DefaultBroker) Cancel(uid string) {
 	b.event <- event.Event{UUID: uuid.NewV4().String()}
 }
 
-func (b *DefaultBroker) Submit(order *order2.Order) {
-	order.Submit()
-	b.event <- event.Event{UUID: uuid.NewV4().String()}
+func (b *DefaultBroker) Submit(uid string) {
+	if ord, ok := b.orders[uid]; ok {
+		ord.Submit()
+		b.event <- event.Event{UUID: uuid.NewV4().String()}
+		return
+	}
 }
 
 func (b *DefaultBroker) GetPosition() {

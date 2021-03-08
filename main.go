@@ -9,7 +9,7 @@ import (
 
 func main() {
 
-	bk := broker.NewBroker(100000, 0.031)
+	bk := broker.NewBroker(100000, 0.005)
 	cb := cerebro.NewCerebro(bk)
 
 	st := store.NewAlpaSquareStore()

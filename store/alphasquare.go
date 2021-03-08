@@ -4,12 +4,13 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/gobenpark/trader/store/model"
-	"github.com/gorilla/websocket"
-	"github.com/rs/zerolog/log"
 	"net/http"
 	"net/url"
 	"time"
+
+	"github.com/gobenpark/trader/store/model"
+	"github.com/gorilla/websocket"
+	"github.com/rs/zerolog/log"
 )
 
 func init() {

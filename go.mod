@@ -12,6 +12,5 @@ require (
 	github.com/satori/go.uuid v1.2.0
 	github.com/stretchr/testify v1.6.1
 	github.com/technoweenie/multipartstreamer v1.0.1 // indirect
-	gonum.org/v1/plot v0.8.1
 	gopkg.in/yaml.v3 v3.0.0-20200615113413-eeeca48fe776 // indirect
 )

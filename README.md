@@ -1,5 +1,8 @@
 ## BackTrader
 
+## Introduce
+This project was inspired by [backtrader](https://www.backtrader.com)
+
 ## Installation
 
 `go get github.com/gobenpark/trader`

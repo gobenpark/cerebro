@@ -1,6 +1,9 @@
 package domain
 
-import "github.com/gobenpark/trader/position"
+import (
+	"github.com/gobenpark/trader/event"
+	"github.com/gobenpark/trader/position"
+)
 
 type Broker interface {
 	Buy(code string, size int64, price float64) string
@@ -12,4 +15,5 @@ type Broker interface {
 	SetFundHistory()
 	CommissionInfo()
 	SetCash(cash int64)
+	SetEventCh(ch chan<- event.Event)
 }

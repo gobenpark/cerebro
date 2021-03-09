@@ -46,6 +46,7 @@ func (b *DefaultBroker) Buy(code string, size int64, price float64) string {
 	}
 	b.orders[o.UUID] = o
 	b.transmit(o)
+	b.event <- event.Event{UUID: uuid.NewV4().String()}
 	return uid
 }
 
@@ -61,7 +62,11 @@ func (b *DefaultBroker) Sell(code string, size int64, price float64) string {
 	}
 	b.orders[o.UUID] = o
 	b.transmit(o)
+
 	return uid
+}
+func (b *DefaultBroker) SetEventCh(ch chan<- event.Event) {
+	b.event = ch
 }
 
 func (b *DefaultBroker) Cancel(uid string) {

@@ -1,10 +1,12 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"runtime"
 	"time"
 
+	"github.com/gobenpark/proto/stock"
 	"github.com/gobenpark/trader/broker"
 	"github.com/gobenpark/trader/cerebro"
 	"github.com/gobenpark/trader/feeds"
@@ -24,11 +26,18 @@ func main() {
 	bk := broker.NewBroker(100000, 0.005)
 	cb := cerebro.NewCerebro(bk)
 
-	feed := feeds.NewUpbitFeed()
+	cli, err := stock.NewSocketClient(context.Background(), "localhost:50051")
+	if err != nil {
+		panic(err)
+	}
+
+	feed := feeds.NewUpbitFeed("KRW-BTC", cli)
 	cb.AddData(feed)
-	smart := &strategy.Bighands{}
+	smart := &strategy.Bighands{
+		Broker: bk,
+	}
 	cb.AddStrategy(smart)
-	err := cb.Start()
+	err = cb.Start()
 	if err != nil {
 		panic(err)
 	}

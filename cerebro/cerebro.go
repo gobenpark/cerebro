@@ -4,6 +4,7 @@ package cerebro
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"time"
 
@@ -11,7 +12,6 @@ import (
 	"github.com/gobenpark/trader/domain"
 	"github.com/gobenpark/trader/event"
 	"github.com/gobenpark/trader/order"
-	"github.com/gobenpark/trader/strategy"
 	"github.com/rs/zerolog"
 )
 
@@ -23,12 +23,10 @@ type Cerebroker interface {
 	Stop() error
 
 	//add strategy into cerebro
-	AddStrategy(strategy.Strategy)
+	AddStrategy(domain.Strategy)
 
 	//AddData add data feed
 	AddData(feed domain.Feed)
-
-	Resample()
 }
 
 type cerebro struct {
@@ -41,7 +39,7 @@ type cerebro struct {
 
 	Cancel context.CancelFunc `json:"cancel" validate:"required"`
 
-	Strategies []strategy.Strategy `json:"strategis" validate:"gte=1,dive,required"`
+	Strategies []domain.Strategy `json:"strategis" validate:"gte=1,dive,required"`
 
 	Feeds []domain.Feed
 
@@ -61,7 +59,7 @@ func NewCerebro(broker domain.Broker) Cerebroker {
 		Ctx:    ctx,
 		Cancel: cancel,
 		Log:    logger,
-		event:  make(chan event.Event),
+		event:  make(chan event.Event, 1),
 		order:  make(chan order.Order),
 	}
 }
@@ -70,13 +68,13 @@ func (c *cerebro) AddData(feed domain.Feed) {
 	c.Feeds = append(c.Feeds, feed)
 }
 
-func (c *cerebro) AddStrategy(st strategy.Strategy) {
+func (c *cerebro) AddStrategy(st domain.Strategy) {
 	c.Strategies = append(c.Strategies, st)
 }
 
 func (c *cerebro) startFeeds() {
 	for _, f := range c.Feeds {
-		f.Start(true, true)
+		f.Start(true, true, c.Strategies)
 	}
 }
 
@@ -87,23 +85,16 @@ func (c *cerebro) Start() error {
 		return err
 	}
 
-	c.Log.Info().Msg("Cerebro start...")
 	ech := []chan event.Event{}
-	for _, i := range c.Strategies {
-		ch := make(chan event.Event)
-		go i.Start(c.Ctx, ch)
-		ech = append(ech, ch)
-	}
-
-	c.startFeeds()
-
 	go func() {
 	Done:
 		for {
 			select {
 			case <-c.Ctx.Done():
+				c.Log.Info().Msg("done")
 				break Done
 			case e, ok := <-c.event:
+				fmt.Println(e)
 				if ok {
 					for _, i := range ech {
 						i <- e
@@ -113,13 +104,21 @@ func (c *cerebro) Start() error {
 		}
 	}()
 
+	c.Broker.SetEventCh(c.event)
+	c.Log.Info().Msg("Cerebro start...")
+
+	for _, i := range c.Strategies {
+		ch := make(chan event.Event)
+		go i.Start(c.Ctx, ch)
+		ech = append(ech, ch)
+	}
+
+	c.startFeeds()
+
 	return nil
 }
 
 func (c *cerebro) Stop() error {
 	c.Cancel()
 	return nil
-}
-
-func (c *cerebro) Resample() {
 }

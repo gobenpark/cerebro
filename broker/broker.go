@@ -22,18 +22,6 @@ type DefaultBroker struct {
 	positions  map[string]position.Position
 }
 
-func (b *DefaultBroker) AddOrderHistory() {
-	panic("implement me")
-}
-
-func (b *DefaultBroker) SetFundHistory() {
-	panic("implement me")
-}
-
-func (b *DefaultBroker) CommissionInfo() {
-	panic("implement me")
-}
-
 //NewBroker Init new broker with cash,commission
 func NewBroker(cash int64, commission float32) *DefaultBroker {
 
@@ -107,4 +95,16 @@ func (b *DefaultBroker) SetCash(cash int64) {
 
 func (b *DefaultBroker) transmit(o *order.Order) {
 	//TODO: Order create
+}
+
+func (b *DefaultBroker) AddOrderHistory() {
+	panic("implement me")
+}
+
+func (b *DefaultBroker) SetFundHistory() {
+	panic("implement me")
+}
+
+func (b *DefaultBroker) CommissionInfo() {
+	panic("implement me")
 }

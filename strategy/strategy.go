@@ -17,8 +17,8 @@ type Strategy interface {
 	NotifyCashValue()
 	NotifyFund()
 	Start(ctx context.Context, event chan event.Event)
-	Buy()
-	Sell()
+	Buy(code string, size int64, price float64)
+	Sell(code string, size int64, price float64)
 }
 
 type DefaultStrategy struct {

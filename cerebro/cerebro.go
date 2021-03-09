@@ -10,9 +10,7 @@ import (
 	"github.com/go-playground/validator/v10"
 	"github.com/gobenpark/trader/domain"
 	"github.com/gobenpark/trader/event"
-	"github.com/gobenpark/trader/feeds"
 	"github.com/gobenpark/trader/order"
-	"github.com/gobenpark/trader/store/model"
 	"github.com/gobenpark/trader/strategy"
 	"github.com/rs/zerolog"
 )
@@ -26,6 +24,9 @@ type Cerebroker interface {
 
 	//add strategy into cerebro
 	AddStrategy(strategy.Strategy)
+
+	//AddData add data feed
+	AddData(feed domain.Feed)
 
 	Resample()
 }
@@ -42,12 +43,12 @@ type cerebro struct {
 
 	Strategies []strategy.Strategy `json:"strategis" validate:"gte=1,dive,required"`
 
-	Feeds []feeds.DefaultFeed
+	Feeds []domain.Feed
 
-	ChartData chan model.Chart
-	Log       zerolog.Logger `json:"log" validate:"required"`
+	Log zerolog.Logger `json:"log" validate:"required"`
 
 	event chan event.Event
+
 	order chan order.Order
 }
 
@@ -56,14 +57,17 @@ func NewCerebro(broker domain.Broker) Cerebroker {
 		With().Timestamp().Str("logger", "cerebro").Logger()
 	ctx, cancel := context.WithCancel(context.Background())
 	return &cerebro{
-		Broker:    broker,
-		Ctx:       ctx,
-		Cancel:    cancel,
-		ChartData: make(chan model.Chart, 1000),
-		Log:       logger,
-		event:     make(chan event.Event),
-		order:     make(chan order.Order),
+		Broker: broker,
+		Ctx:    ctx,
+		Cancel: cancel,
+		Log:    logger,
+		event:  make(chan event.Event),
+		order:  make(chan order.Order),
 	}
+}
+
+func (c *cerebro) AddData(feed domain.Feed) {
+	c.Feeds = append(c.Feeds, feed)
 }
 
 func (c *cerebro) AddStrategy(st strategy.Strategy) {
@@ -71,7 +75,9 @@ func (c *cerebro) AddStrategy(st strategy.Strategy) {
 }
 
 func (c *cerebro) startFeeds() {
-
+	for _, f := range c.Feeds {
+		f.Start(true, true)
+	}
 }
 
 func (c *cerebro) Start() error {
@@ -88,6 +94,8 @@ func (c *cerebro) Start() error {
 		go i.Start(c.Ctx, ch)
 		ech = append(ech, ch)
 	}
+
+	c.startFeeds()
 
 	go func() {
 	Done:

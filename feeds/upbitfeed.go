@@ -2,27 +2,21 @@ package feeds
 
 import (
 	"fmt"
-	"time"
 
 	"github.com/gobenpark/trader/domain"
 	"github.com/looplab/fsm"
+	"github.com/rs/zerolog/log"
 )
 
-const (
-	HISTORYBACK = "history_back"
-	LIVE        = "live"
-	LOAD        = "load"
-	IDLE        = "idle"
-)
-
-type DefaultFeed struct {
-	Data map[string]map[time.Duration][]domain.Candle `json:"data"`
+type UpbitFeed struct {
+	DefaultFeed
 	fsm  *fsm.FSM
+	Code string
 }
 
-func NewFeed() *DefaultFeed {
-	d := &DefaultFeed{
-		Data: map[string]map[time.Duration][]domain.Candle{},
+func NewUpbitFeed(code string) domain.Feed {
+	d := &UpbitFeed{
+		Code: code,
 	}
 	d.fsm = fsm.NewFSM(
 		IDLE,
@@ -49,28 +43,22 @@ func NewFeed() *DefaultFeed {
 	return d
 }
 
-func (d *DefaultFeed) HistoryLoading(e *fsm.Event) {
-}
-
-func (*DefaultFeed) stateStart(e *fsm.Event) {
-	fmt.Printf("state change from %s to %s\n", e.Src, e.Dst)
-}
-
-func (d *DefaultFeed) Start(history, isLive bool) {
-}
-
-func (*DefaultFeed) Stop() {
+func (u *UpbitFeed) HistoryLoading(e *fsm.Event) {
 
 }
 
-func (d *DefaultFeed) Load() {
+func (u *UpbitFeed) Start(history, isLive bool) {
+	if history {
+		u.fsm.Event("history")
+		if err := u.fsm.Event("historyloading"); err != nil {
+			log.Err(err).Send()
+		}
+		u.fsm.Event("finish")
+	}
 
-}
-
-func (d *DefaultFeed) loadTick(e *fsm.Event) {
-
-}
-
-func (d *DefaultFeed) loadCandle() {
-
+	if isLive {
+		u.fsm.Event("readylive")
+		u.fsm.Event("liveloading")
+		u.fsm.Event("finish")
+	}
 }

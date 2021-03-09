@@ -38,6 +38,7 @@ const (
 
 type Order struct {
 	Status
+	Code       string        `json:"code"`
 	UUID       string        `json:"uuid"`
 	Broker     domain.Broker `json:"broker"`
 	OrderType  OType         `json:"orderType"`

@@ -1,8 +1,8 @@
 package strategy
 
-type bighands struct {
+type Bighands struct {
 	DefaultStrategy
 }
 
-func (b *bighands) Next() {
+func (b *Bighands) Next() {
 }

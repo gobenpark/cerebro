@@ -2,10 +2,10 @@
 package broker
 
 import (
+	"fmt"
 	"sync"
 	"sync/atomic"
 
-	"github.com/gobenpark/trader/domain"
 	"github.com/gobenpark/trader/event"
 	"github.com/gobenpark/trader/order"
 	"github.com/gobenpark/trader/position"
@@ -13,6 +13,7 @@ import (
 )
 
 type DefaultBroker struct {
+	sync.RWMutex
 	cash       int64
 	commission float32
 	orders     map[string]*order.Order
@@ -34,7 +35,7 @@ func (b *DefaultBroker) CommissionInfo() {
 }
 
 //NewBroker Init new broker with cash,commission
-func NewBroker(cash int64, commission float32) domain.Broker {
+func NewBroker(cash int64, commission float32) *DefaultBroker {
 
 	return &DefaultBroker{
 		cash:       cash,
@@ -44,9 +45,10 @@ func NewBroker(cash int64, commission float32) domain.Broker {
 	}
 }
 
-func (b *DefaultBroker) Buy(size int64, price float64) {
+func (b *DefaultBroker) Buy(code string, size int64, price float64) string {
 	uid := uuid.NewV4().String()
 	o := &order.Order{
+		Code:      code,
 		UUID:      uid,
 		Status:    order.Submitted,
 		OrderType: order.Buy,
@@ -55,12 +57,14 @@ func (b *DefaultBroker) Buy(size int64, price float64) {
 		Broker:    b,
 	}
 	b.orders[o.UUID] = o
-	b.Submit(o.UUID)
+	b.transmit(o)
+	return uid
 }
 
-func (b *DefaultBroker) Sell(size int64, price float64) {
+func (b *DefaultBroker) Sell(code string, size int64, price float64) string {
 	uid := uuid.NewV4().String()
 	o := &order.Order{
+		Code:      code,
 		UUID:      uid,
 		OrderType: order.Sell,
 		Size:      size,
@@ -68,7 +72,8 @@ func (b *DefaultBroker) Sell(size int64, price float64) {
 		Broker:    b,
 	}
 	b.orders[o.UUID] = o
-	b.Submit(o.UUID)
+	b.transmit(o)
+	return uid
 }
 
 func (b *DefaultBroker) Cancel(uid string) {
@@ -89,10 +94,17 @@ func (b *DefaultBroker) Submit(uid string) {
 	}
 }
 
-func (b *DefaultBroker) GetPosition() {
-	panic("implement me")
+func (b *DefaultBroker) GetPosition(code string) (position.Position, error) {
+	if p, ok := b.positions[code]; ok {
+		return p, nil
+	}
+	return position.Position{}, fmt.Errorf("not exist code %s", code)
 }
 
 func (b *DefaultBroker) SetCash(cash int64) {
 	atomic.StoreInt64(&b.cash, cash)
+}
+
+func (b *DefaultBroker) transmit(o *order.Order) {
+	//TODO: Order create
 }

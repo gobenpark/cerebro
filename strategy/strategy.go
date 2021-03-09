@@ -3,7 +3,7 @@ package strategy
 import (
 	"context"
 
-	"github.com/gobenpark/trader/broker"
+	"github.com/gobenpark/trader/domain"
 	"github.com/gobenpark/trader/event"
 )
 
@@ -22,7 +22,7 @@ type Strategy interface {
 }
 
 type DefaultStrategy struct {
-	Broker broker.Broker
+	Broker domain.Broker
 }
 
 func (s *DefaultStrategy) Next() {
@@ -54,4 +54,11 @@ func (s *DefaultStrategy) Start(ctx context.Context, event chan event.Event) {
 
 		}
 	}
+}
+
+func (s *DefaultStrategy) Buy(code string, size int64, price float64) {
+	s.Broker.Buy(code, size, price)
+}
+func (s *DefaultStrategy) Sell(code string, size int64, price float64) {
+	s.Broker.Sell(code, size, price)
 }

@@ -10,8 +10,8 @@ import (
 	"github.com/go-playground/validator/v10"
 	"github.com/gobenpark/trader/domain"
 	"github.com/gobenpark/trader/event"
+	"github.com/gobenpark/trader/feeds"
 	"github.com/gobenpark/trader/order"
-	"github.com/gobenpark/trader/store"
 	"github.com/gobenpark/trader/store/model"
 	"github.com/gobenpark/trader/strategy"
 	"github.com/rs/zerolog"
@@ -24,9 +24,6 @@ type Cerebroker interface {
 	//stop cerebro and other
 	Stop() error
 
-	// add store into cerebro
-	AddStore(store.Storer)
-
 	//add strategy into cerebro
 	AddStrategy(strategy.Strategy)
 
@@ -37,23 +34,29 @@ type cerebro struct {
 	//isLive flog of live trading
 	isLive bool
 
-	Broker     domain.Broker       `json:"broker" validate:"required"`
-	Stores     []store.Storer      `json:"store" validate:"gte=1,dive,required"`
-	Ctx        context.Context     `json:"ctx" validate:"required"`
-	Cancel     context.CancelFunc  `json:"cancel" validate:"required"`
+	Broker domain.Broker `json:"broker" validate:"required"`
+
+	Ctx context.Context `json:"ctx" validate:"required"`
+
+	Cancel context.CancelFunc `json:"cancel" validate:"required"`
+
 	Strategies []strategy.Strategy `json:"strategis" validate:"gte=1,dive,required"`
-	ChartData  chan model.Chart
-	Log        zerolog.Logger `json:"log" validate:"required"`
-	event      chan event.Event
-	order      chan order.Order
+
+	Feeds []feeds.DefaultFeed
+
+	ChartData chan model.Chart
+	Log       zerolog.Logger `json:"log" validate:"required"`
+
+	event chan event.Event
+	order chan order.Order
 }
 
 func NewCerebro(broker domain.Broker) Cerebroker {
-	logger := zerolog.New(zerolog.ConsoleWriter{Out: os.Stdout, TimeFormat: time.RFC3339})
+	logger := zerolog.New(zerolog.ConsoleWriter{Out: os.Stdout, TimeFormat: time.RFC3339}).
+		With().Timestamp().Str("logger", "cerebro").Logger()
 	ctx, cancel := context.WithCancel(context.Background())
 	return &cerebro{
 		Broker:    broker,
-		Stores:    []store.Storer{},
 		Ctx:       ctx,
 		Cancel:    cancel,
 		ChartData: make(chan model.Chart, 1000),
@@ -65,6 +68,10 @@ func NewCerebro(broker domain.Broker) Cerebroker {
 
 func (c *cerebro) AddStrategy(st strategy.Strategy) {
 	c.Strategies = append(c.Strategies, st)
+}
+
+func (c *cerebro) startFeeds() {
+
 }
 
 func (c *cerebro) Start() error {
@@ -99,10 +106,6 @@ func (c *cerebro) Start() error {
 	}()
 
 	return nil
-}
-
-func (c *cerebro) AddStore(store store.Storer) {
-	c.Stores = append(c.Stores, store)
 }
 
 func (c *cerebro) Stop() error {

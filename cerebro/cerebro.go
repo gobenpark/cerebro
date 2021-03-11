@@ -24,15 +24,15 @@ type Cerebro struct {
 	isLive bool
 
 	//Broker buy, sell and manage order
-	Broker domain.Broker `json:"broker" validate:"required"`
+	broker domain.Broker `json:"broker" validate:"required"`
 
 	Ctx context.Context `json:"ctx" validate:"required"`
 
 	Cancel context.CancelFunc `json:"cancel" validate:"required"`
-	//Strategies
-	Strategies []domain.Strategy `json:"strategis" validate:"gte=1,dive,required"`
+	//strategies
+	strategies []domain.Strategy `json:"strategis" validate:"gte=1,dive,required"`
 
-	Store domain.Store
+	store domain.Store
 
 	//Feeds
 	Feeds []domain.Feed
@@ -67,8 +67,8 @@ func NewCerebro(opts ...CerebroOption) *Cerebro {
 
 func (c *Cerebro) startFeeds() {
 	for _, f := range c.Feeds {
-		f.AddStore(c.Store)
-		f.Start(true, true, c.Strategies)
+		f.AddStore(c.store)
+		f.Start(true, true, c.strategies)
 	}
 }
 
@@ -101,10 +101,10 @@ func (c *Cerebro) Start() error {
 		}
 	}()
 
-	c.Broker.SetEventCh(c.event)
+	c.broker.SetEventCh(c.event)
 	c.log.Info().Msg("Cerebro start...")
 
-	for _, i := range c.Strategies {
+	for _, i := range c.strategies {
 		ch := make(chan event.Event)
 		go i.Start(c.Ctx, ch)
 		ech = append(ech, ch)

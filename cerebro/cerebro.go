@@ -37,7 +37,7 @@ type Cerebro struct {
 	//Feeds
 	Feeds []domain.Feed
 
-	Log zerolog.Logger `json:"log" validate:"required"`
+	log zerolog.Logger `json:"log" validate:"required"`
 
 	//event channel of all event
 	event chan event.Event
@@ -53,7 +53,7 @@ func NewCerebro(opts ...CerebroOption) *Cerebro {
 	c := &Cerebro{
 		Ctx:    ctx,
 		Cancel: cancel,
-		Log:    logger,
+		log:    logger,
 		event:  make(chan event.Event, 1),
 		order:  make(chan order.Order),
 	}
@@ -78,7 +78,7 @@ func (c *Cerebro) Start() error {
 
 	validate := validator.New()
 	if err := validate.Struct(c); err != nil {
-		c.Log.Err(err).Send()
+		c.log.Err(err).Send()
 		return err
 	}
 
@@ -88,7 +88,7 @@ func (c *Cerebro) Start() error {
 		for {
 			select {
 			case <-c.Ctx.Done():
-				c.Log.Info().Msg("done")
+				c.log.Info().Msg("done")
 				break Done
 			case e, ok := <-c.event:
 				fmt.Println(e)
@@ -102,7 +102,7 @@ func (c *Cerebro) Start() error {
 	}()
 
 	c.Broker.SetEventCh(c.event)
-	c.Log.Info().Msg("Cerebro start...")
+	c.log.Info().Msg("Cerebro start...")
 
 	for _, i := range c.Strategies {
 		ch := make(chan event.Event)

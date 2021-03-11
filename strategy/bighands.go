@@ -14,7 +14,7 @@ type Bighands struct {
 }
 
 func (b *Bighands) Next(data map[string]map[time.Duration][]domain.Candle) {
-	b.Broker.Buy("KRW", 10, 1000)
+	//b.Broker.Buy("KRW", 10, 1000)
 	fmt.Println("next")
 }
 

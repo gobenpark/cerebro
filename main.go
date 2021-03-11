@@ -1,45 +1,40 @@
 package main
 
 import (
-	"context"
 	"fmt"
 	"runtime"
 	"time"
 
-	"github.com/gobenpark/proto/stock"
 	"github.com/gobenpark/trader/broker"
 	"github.com/gobenpark/trader/cerebro"
 	"github.com/gobenpark/trader/feeds"
+	store2 "github.com/gobenpark/trader/store"
 	"github.com/gobenpark/trader/strategy"
 )
 
 func main() {
-
 	go func() {
 		for {
 			time.Sleep(1 * time.Second)
 			fmt.Println(runtime.NumGoroutine())
 		}
 	}()
-	ch := make(chan bool)
-
 	bk := broker.NewBroker(100000, 0.005)
-	cb := cerebro.NewCerebro(bk)
+	store := store2.NewStore()
 
-	cli, err := stock.NewSocketClient(context.Background(), "localhost:50051")
-	if err != nil {
-		panic(err)
-	}
-
-	feed := feeds.NewUpbitFeed("KRW-BTC", cli)
-	cb.AddData(feed)
+	feed := feeds.NewFeed("KRW-BTC", store)
 	smart := &strategy.Bighands{
 		Broker: bk,
 	}
-	cb.AddStrategy(smart)
-	err = cb.Start()
+	cb := cerebro.NewCerebro(
+		cerebro.WithBroker(bk),
+		cerebro.WithStore(store),
+		cerebro.WithFeed(feed),
+		cerebro.WithStrategy(smart),
+	)
+
+	err := cb.Start()
 	if err != nil {
 		panic(err)
 	}
-	<-ch
 }

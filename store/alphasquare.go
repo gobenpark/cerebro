@@ -21,7 +21,7 @@ type AlpaSquare struct {
 	charts chan model.Chart
 }
 
-func NewAlpaSquareStore() Storer {
+func NewAlpaSquareStore() *AlpaSquare {
 	return &AlpaSquare{charts: make(chan model.Chart, 1000)}
 }
 

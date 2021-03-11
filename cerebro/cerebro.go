@@ -6,6 +6,8 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"os/signal"
+	"syscall"
 	"time"
 
 	"github.com/go-playground/validator/v10"
@@ -15,70 +17,65 @@ import (
 	"github.com/rs/zerolog"
 )
 
-type Cerebroker interface {
-	// start cerebro trading
-	Start() error
+type CerebroOption func(*Cerebro)
 
-	//stop cerebro and other
-	Stop() error
-
-	//add strategy into cerebro
-	AddStrategy(domain.Strategy)
-
-	//AddData add data feed
-	AddData(feed domain.Feed)
-}
-
-type cerebro struct {
+type Cerebro struct {
 	//isLive flog of live trading
 	isLive bool
 
+	//Broker buy, sell and manage order
 	Broker domain.Broker `json:"broker" validate:"required"`
 
 	Ctx context.Context `json:"ctx" validate:"required"`
 
 	Cancel context.CancelFunc `json:"cancel" validate:"required"`
-
+	//Strategies
 	Strategies []domain.Strategy `json:"strategis" validate:"gte=1,dive,required"`
 
+	Store domain.Store
+
+	//Feeds
 	Feeds []domain.Feed
 
 	Log zerolog.Logger `json:"log" validate:"required"`
 
+	//event channel of all event
 	event chan event.Event
 
 	order chan order.Order
 }
 
-func NewCerebro(broker domain.Broker) Cerebroker {
+func NewCerebro(opts ...CerebroOption) *Cerebro {
 	logger := zerolog.New(zerolog.ConsoleWriter{Out: os.Stdout, TimeFormat: time.RFC3339}).
 		With().Timestamp().Str("logger", "cerebro").Logger()
 	ctx, cancel := context.WithCancel(context.Background())
-	return &cerebro{
-		Broker: broker,
+
+	c := &Cerebro{
 		Ctx:    ctx,
 		Cancel: cancel,
 		Log:    logger,
 		event:  make(chan event.Event, 1),
 		order:  make(chan order.Order),
 	}
+
+	for _, opt := range opts {
+		opt(c)
+	}
+
+	return c
 }
 
-func (c *cerebro) AddData(feed domain.Feed) {
-	c.Feeds = append(c.Feeds, feed)
-}
-
-func (c *cerebro) AddStrategy(st domain.Strategy) {
-	c.Strategies = append(c.Strategies, st)
-}
-
-func (c *cerebro) startFeeds() {
+func (c *Cerebro) startFeeds() {
 	for _, f := range c.Feeds {
+		f.AddStore(c.Store)
 		f.Start(true, true, c.Strategies)
 	}
 }
 
-func (c *cerebro) Start() error {
+func (c *Cerebro) Start() error {
+	ch := make(chan os.Signal)
+	signal.Notify(ch, syscall.SIGTERM, syscall.SIGKILL)
+
 	validate := validator.New()
 	if err := validate.Struct(c); err != nil {
 		c.Log.Err(err).Send()
@@ -114,11 +111,11 @@ func (c *cerebro) Start() error {
 	}
 
 	c.startFeeds()
-
+	<-ch
 	return nil
 }
 
-func (c *cerebro) Stop() error {
+func (c *Cerebro) Stop() error {
 	c.Cancel()
 	return nil
 }

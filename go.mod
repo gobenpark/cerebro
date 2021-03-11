@@ -6,6 +6,7 @@ require (
 	github.com/go-echarts/go-echarts/v2 v2.2.3
 	github.com/go-playground/validator/v10 v10.3.0
 	github.com/gobenpark/proto v0.0.0-20210303032736-d6994a3fc7fd
+	github.com/gogo/protobuf v1.3.2
 	github.com/golang/mock v1.4.4
 	github.com/gorilla/websocket v1.4.2
 	github.com/looplab/fsm v0.2.0

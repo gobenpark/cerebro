@@ -42,3 +42,9 @@ func WithResample(level time.Duration) CerebroOption {
 		c.compress = level
 	}
 }
+
+func WithPreload(b bool) CerebroOption {
+	return func(c *Cerebro) {
+		c.preload = b
+	}
+}

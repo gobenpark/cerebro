@@ -3,16 +3,53 @@ package util
 import (
 	"encoding/csv"
 	"fmt"
-	"github.com/go-echarts/go-echarts/v2/charts"
-	"github.com/go-echarts/go-echarts/v2/opts"
-	"github.com/gobenpark/trader/store/model"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 	"os"
+	"reflect"
 	"strconv"
 	"testing"
 	"time"
+
+	"github.com/gobenpark/trader/domain"
+	"github.com/gobenpark/trader/store/model"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
+
+func Compression(tick <-chan domain.Tick, level time.Duration) <-chan domain.Candle {
+	ch := make(chan domain.Candle, 1)
+	go func() {
+		defer close(ch)
+		c := domain.Candle{}
+		for t := range tick {
+			if c.Date.Equal(time.Time{}) || t.Date.After(c.Date) {
+				if !reflect.DeepEqual(c, domain.Candle{}) {
+					ch <- c
+				}
+				rounded := t.Date.Round(level)
+				if t.Date.Sub(rounded) > 0 {
+					rounded = rounded.Add(level)
+				}
+
+				c.Date = rounded
+			}
+			c.Volume += t.Volume
+			c.Code = t.Code
+			c.Close = t.Price
+			if c.Open == 0 {
+				c.Open = t.Price
+			}
+
+			if c.High < t.Price {
+				c.High = t.Price
+			}
+
+			if c.Low == 0 || c.Low > t.Price {
+				c.Low = t.Price
+			}
+		}
+	}()
+	return ch
+}
 
 func MakeBar(bars *[]model.Chart, tick model.Tick) {
 	count := len(*bars)
@@ -123,14 +160,43 @@ func Test_Resampling(t *testing.T) {
 	}
 
 }
+func roundUpTime(t time.Time, roundOn time.Duration) time.Time {
+	t = t.Round(roundOn)
 
-func TestCharts(t *testing.T) {
-	line := charts.NewKLine()
-	line.SetGlobalOptions(charts.WithTitleOpts(opts.Title{
-		Title: "chart",
-	}))
+	if time.Since(t) >= 0 {
+		t = t.Add(roundOn)
+	}
 
-	da
-	line.SetXAxis()
+	return t
+}
 
+func TestTime(t *testing.T) {
+	f, err := os.Open("ticksample.csv")
+	require.NoError(t, err)
+	r := csv.NewReader(f)
+	data, err := r.ReadAll()
+	require.NoError(t, err)
+
+	ch := make(chan domain.Tick)
+	go func() {
+		for i := range Compression(ch, time.Minute) {
+			fmt.Printf("%#v\n", i)
+		}
+	}()
+	for _, i := range data[1:] {
+		ti, err := time.Parse("2006-01-02T15:04:05.999", i[0])
+		assert.NoError(t, err)
+		p, err := strconv.ParseFloat(i[4], 64)
+		assert.NoError(t, err)
+		v, err := strconv.ParseFloat(i[5], 64)
+		assert.NoError(t, err)
+
+		tick := domain.Tick{
+			Code:   "KRW-BTC",
+			Date:   ti,
+			Price:  p,
+			Volume: v,
+		}
+		ch <- tick
+	}
 }

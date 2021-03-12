@@ -4,7 +4,6 @@ package cerebro
 
 import (
 	"context"
-	"fmt"
 	"os"
 	"os/signal"
 	"syscall"
@@ -13,7 +12,9 @@ import (
 	"github.com/go-playground/validator/v10"
 	"github.com/gobenpark/trader/domain"
 	"github.com/gobenpark/trader/event"
+	"github.com/gobenpark/trader/feeds"
 	"github.com/gobenpark/trader/order"
+	"github.com/gobenpark/trader/strategy"
 	"github.com/rs/zerolog"
 )
 
@@ -22,7 +23,6 @@ type CerebroOption func(*Cerebro)
 type Cerebro struct {
 	//isLive flog of live trading
 	isLive bool
-
 	//Broker buy, sell and manage order
 	broker domain.Broker `json:"broker" validate:"required"`
 
@@ -33,18 +33,22 @@ type Cerebro struct {
 	strategies []domain.Strategy `json:"strategis" validate:"gte=1,dive,required"`
 
 	store domain.Store
-
 	//Feeds
 	Feeds []domain.Feed
 
-	log zerolog.Logger `json:"log" validate:"required"`
+	feeds.FeedEngine
 
+	sengine strategy.StrategyEngine
+
+	log zerolog.Logger `json:"log" validate:"required"`
 	//event channel of all event
 	event chan event.Event
 
 	order chan order.Order
 
 	compress time.Duration
+
+	preload bool
 }
 
 func NewCerebro(opts ...CerebroOption) *Cerebro {
@@ -57,7 +61,7 @@ func NewCerebro(opts ...CerebroOption) *Cerebro {
 		Cancel: cancel,
 		log:    logger,
 		event:  make(chan event.Event, 1),
-		order:  make(chan order.Order),
+		order:  make(chan order.Order, 1),
 	}
 
 	for _, opt := range opts {
@@ -67,10 +71,22 @@ func NewCerebro(opts ...CerebroOption) *Cerebro {
 	return c
 }
 
-func (c *Cerebro) startFeeds() {
-	for _, f := range c.Feeds {
-		f.AddStore(c.store)
-		f.Start(true, true, c.strategies)
+func (c *Cerebro) load() {
+	if c.preload {
+		cd, err := c.store.LoadHistory(c.Ctx, "")
+		if err != nil {
+			c.log.Err(err).Send()
+			return
+		}
+	}
+
+	if c.isLive {
+		ch, err := c.store.LoadTick(c.Ctx, "")
+		if err != nil {
+			c.log.Err(err).Send()
+			return
+		}
+		//Compression(ch,time.Minute * 3)
 	}
 }
 
@@ -83,36 +99,12 @@ func (c *Cerebro) Start() error {
 		c.log.Err(err).Send()
 		return err
 	}
-
-	ech := []chan event.Event{}
-	go func() {
-	Done:
-		for {
-			select {
-			case <-c.Ctx.Done():
-				c.log.Info().Msg("done")
-				break Done
-			case e, ok := <-c.event:
-				fmt.Println(e)
-				if ok {
-					for _, i := range ech {
-						i <- e
-					}
-				}
-			}
-		}
-	}()
-
-	c.broker.SetEventCh(c.event)
 	c.log.Info().Msg("Cerebro start...")
 
-	for _, i := range c.strategies {
-		ch := make(chan event.Event)
-		go i.Start(c.Ctx, ch)
-		ech = append(ech, ch)
-	}
+	c.load()
 
-	c.startFeeds()
+	c.sengine.Start(c.Ctx)
+	c.broker.SetEventCh(c.event)
 	<-ch
 	return nil
 }

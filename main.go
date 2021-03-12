@@ -31,6 +31,7 @@ func main() {
 		cerebro.WithStore(store),
 		cerebro.WithFeed(feed),
 		cerebro.WithStrategy(smart),
+		cerebro.WithResample(time.Minute*3),
 	)
 
 	err := cb.Start()

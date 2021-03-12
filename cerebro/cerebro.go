@@ -43,6 +43,8 @@ type Cerebro struct {
 	event chan event.Event
 
 	order chan order.Order
+
+	compress time.Duration
 }
 
 func NewCerebro(opts ...CerebroOption) *Cerebro {

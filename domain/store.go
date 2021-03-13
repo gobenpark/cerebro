@@ -1,3 +1,4 @@
+//go:generate mockgen -source=./store.go -destination=./mock/mock_store.go
 package domain
 
 import "context"

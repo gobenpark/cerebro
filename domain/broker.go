@@ -1,3 +1,4 @@
+//go:generate mockgen -source=./broker.go -destination=./mock/mock_broker.go
 package domain
 
 import (

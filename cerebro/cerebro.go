@@ -102,17 +102,7 @@ func (c *Cerebro) load() error {
 				}
 
 				for _, i := range candle {
-					cde := domain.Candle{
-						Code:   i.Code,
-						Low:    i.Low,
-						High:   i.High,
-						Open:   i.Open,
-						Close:  i.Close,
-						Volume: i.Volume,
-						Date:   i.Date,
-					}
-
-					c.container.Add(cde)
+					c.container.Add(i)
 				}
 				return nil
 			})
@@ -182,6 +172,7 @@ func (c *Cerebro) Start() error {
 	c.eventEngine.Start(c.Ctx)
 	c.registEvent()
 	c.log.Info().Msg("Cerebro start...")
+
 	c.strategyEngine.Broker = c.broker
 	c.strategyEngine.Start(c.Ctx, c.data, c.strategies)
 
@@ -191,7 +182,12 @@ func (c *Cerebro) Start() error {
 	}
 	c.log.Info().Msg("end load")
 
-	<-ch
+	select {
+	case <-c.Ctx.Done():
+		break
+	case <-ch:
+		break
+	}
 	return nil
 }
 

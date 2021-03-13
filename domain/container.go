@@ -1,3 +1,4 @@
+//go:generate mockgen -source=./container.go -destination=./mock/mock_container.go
 package domain
 
 type Container interface {

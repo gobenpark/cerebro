@@ -22,15 +22,21 @@ import (
 type Cerebro struct {
 	//isLive flog of live trading
 	isLive bool
+
 	//Broker buy, sell and manage order
 	broker domain.Broker `json:"broker" validate:"required"`
 
+	//Ctx cerebro global context
 	Ctx context.Context `json:"ctx" validate:"required"`
 
+	//Cancel cerebro global context cancel
 	Cancel context.CancelFunc `json:"cancel" validate:"required"`
+
 	//strategies
 	strategies []domain.Strategy `json:"strategis" validate:"gte=1,dive,required"`
 
+	//stores external api, etc
+	//store can inject into cerebro what external api or oher tick,candle buy,sell history data
 	stores []domain.Store
 	//Feeds
 	datacontainer.DataContainer
@@ -94,9 +100,6 @@ func (c *Cerebro) load() error {
 					if err := c.DataContainer.Add(cde); err != nil {
 						return err
 					}
-
-					// TODO: 보조 지표데이터를 추가로 저장해야됨 (계산포함)
-
 				}
 				return nil
 			})
@@ -125,6 +128,7 @@ func (c *Cerebro) load() error {
 
 		}
 
+		//TODO: tick데이터도 저장?
 		for _, i := range storeTicks {
 			go func(ch <-chan domain.Tick) {
 				for _, com := range c.compress {
@@ -141,8 +145,6 @@ func (c *Cerebro) load() error {
 		}
 
 		<-c.Ctx.Done()
-		//TODO: 라이브 틱 데이터를 데이터 container에 저장해야됨
-		// TODO: 라이브 데이터 틱 압축으로 보조지표 생성해서 저장해야됨
 
 		//Compression(ch,time.Minute * 3)
 	}

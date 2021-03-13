@@ -4,7 +4,8 @@
 This project was inspired by [backtrader](https://www.backtrader.com)
 
 python backtrader is a great project but it has disadvantage of python GIL 
-so i want solve by golang 
+so i want solve by golang
+
 
 ## Installation
 

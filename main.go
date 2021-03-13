@@ -24,10 +24,13 @@ func main() {
 	smart := &strategy.Bighands{
 		Broker: bk,
 	}
+	smart2 := &strategy.Bighands{
+		Broker: bk,
+	}
 	cb := cerebro.NewCerebro(
 		cerebro.WithBroker(bk),
 		cerebro.WithStore(store),
-		cerebro.WithStrategy(smart),
+		cerebro.WithStrategy(smart, smart2),
 		cerebro.WithResample("KRW-BTC", time.Minute),
 		cerebro.WithLive(true),
 		cerebro.WithPreload(true),

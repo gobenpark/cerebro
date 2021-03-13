@@ -12,6 +12,7 @@ type CerebroOption func(*Cerebro)
 func WithBroker(broker domain.Broker) CerebroOption {
 	return func(c *Cerebro) {
 		c.broker = broker
+		c.broker.SetEventBroadCaster(c.eventEngine)
 	}
 }
 

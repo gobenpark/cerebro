@@ -15,7 +15,6 @@ type Bighands struct {
 func (s *Bighands) Next(broker domain.Broker, container domain.Container) {
 	fmt.Println(container.Values("KRW-BTC")[0])
 	broker.Buy("KRW-BTC", 10, 1)
-
 }
 
 func (s *Bighands) NotifyOrder() {

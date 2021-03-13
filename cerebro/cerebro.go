@@ -41,8 +41,10 @@ type Cerebro struct {
 
 	container domain.Container
 
+	eventEngine *event.EventEngine
+
 	//strategy.StrategyEngine embedding property for managing user strategy
-	strategy.StrategyEngine
+	strategyEngine *strategy.StrategyEngine
 
 	//log in cerebro global logger
 	log zerolog.Logger `json:"log" validate:"required"`
@@ -57,6 +59,8 @@ type Cerebro struct {
 	preload bool
 
 	data chan domain.Container
+
+	events []chan event.Event
 }
 
 //NewCerebro generate new cerebro with cerebro option
@@ -72,10 +76,11 @@ func NewCerebro(opts ...CerebroOption) *Cerebro {
 		container: &datacontainer.DataContainer{
 			CandleData: make(map[string][]domain.Candle),
 		},
-		StrategyEngine: strategy.StrategyEngine{},
+		strategyEngine: &strategy.StrategyEngine{},
 		event:          make(chan event.Event, 1),
 		order:          make(chan order.Order, 1),
 		data:           make(chan domain.Container, 1),
+		eventEngine:    event.NewEventEngine(),
 	}
 
 	for _, opt := range opts {
@@ -156,6 +161,9 @@ func (c *Cerebro) load() error {
 	}
 	return nil
 }
+func (c *Cerebro) registEvent() {
+	c.eventEngine.Register <- c.strategyEngine
+}
 
 //Start run cerebro
 // first check cerebro validation
@@ -170,10 +178,12 @@ func (c *Cerebro) Start() error {
 		c.log.Err(err).Send()
 		return err
 	}
+
+	c.eventEngine.Start(c.Ctx)
+	c.registEvent()
 	c.log.Info().Msg("Cerebro start...")
-	c.StrategyEngine.Broker = c.broker
-	c.StrategyEngine.Start(c.Ctx, c.data, c.strategies)
-	c.broker.SetEventCh(c.event)
+	c.strategyEngine.Broker = c.broker
+	c.strategyEngine.Start(c.Ctx, c.data, c.strategies)
 
 	c.log.Info().Msg("startload")
 	if err := c.load(); err != nil {

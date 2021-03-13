@@ -13,16 +13,7 @@ type StrategyEngine struct {
 	domain.Broker
 }
 
-func (s *StrategyEngine) eventListener() {
-	go func() {
-		for e := range s.E {
-			fmt.Println(e)
-		}
-	}()
-}
-
 func (s *StrategyEngine) Start(ctx context.Context, data chan domain.Container, sts []domain.Strategy) {
-	s.eventListener()
 	go func() {
 		for i := range data {
 			for _, strategy := range sts {
@@ -30,4 +21,8 @@ func (s *StrategyEngine) Start(ctx context.Context, data chan domain.Container, 
 			}
 		}
 	}()
+}
+
+func (s *StrategyEngine) Listen(e event.Event) {
+	fmt.Println(e)
 }

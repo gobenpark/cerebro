@@ -14,12 +14,12 @@ import (
 
 type DefaultBroker struct {
 	sync.RWMutex
-	cash       int64
-	commission float32
-	orders     map[string]*order.Order
-	mu         sync.Mutex
-	event      chan<- event.Event
-	positions  map[string]position.Position
+	cash        int64
+	commission  float32
+	orders      map[string]*order.Order
+	mu          sync.Mutex
+	eventEngine event.EventBroadcaster
+	positions   map[string]position.Position
 }
 
 //NewBroker Init new broker with cash,commission
@@ -46,7 +46,7 @@ func (b *DefaultBroker) Buy(code string, size int64, price float64) string {
 	}
 	b.orders[o.UUID] = o
 	b.transmit(o)
-	b.event <- event.Event{UUID: uuid.NewV4().String()}
+	b.eventEngine.BroadCast(event.OrderSubmit())
 	return uid
 }
 
@@ -65,24 +65,21 @@ func (b *DefaultBroker) Sell(code string, size int64, price float64) string {
 
 	return uid
 }
-func (b *DefaultBroker) SetEventCh(ch chan<- event.Event) {
-	b.event = ch
-}
 
 func (b *DefaultBroker) Cancel(uid string) {
 	if o, ok := b.orders[uid]; ok {
 		o.Cancel()
 		//TODO: fix cancel event send
-		b.event <- event.Event{UUID: uuid.NewV4().String()}
+		b.eventEngine.BroadCast(event.Event{UUID: uuid.NewV4().String()})
 		return
 	}
-	b.event <- event.Event{UUID: uuid.NewV4().String()}
+	b.eventEngine.BroadCast(event.Event{UUID: uuid.NewV4().String()})
 }
 
 func (b *DefaultBroker) Submit(uid string) {
 	if ord, ok := b.orders[uid]; ok {
 		ord.Submit()
-		b.event <- event.Event{UUID: uuid.NewV4().String()}
+		b.eventEngine.BroadCast(event.Event{UUID: uuid.NewV4().String()})
 		return
 	}
 }
@@ -112,4 +109,8 @@ func (b *DefaultBroker) SetFundHistory() {
 
 func (b *DefaultBroker) CommissionInfo() {
 	panic("implement me")
+}
+
+func (b *DefaultBroker) SetEventBroadCaster(e event.EventBroadcaster) {
+	b.eventEngine = e
 }

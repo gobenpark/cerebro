@@ -15,5 +15,5 @@ type Broker interface {
 	SetFundHistory()
 	CommissionInfo()
 	SetCash(cash int64)
-	SetEventCh(ch chan<- event.Event)
+	SetEventBroadCaster(e event.EventBroadcaster)
 }

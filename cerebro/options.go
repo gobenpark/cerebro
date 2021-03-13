@@ -7,6 +7,8 @@ import (
 	"github.com/rs/zerolog"
 )
 
+type CerebroOption func(*Cerebro)
+
 func WithBroker(broker domain.Broker) CerebroOption {
 	return func(c *Cerebro) {
 		c.broker = broker
@@ -19,15 +21,15 @@ func WithStrategy(strategy ...domain.Strategy) CerebroOption {
 	}
 }
 
-func WithStore(store domain.Store) CerebroOption {
+func WithStore(stores ...domain.Store) CerebroOption {
 	return func(c *Cerebro) {
-		c.store = store
+		c.stores = append(c.stores, stores...)
 	}
 }
 
 func WithFeed(feed ...domain.Feed) CerebroOption {
 	return func(c *Cerebro) {
-		c.Feeds = feed
+		//c.Feeds = feed
 	}
 }
 
@@ -37,9 +39,18 @@ func WithLogLevel(level zerolog.Level) CerebroOption {
 	}
 }
 
-func WithResample(level time.Duration) CerebroOption {
+func WithLive(isLive bool) CerebroOption {
 	return func(c *Cerebro) {
-		c.compress = level
+		c.isLive = isLive
+	}
+}
+
+func WithResample(code string, level time.Duration) CerebroOption {
+	return func(c *Cerebro) {
+		c.compress = append(c.compress, CompressInfo{
+			code:  code,
+			level: level,
+		})
 	}
 }
 

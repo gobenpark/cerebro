@@ -12,21 +12,22 @@ import (
 )
 
 type store struct {
-	cli stock.StockClient
+	name string
+	cli  stock.StockClient
 }
 
-func NewStore() *store {
+func NewStore(name string) *store {
 	cli, err := stock.NewSocketClient(context.Background(), "localhost:50051")
 	if err != nil {
 		panic(err)
 	}
 
-	return &store{cli}
+	return &store{name, cli}
 }
 
-func (s *store) LoadHistory(ctx context.Context, code string) ([]domain.Candle, error) {
+func (s *store) LoadHistory(ctx context.Context) ([]domain.Candle, error) {
 	r, err := s.cli.Chart(context.Background(), &stock.ChartRequest{
-		Code: code,
+		Code: "KRW-BTC",
 		To:   nil,
 	})
 	if err != nil {
@@ -39,7 +40,7 @@ func (s *store) LoadHistory(ctx context.Context, code string) ([]domain.Candle, 
 			log.Err(err).Send()
 		}
 		d = append(d, domain.Candle{
-			Code:   code,
+			Code:   "KRW-BTC",
 			Low:    i.GetLow(),
 			High:   i.GetHigh(),
 			Open:   i.GetOpen(),
@@ -51,10 +52,10 @@ func (s *store) LoadHistory(ctx context.Context, code string) ([]domain.Candle, 
 	return d, nil
 }
 
-func (s *store) LoadTick(ctx context.Context, code string) (<-chan domain.Tick, error) {
+func (s *store) LoadTick(ctx context.Context) (<-chan domain.Tick, error) {
 	ch := make(chan domain.Tick, 1)
 
-	r, err := s.cli.TickStream(ctx, &stock.TickRequest{Codes: code})
+	r, err := s.cli.TickStream(ctx, &stock.TickRequest{Codes: "KRW-BTC"})
 	if err != nil {
 		return nil, err
 	}
@@ -74,7 +75,7 @@ func (s *store) LoadTick(ctx context.Context, code string) (<-chan domain.Tick, 
 					log.Err(err).Send()
 				}
 				tch <- domain.Tick{
-					Code:   code,
+					Code:   "KRW-BTC",
 					Date:   ti,
 					Price:  msg.GetPrice(),
 					Volume: msg.GetVolume(),

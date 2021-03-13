@@ -9,6 +9,5 @@ import (
 func TestFileext(t *testing.T) {
 	data := filepath.Ext("test.txt")
 	fmt.Println(data)
-	panic("data")
-
+	panic("datacontainer")
 }

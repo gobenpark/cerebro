@@ -58,7 +58,7 @@ func (a *AlpaSquare) day(ctx context.Context, code string) error {
 	}
 
 	var charts [][]interface{}
-	if err := json.Unmarshal(data["data"], &charts); err != nil {
+	if err := json.Unmarshal(data["datacontainer"], &charts); err != nil {
 		return err
 	}
 
@@ -132,7 +132,7 @@ func (a *AlpaSquare) TickStream(ctx context.Context) {
 				}
 
 				if result, ok := res[1].(map[string]interface{}); ok {
-					data := result["data"].(string)
+					data := result["datacontainer"].(string)
 					var tick model.Tick
 					err := json.Unmarshal([]byte(data), &tick)
 					if err != nil {

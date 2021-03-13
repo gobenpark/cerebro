@@ -2,13 +2,12 @@ package domain
 
 import (
 	"context"
-	"time"
 
 	"github.com/gobenpark/trader/event"
 )
 
 type Strategy interface {
-	Next(data map[string]map[time.Duration][]Candle)
+	Next()
 
 	NotifyOrder()
 	NotifyTrade()

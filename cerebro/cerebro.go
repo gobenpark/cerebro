@@ -10,15 +10,14 @@ import (
 	"time"
 
 	"github.com/go-playground/validator/v10"
+	"github.com/gobenpark/trader/datacontainer"
 	"github.com/gobenpark/trader/domain"
 	"github.com/gobenpark/trader/event"
-	"github.com/gobenpark/trader/feeds"
 	"github.com/gobenpark/trader/order"
 	"github.com/gobenpark/trader/strategy"
 	"github.com/rs/zerolog"
+	"golang.org/x/sync/errgroup"
 )
-
-type CerebroOption func(*Cerebro)
 
 type Cerebro struct {
 	//isLive flog of live trading
@@ -32,13 +31,11 @@ type Cerebro struct {
 	//strategies
 	strategies []domain.Strategy `json:"strategis" validate:"gte=1,dive,required"`
 
-	store domain.Store
+	stores []domain.Store
 	//Feeds
-	Feeds []domain.Feed
+	datacontainer.DataContainer
 
-	feeds.FeedEngine
-
-	sengine strategy.StrategyEngine
+	strategy.StrategyEngine
 
 	log zerolog.Logger `json:"log" validate:"required"`
 	//event channel of all event
@@ -46,7 +43,7 @@ type Cerebro struct {
 
 	order chan order.Order
 
-	compress time.Duration
+	compress []CompressInfo
 
 	preload bool
 }
@@ -57,11 +54,13 @@ func NewCerebro(opts ...CerebroOption) *Cerebro {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	c := &Cerebro{
-		Ctx:    ctx,
-		Cancel: cancel,
-		log:    logger,
-		event:  make(chan event.Event, 1),
-		order:  make(chan order.Order, 1),
+		Ctx:            ctx,
+		Cancel:         cancel,
+		log:            logger,
+		DataContainer:  datacontainer.DataContainer{},
+		StrategyEngine: strategy.StrategyEngine{},
+		event:          make(chan event.Event, 1),
+		order:          make(chan order.Order, 1),
 	}
 
 	for _, opt := range opts {
@@ -71,23 +70,83 @@ func NewCerebro(opts ...CerebroOption) *Cerebro {
 	return c
 }
 
-func (c *Cerebro) load() {
+func (c *Cerebro) load() error {
+	g, ctx := errgroup.WithContext(c.Ctx)
 	if c.preload {
-		cd, err := c.store.LoadHistory(c.Ctx, "")
-		if err != nil {
+		for _, i := range c.stores {
+			g.Go(func() error {
+				candle, err := i.LoadHistory(ctx)
+				if err != nil {
+					return err
+				}
+
+				for _, i := range candle {
+					cde := domain.Candle{
+						Code:   i.Code,
+						Low:    i.Low,
+						High:   i.High,
+						Open:   i.Open,
+						Close:  i.Close,
+						Volume: i.Volume,
+						Date:   i.Date,
+					}
+
+					if err := c.DataContainer.Add(cde); err != nil {
+						return err
+					}
+
+					// TODO: 보조 지표데이터를 추가로 저장해야됨 (계산포함)
+
+				}
+				return nil
+			})
+		}
+		if err := g.Wait(); err != nil {
 			c.log.Err(err).Send()
-			return
+			return err
 		}
 	}
-
 	if c.isLive {
-		ch, err := c.store.LoadTick(c.Ctx, "")
-		if err != nil {
-			c.log.Err(err).Send()
-			return
+		var storeTicks []<-chan domain.Tick
+		for _, i := range c.stores {
+			tick, err := i.LoadTick(c.Ctx)
+			if err != nil {
+				return err
+			}
+
+			ch := make(chan domain.Tick, 1)
+			storeTicks = append(storeTicks, ch)
+			go func(t <-chan domain.Tick, tch chan domain.Tick) {
+				defer close(tch)
+				for j := range t {
+					tch <- j
+				}
+			}(tick, ch)
+
 		}
+
+		for _, i := range storeTicks {
+			go func(ch <-chan domain.Tick) {
+				for _, com := range c.compress {
+					go func() {
+						for j := range Compression(ch, com.level) {
+							if err := c.DataContainer.Add(j); err != nil {
+								c.log.Err(err).Send()
+							}
+							c.log.Info().Str("code", j.Code).Interface("candle", j).Int("container length", c.DataContainer.Size()).Send()
+						}
+					}()
+				}
+			}(i)
+		}
+
+		<-c.Ctx.Done()
+		//TODO: 라이브 틱 데이터를 데이터 container에 저장해야됨
+		// TODO: 라이브 데이터 틱 압축으로 보조지표 생성해서 저장해야됨
+
 		//Compression(ch,time.Minute * 3)
 	}
+	return nil
 }
 
 func (c *Cerebro) Start() error {
@@ -101,9 +160,14 @@ func (c *Cerebro) Start() error {
 	}
 	c.log.Info().Msg("Cerebro start...")
 
-	c.load()
+	c.log.Info().Msg("startload")
+	if err := c.load(); err != nil {
+		return err
+	}
+	c.log.Info().Msg("end load")
 
-	c.sengine.Start(c.Ctx)
+	c.StrategyEngine.Broker = c.broker
+	c.StrategyEngine.Start(c.Ctx)
 	c.broker.SetEventCh(c.event)
 	<-ch
 	return nil

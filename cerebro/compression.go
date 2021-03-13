@@ -7,6 +7,11 @@ import (
 	"github.com/gobenpark/trader/domain"
 )
 
+type CompressInfo struct {
+	code  string
+	level time.Duration
+}
+
 func Compression(tick <-chan domain.Tick, level time.Duration) <-chan domain.Candle {
 	ch := make(chan domain.Candle, 1)
 	go func() {

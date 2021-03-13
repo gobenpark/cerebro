@@ -3,7 +3,6 @@ package strategy
 import (
 	"context"
 	"fmt"
-	"time"
 
 	"github.com/gobenpark/trader/domain"
 	"github.com/gobenpark/trader/event"
@@ -13,7 +12,7 @@ type Bighands struct {
 	Broker domain.Broker
 }
 
-func (b *Bighands) Next(data map[string]map[time.Duration][]domain.Candle) {
+func (b *Bighands) Next() {
 	//b.Broker.Buy("KRW", 10, 1000)
 	fmt.Println("next")
 }

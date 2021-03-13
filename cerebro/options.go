@@ -27,9 +27,9 @@ func WithStore(stores ...domain.Store) CerebroOption {
 	}
 }
 
-func WithFeed(feed ...domain.Feed) CerebroOption {
+func WithDataContainer(container domain.Container) CerebroOption {
 	return func(c *Cerebro) {
-		//c.Feeds = feed
+		c.container = container
 	}
 }
 

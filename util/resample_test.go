@@ -179,7 +179,7 @@ func TestTime(t *testing.T) {
 
 	ch := make(chan domain.Tick)
 	go func() {
-		for i := range Compression(ch, time.Minute) {
+		for i := range Compression(ch, 0) {
 			fmt.Printf("%#v\n", i)
 		}
 	}()

@@ -1,19 +1,10 @@
 package domain
 
-import (
-	"context"
-
-	"github.com/gobenpark/trader/event"
-)
-
 type Strategy interface {
-	Next()
+	Next(broker Broker, container Container)
 
 	NotifyOrder()
 	NotifyTrade()
 	NotifyCashValue()
 	NotifyFund()
-	Start(ctx context.Context, event chan event.Event)
-	Buy(code string, size int64, price float64)
-	Sell(code string, size int64, price float64)
 }

@@ -1,8 +1,6 @@
 package datacontainer
 
 import (
-	"errors"
-
 	"github.com/gobenpark/trader/domain"
 )
 
@@ -13,35 +11,31 @@ const (
 	External
 )
 
+//TODO: inmemory or external storage
 type DataContainer struct {
-	candledata []domain.Candle
-	SaveMode
+	CandleData map[string][]domain.Candle
 }
 
 func (t *DataContainer) Empty() bool {
-	return len(t.candledata) == 0
+	return len(t.CandleData) == 0
 }
 
 func (t *DataContainer) Size() int {
-	return len(t.candledata)
+	return len(t.CandleData)
 }
 
 func (t *DataContainer) Clear() {
-	t.candledata = []domain.Candle{}
+	t.CandleData = map[string][]domain.Candle{}
 }
 
-func (t *DataContainer) Values() []interface{} {
-	d := make([]interface{}, len(t.candledata))
-	for k, v := range t.candledata {
-		d[k] = v
-	}
-	return d
+func (t *DataContainer) Values(code string) []domain.Candle {
+	return t.CandleData[code]
 }
 
-func (t *DataContainer) Add(data interface{}) error {
-	if cd, ok := data.(domain.Candle); ok {
-		t.candledata = append([]domain.Candle{cd}, t.candledata...)
-		return nil
+func (t *DataContainer) Add(candle domain.Candle) {
+	if d, ok := t.CandleData[candle.Code]; ok {
+		t.CandleData[candle.Code] = append([]domain.Candle{candle}, d...)
+	} else {
+		t.CandleData[candle.Code] = []domain.Candle{candle}
 	}
-	return errors.New("datacontainer is not domain.Tick")
 }

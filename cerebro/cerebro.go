@@ -39,8 +39,7 @@ type Cerebro struct {
 	//store can inject into cerebro what external api or oher tick,candle buy,sell history data
 	stores []domain.Store
 
-	//Feeds
-	datacontainer.DataContainer
+	container domain.Container
 
 	//strategy.StrategyEngine embedding property for managing user strategy
 	strategy.StrategyEngine
@@ -56,6 +55,8 @@ type Cerebro struct {
 	compress []CompressInfo
 
 	preload bool
+
+	data chan domain.Container
 }
 
 //NewCerebro generate new cerebro with cerebro option
@@ -65,13 +66,16 @@ func NewCerebro(opts ...CerebroOption) *Cerebro {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	c := &Cerebro{
-		Ctx:            ctx,
-		Cancel:         cancel,
-		log:            logger,
-		DataContainer:  datacontainer.DataContainer{},
+		Ctx:    ctx,
+		Cancel: cancel,
+		log:    logger,
+		container: &datacontainer.DataContainer{
+			CandleData: make(map[string][]domain.Candle),
+		},
 		StrategyEngine: strategy.StrategyEngine{},
 		event:          make(chan event.Event, 1),
 		order:          make(chan order.Order, 1),
+		data:           make(chan domain.Container, 1),
 	}
 
 	for _, opt := range opts {
@@ -103,9 +107,7 @@ func (c *Cerebro) load() error {
 						Date:   i.Date,
 					}
 
-					if err := c.DataContainer.Add(cde); err != nil {
-						return err
-					}
+					c.container.Add(cde)
 				}
 				return nil
 			})
@@ -115,6 +117,7 @@ func (c *Cerebro) load() error {
 			return err
 		}
 	}
+	c.log.Info().Msg("start load live data ")
 	if c.isLive {
 		var storeTicks []<-chan domain.Tick
 		for _, i := range c.stores {
@@ -131,7 +134,6 @@ func (c *Cerebro) load() error {
 					tch <- j
 				}
 			}(tick, ch)
-
 		}
 
 		//TODO: tick데이터도 저장?
@@ -140,10 +142,8 @@ func (c *Cerebro) load() error {
 				for _, com := range c.compress {
 					go func() {
 						for j := range Compression(ch, com.level) {
-							if err := c.DataContainer.Add(j); err != nil {
-								c.log.Err(err).Send()
-							}
-							c.log.Info().Str("code", j.Code).Interface("candle", j).Int("container length", c.DataContainer.Size()).Send()
+							c.container.Add(j)
+							c.data <- c.container
 						}
 					}()
 				}
@@ -171,6 +171,9 @@ func (c *Cerebro) Start() error {
 		return err
 	}
 	c.log.Info().Msg("Cerebro start...")
+	c.StrategyEngine.Broker = c.broker
+	c.StrategyEngine.Start(c.Ctx, c.data, c.strategies)
+	c.broker.SetEventCh(c.event)
 
 	c.log.Info().Msg("startload")
 	if err := c.load(); err != nil {
@@ -178,9 +181,6 @@ func (c *Cerebro) Start() error {
 	}
 	c.log.Info().Msg("end load")
 
-	c.StrategyEngine.Broker = c.broker
-	c.StrategyEngine.Start(c.Ctx)
-	c.broker.SetEventCh(c.event)
 	<-ch
 	return nil
 }

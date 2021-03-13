@@ -4,6 +4,6 @@ type Container interface {
 	Empty() bool
 	Size() int
 	Clear()
-	Values() []interface{}
-	Add(data interface{}) error
+	Values(code string) []Candle
+	Add(candle Candle)
 }

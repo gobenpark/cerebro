@@ -99,7 +99,7 @@ func TestNewCerebro(t *testing.T) {
 			"cerebro data container exist",
 			NewCerebro(),
 			func(c *Cerebro, t *testing.T) {
-				assert.NotNil(t, c.DataContainer)
+				assert.NotNil(t, c.container)
 			},
 		},
 		{

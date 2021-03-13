@@ -12,9 +12,10 @@ type Bighands struct {
 	Broker domain.Broker
 }
 
-func (b *Bighands) Next() {
-	//b.Broker.Buy("KRW", 10, 1000)
-	fmt.Println("next")
+func (s *Bighands) Next(broker domain.Broker, container domain.Container) {
+	fmt.Println(container.Values("KRW-BTC")[0])
+	broker.Buy("KRW-BTC", 10, 1)
+
 }
 
 func (s *Bighands) NotifyOrder() {
@@ -42,11 +43,4 @@ func (s *Bighands) Start(ctx context.Context, event chan event.Event) {
 			fmt.Println(e)
 		}
 	}
-}
-
-func (s *Bighands) Buy(code string, size int64, price float64) {
-	s.Broker.Buy(code, size, price)
-}
-func (s *Bighands) Sell(code string, size int64, price float64) {
-	s.Broker.Sell(code, size, price)
 }

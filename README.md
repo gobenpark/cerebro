@@ -11,6 +11,11 @@ so i want solve by golang
 
 `go get github.com/gobenpark/trader`
 
+## Usage
+
+🙏 Plz wait for beta version 
+
+
 ## Version
 
 1. MAJOR version when you make incompatible API changes,

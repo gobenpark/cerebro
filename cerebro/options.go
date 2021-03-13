@@ -35,7 +35,7 @@ func WithFeed(feed ...domain.Feed) CerebroOption {
 
 func WithLogLevel(level zerolog.Level) CerebroOption {
 	return func(c *Cerebro) {
-		c.log.Level(level)
+		c.log = c.log.Level(level)
 	}
 }
 

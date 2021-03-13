@@ -38,12 +38,16 @@ type Cerebro struct {
 	//stores external api, etc
 	//store can inject into cerebro what external api or oher tick,candle buy,sell history data
 	stores []domain.Store
+
 	//Feeds
 	datacontainer.DataContainer
 
+	//strategy.StrategyEngine embedding property for managing user strategy
 	strategy.StrategyEngine
 
+	//log in cerebro global logger
 	log zerolog.Logger `json:"log" validate:"required"`
+
 	//event channel of all event
 	event chan event.Event
 
@@ -54,6 +58,7 @@ type Cerebro struct {
 	preload bool
 }
 
+//NewCerebro generate new cerebro with cerebro option
 func NewCerebro(opts ...CerebroOption) *Cerebro {
 	logger := zerolog.New(zerolog.ConsoleWriter{Out: os.Stdout, TimeFormat: time.RFC3339}).
 		With().Timestamp().Str("logger", "cerebro").Logger()
@@ -76,6 +81,7 @@ func NewCerebro(opts ...CerebroOption) *Cerebro {
 	return c
 }
 
+//load initializing data from injected store interface
 func (c *Cerebro) load() error {
 	g, ctx := errgroup.WithContext(c.Ctx)
 	if c.preload {
@@ -151,6 +157,10 @@ func (c *Cerebro) load() error {
 	return nil
 }
 
+//Start run cerebro
+// first check cerebro validation
+// second load from store data
+// third other engine setup
 func (c *Cerebro) Start() error {
 	ch := make(chan os.Signal)
 	signal.Notify(ch, syscall.SIGTERM, syscall.SIGKILL)
@@ -175,6 +185,7 @@ func (c *Cerebro) Start() error {
 	return nil
 }
 
+//Stop all cerebro goroutine and finish
 func (c *Cerebro) Stop() error {
 	c.Cancel()
 	return nil

@@ -67,7 +67,7 @@ func TestCompression(t *testing.T) {
 	for d := range Compression(ch, time.Minute) {
 		result = append(result, d)
 	}
-	assert.Len(t, result, 4)
+	assert.Len(t, result, 3)
 
 	for _, i := range result {
 		fmt.Println(i)

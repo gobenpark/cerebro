@@ -8,7 +8,6 @@ import (
 )
 
 type CompressInfo struct {
-	code  string
 	level time.Duration
 }
 

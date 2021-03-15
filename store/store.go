@@ -4,15 +4,18 @@ package store
 
 import (
 	"context"
+	"time"
 
 	"github.com/gobenpark/proto/stock"
 	"github.com/gobenpark/trader/domain"
 	"github.com/gogo/protobuf/types"
 	"github.com/rs/zerolog/log"
+	uuid "github.com/satori/go.uuid"
 )
 
 type store struct {
 	name string
+	uid  string
 	cli  stock.StockClient
 }
 
@@ -22,10 +25,11 @@ func NewStore(name string) *store {
 		panic(err)
 	}
 
-	return &store{name, cli}
+	return &store{name, uuid.NewV4().String(), cli}
 }
 
-func (s *store) LoadHistory(ctx context.Context) ([]domain.Candle, error) {
+func (s *store) LoadHistory(ctx context.Context, du time.Duration, markets string) ([]domain.Candle, error) {
+
 	r, err := s.cli.Chart(context.Background(), &stock.ChartRequest{
 		Code: "KRW-BTC",
 		To:   nil,
@@ -52,7 +56,7 @@ func (s *store) LoadHistory(ctx context.Context) ([]domain.Candle, error) {
 	return d, nil
 }
 
-func (s *store) LoadTick(ctx context.Context) (<-chan domain.Tick, error) {
+func (s *store) LoadTick(ctx context.Context, markets string) (<-chan domain.Tick, error) {
 	ch := make(chan domain.Tick, 1)
 
 	r, err := s.cli.TickStream(ctx, &stock.TickRequest{Codes: "KRW-BTC"})
@@ -85,4 +89,16 @@ func (s *store) LoadTick(ctx context.Context) (<-chan domain.Tick, error) {
 	}(ch)
 
 	return ch, nil
+}
+
+func (s *store) Order() {
+	panic("implement me")
+}
+
+func (s *store) Cancel() {
+	panic("implement me")
+}
+
+func (s *store) Uid() string {
+	return s.uid
 }

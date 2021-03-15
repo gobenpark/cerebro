@@ -54,7 +54,7 @@ type Cerebro struct {
 
 	order chan order.Order
 
-	compress []CompressInfo
+	compress map[string]CompressInfo
 
 	preload bool
 
@@ -96,7 +96,8 @@ func (c *Cerebro) load() error {
 	if c.preload {
 		for _, i := range c.stores {
 			g.Go(func() error {
-				candle, err := i.LoadHistory(ctx)
+				com := c.compress[i.Uid()]
+				candle, err := i.LoadHistory(ctx, com.level)
 				if err != nil {
 					return err
 				}

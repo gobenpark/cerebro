@@ -46,12 +46,9 @@ func WithLive(isLive bool) CerebroOption {
 	}
 }
 
-func WithResample(code string, level time.Duration) CerebroOption {
+func WithResample(store domain.Store, level time.Duration) CerebroOption {
 	return func(c *Cerebro) {
-		c.compress = append(c.compress, CompressInfo{
-			code:  code,
-			level: level,
-		})
+		c.compress[store.Uid()] = CompressInfo{level: level}
 	}
 }
 

@@ -41,6 +41,8 @@ type Cerebro struct {
 
 	container domain.Container
 
+	containers map[string]domain.Container
+
 	eventEngine *event.EventEngine
 
 	//strategy.StrategyEngine embedding property for managing user strategy
@@ -100,6 +102,10 @@ func (c *Cerebro) load() error {
 				candle, err := i.LoadHistory(ctx, com.level)
 				if err != nil {
 					return err
+				}
+
+				if con,ok := c.containers[i.Uid()]; !ok {
+					c.containers[i.Uid()] =
 				}
 
 				for _, i := range candle {

@@ -1,11 +1,20 @@
 package indicators
 
-import "github.com/gobenpark/trader/datacontainer"
+import (
+	"time"
+
+	"github.com/gobenpark/trader/domain"
+)
 
 type Indicator interface {
-	Set(container datacontainer.DataContainer)
-	Get()
+	Set(container domain.Container)
+	Get() []Indicate
 	PeriodSatisfaction() bool
+}
+
+type Indicate struct {
+	Data float64
+	Date time.Time
 }
 
 type Sma struct {

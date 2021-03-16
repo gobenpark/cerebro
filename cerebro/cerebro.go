@@ -4,6 +4,7 @@ package cerebro
 
 import (
 	"context"
+	"errors"
 	"os"
 	"os/signal"
 	"sync"
@@ -20,6 +21,7 @@ import (
 )
 
 type Cerebro struct {
+	mu sync.RWMutex
 	//isLive flog of live trading
 	isLive bool
 
@@ -38,8 +40,6 @@ type Cerebro struct {
 	//stores external api, etc
 	//store can inject into cerebro what external api or oher tick,candle buy,sell history data
 	stores []domain.Store
-
-	container domain.Container
 
 	containers map[string]domain.Container
 
@@ -72,12 +72,9 @@ func NewCerebro(opts ...CerebroOption) *Cerebro {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	c := &Cerebro{
-		Ctx:    ctx,
-		Cancel: cancel,
-		log:    logger,
-		container: &datacontainer.DataContainer{
-			CandleData: []domain.Candle{},
-		},
+		Ctx:            ctx,
+		Cancel:         cancel,
+		log:            logger,
 		containers:     make(map[string]domain.Container),
 		compress:       make(map[string]CompressInfo),
 		strategyEngine: &strategy.StrategyEngine{},
@@ -102,25 +99,37 @@ func (c *Cerebro) load() error {
 		for _, i := range c.stores {
 			go func(store domain.Store) {
 				defer wg.Done()
-				com := c.compress[store.Uid()]
-				candle, err := store.LoadHistory(c.Ctx, com.level)
+
+				var level time.Duration
+				c.mu.Lock()
+				if com, ok := c.compress[store.Uid()]; ok {
+					level = com.level
+				}
+				c.mu.Unlock()
+
+				candle, err := store.LoadHistory(c.Ctx, level)
 				if err != nil {
 					c.log.Err(err).Send()
 					return
 				}
 
+				c.mu.Lock()
 				if _, ok := c.containers[store.Uid()]; !ok {
 					c.containers[store.Uid()] = datacontainer.NewDataContainer()
 				}
 				for _, j := range candle {
 					c.containers[store.Uid()].Add(j)
 				}
+				c.mu.Unlock()
 			}(i)
 		}
 		wg.Wait()
 	}
 	c.log.Info().Msg("start load live data ")
 	if c.isLive {
+		if len(c.stores) == 0 {
+			return errors.New("store not exist")
+		}
 		for _, i := range c.stores {
 			go func(store domain.Store) {
 				tick, err := store.LoadTick(c.Ctx)

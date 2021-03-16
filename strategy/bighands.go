@@ -17,9 +17,11 @@ func (s *Bighands) Indicators() []domain.Indicator {
 }
 
 func (s *Bighands) Next(broker domain.Broker, container domain.Container) {
-	fmt.Println(container.Values()[0])
+	if container.Values()[0].Close > container.Values()[1].Close {
+		fmt.Println("value change more upper ")
+	}
 
-	broker.Buy("KRW-BTC", 10, 1)
+	//broker.Buy("KRW-BTC", 10, 1)
 }
 
 func (s *Bighands) NotifyOrder() {

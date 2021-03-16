@@ -1,17 +1,16 @@
 package cerebro
 
 import (
-	"context"
-	"errors"
 	"testing"
 	"time"
 
 	"github.com/gobenpark/trader/broker"
-	"github.com/gobenpark/trader/domain"
 	mock_domain "github.com/gobenpark/trader/domain/mock"
 	"github.com/gobenpark/trader/store"
+	"github.com/gobenpark/trader/strategy"
 	"github.com/golang/mock/gomock"
 	"github.com/rs/zerolog"
+	uuid "github.com/satori/go.uuid"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -67,9 +66,9 @@ func TestNewCerebro(t *testing.T) {
 			"resample",
 			NewCerebro(),
 			func(c *Cerebro, t *testing.T) {
-				store := store.NewStore("upbit")
+				store := store.NewStore("upbit", "codes")
 				WithResample(store, 3*time.Minute)(c)
-				assert.Equal(t, 10*time.Second, c.compress[store.Uid()].level)
+				assert.Equal(t, 3*time.Minute, c.compress[store.Uid()].level)
 			},
 		},
 		{
@@ -81,7 +80,7 @@ func TestNewCerebro(t *testing.T) {
 		},
 		{
 			"store option",
-			NewCerebro(WithStore(store.NewStore("test"))),
+			NewCerebro(WithStore(store.NewStore("test", "code"))),
 			func(c *Cerebro, t *testing.T) {
 				assert.Len(t, c.stores, 1)
 			},
@@ -104,7 +103,7 @@ func TestNewCerebro(t *testing.T) {
 			"cerebro data container exist",
 			NewCerebro(),
 			func(c *Cerebro, t *testing.T) {
-				assert.NotNil(t, c.container)
+				assert.NotNil(t, c.containers)
 			},
 		},
 		{
@@ -112,6 +111,14 @@ func TestNewCerebro(t *testing.T) {
 			NewCerebro(),
 			func(c *Cerebro, t *testing.T) {
 				assert.NotNil(t, c.strategyEngine)
+			},
+		},
+		{
+			"add user strategy",
+			NewCerebro(),
+			func(c *Cerebro, t *testing.T) {
+				WithStrategy(&strategy.Bighands{})(c)
+				assert.NotNil(t, c.strategies)
 			},
 		},
 	}
@@ -122,55 +129,37 @@ func TestNewCerebro(t *testing.T) {
 	}
 }
 
+func TestCerebro_load(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	store := mock_domain.NewMockStore(ctrl)
+	store.EXPECT().Uid().Return(uuid.NewV4().String()).AnyTimes()
+	store.EXPECT().LoadHistory(gomock.Any(), 0*time.Second)
+	store.EXPECT().LoadTick(gomock.Any())
+	c := NewCerebro(WithLive(true), WithPreload(true), WithStore(store))
+	go func() {
+		<-time.After(time.Second)
+		c.Stop()
+	}()
+	err := c.load()
+	assert.NoError(t, err)
+
+	t.Run("store not exist", func(t *testing.T) {
+		c := NewCerebro(WithLive(true))
+		go func() {
+			<-time.After(time.Second)
+			c.Stop()
+		}()
+		err := c.load()
+		assert.Error(t, err)
+	})
+
+}
+
 func TestCerebro_Stop(t *testing.T) {
 	c := NewCerebro()
 	err := c.Stop()
 	assert.NoError(t, err)
 	assert.Equal(t, "context canceled", c.Ctx.Err().Error())
-}
-
-func TestCerebro_load(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	con := mock_domain.NewMockContainer(ctrl)
-	store := mock_domain.NewMockStore(ctrl)
-	input := []domain.Candle{
-		{
-			Code:   "test",
-			Low:    1,
-			High:   3,
-			Open:   3,
-			Close:  3,
-			Volume: 3,
-			Date:   time.Now(),
-		},
-		{
-			Code:   "test2",
-			Low:    1,
-			High:   3,
-			Open:   3,
-			Close:  3,
-			Volume: 3,
-			Date:   time.Now(),
-		},
-	}
-
-	store.EXPECT().LoadHistory(gomock.Any(), gomock.Any()).DoAndReturn(func(ctx context.Context) ([]domain.Candle, error) {
-		return input, nil
-	})
-	con.EXPECT().Add(input[0])
-	con.EXPECT().Add(input[1])
-
-	c := NewCerebro(WithPreload(true), WithStore(store))
-	c.container = con
-	err := c.load()
-	assert.NoError(t, err)
-
-	t.Run("load error", func(t *testing.T) {
-
-		store.EXPECT().LoadHistory(gomock.Any(), gomock.Any()).Return(nil, errors.New("error"))
-		err := c.load()
-		assert.Error(t, err)
-	})
 }
 
 func TestCerebro_Start(t *testing.T) {

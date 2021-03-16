@@ -28,12 +28,6 @@ func WithStore(stores ...domain.Store) CerebroOption {
 	}
 }
 
-func WithDataContainer(container domain.Container) CerebroOption {
-	return func(c *Cerebro) {
-		c.container = container
-	}
-}
-
 func WithLogLevel(level zerolog.Level) CerebroOption {
 	return func(c *Cerebro) {
 		c.log = c.log.Level(level)

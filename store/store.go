@@ -11,6 +11,8 @@ import (
 	"github.com/gogo/protobuf/types"
 	"github.com/rs/zerolog/log"
 	uuid "github.com/satori/go.uuid"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 type store struct {
@@ -28,7 +30,7 @@ func NewStore(name string) *store {
 	return &store{name, uuid.NewV4().String(), cli}
 }
 
-func (s *store) LoadHistory(ctx context.Context, du time.Duration, markets string) ([]domain.Candle, error) {
+func (s *store) LoadHistory(ctx context.Context, du time.Duration) ([]domain.Candle, error) {
 
 	r, err := s.cli.Chart(context.Background(), &stock.ChartRequest{
 		Code: "KRW-BTC",
@@ -56,7 +58,7 @@ func (s *store) LoadHistory(ctx context.Context, du time.Duration, markets strin
 	return d, nil
 }
 
-func (s *store) LoadTick(ctx context.Context, markets string) (<-chan domain.Tick, error) {
+func (s *store) LoadTick(ctx context.Context) (<-chan domain.Tick, error) {
 	ch := make(chan domain.Tick, 1)
 
 	r, err := s.cli.TickStream(ctx, &stock.TickRequest{Codes: "KRW-BTC"})
@@ -72,6 +74,10 @@ func (s *store) LoadTick(ctx context.Context, markets string) (<-chan domain.Tic
 			default:
 				msg, err := r.Recv()
 				if err != nil {
+					st, _ := status.FromError(err)
+					if st.Code() == codes.Unimplemented {
+						break
+					}
 					log.Err(err).Send()
 				}
 				ti, err := types.TimestampFromProto(msg.GetDate())

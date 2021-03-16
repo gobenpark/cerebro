@@ -31,7 +31,7 @@ func main() {
 		cerebro.WithBroker(bk),
 		cerebro.WithStore(store),
 		cerebro.WithStrategy(smart, smart2),
-		cerebro.WithResample("KRW-BTC", time.Minute),
+		cerebro.WithResample(store, time.Minute),
 		cerebro.WithLive(true),
 		cerebro.WithPreload(true),
 	)

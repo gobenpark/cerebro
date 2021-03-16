@@ -7,4 +7,5 @@ type Strategy interface {
 	NotifyTrade()
 	NotifyCashValue()
 	NotifyFund()
+	Indicators() []Indicator
 }

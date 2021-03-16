@@ -65,11 +65,11 @@ func TestNewCerebro(t *testing.T) {
 		},
 		{
 			"resample",
-			NewCerebro(WithResample("resample", 10*time.Second)),
+			NewCerebro(),
 			func(c *Cerebro, t *testing.T) {
-				assert.Len(t, c.compress, 1)
-				assert.Equal(t, "resample", c.compress[0].code)
-				assert.Equal(t, 10*time.Second, c.compress[0].level)
+				store := store.NewStore("upbit")
+				WithResample(store, 3*time.Minute)(c)
+				assert.Equal(t, 10*time.Second, c.compress[store.Uid()].level)
 			},
 		},
 		{
@@ -154,7 +154,7 @@ func TestCerebro_load(t *testing.T) {
 		},
 	}
 
-	store.EXPECT().LoadHistory(gomock.Any()).DoAndReturn(func(ctx context.Context) ([]domain.Candle, error) {
+	store.EXPECT().LoadHistory(gomock.Any(), gomock.Any()).DoAndReturn(func(ctx context.Context) ([]domain.Candle, error) {
 		return input, nil
 	})
 	con.EXPECT().Add(input[0])
@@ -166,7 +166,8 @@ func TestCerebro_load(t *testing.T) {
 	assert.NoError(t, err)
 
 	t.Run("load error", func(t *testing.T) {
-		store.EXPECT().LoadHistory(gomock.Any()).Return(nil, errors.New("error"))
+
+		store.EXPECT().LoadHistory(gomock.Any(), gomock.Any()).Return(nil, errors.New("error"))
 		err := c.load()
 		assert.Error(t, err)
 	})

@@ -12,8 +12,13 @@ type Bighands struct {
 	Broker domain.Broker
 }
 
+func (s *Bighands) Indicators() []domain.Indicator {
+	return []domain.Indicator{}
+}
+
 func (s *Bighands) Next(broker domain.Broker, container domain.Container) {
-	fmt.Println(container.Values("KRW-BTC")[0])
+	fmt.Println(container.Values()[0])
+
 	broker.Buy("KRW-BTC", 10, 1)
 }
 

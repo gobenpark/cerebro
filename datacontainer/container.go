@@ -13,7 +13,11 @@ const (
 
 //TODO: inmemory or external storage
 type DataContainer struct {
-	CandleData map[string][]domain.Candle
+	CandleData []domain.Candle
+}
+
+func NewDataContainer() *DataContainer {
+	return &DataContainer{CandleData: []domain.Candle{}}
 }
 
 func (t *DataContainer) Empty() bool {
@@ -25,17 +29,13 @@ func (t *DataContainer) Size() int {
 }
 
 func (t *DataContainer) Clear() {
-	t.CandleData = map[string][]domain.Candle{}
+	t.CandleData = []domain.Candle{}
 }
 
-func (t *DataContainer) Values(code string) []domain.Candle {
-	return t.CandleData[code]
+func (t *DataContainer) Values() []domain.Candle {
+	return t.CandleData
 }
 
 func (t *DataContainer) Add(candle domain.Candle) {
-	if d, ok := t.CandleData[candle.Code]; ok {
-		t.CandleData[candle.Code] = append([]domain.Candle{candle}, d...)
-	} else {
-		t.CandleData[candle.Code] = []domain.Candle{candle}
-	}
+	t.CandleData = append([]domain.Candle{candle}, t.CandleData...)
 }

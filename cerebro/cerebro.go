@@ -6,6 +6,7 @@ import (
 	"context"
 	"os"
 	"os/signal"
+	"sync"
 	"syscall"
 	"time"
 
@@ -16,7 +17,6 @@ import (
 	"github.com/gobenpark/trader/order"
 	"github.com/gobenpark/trader/strategy"
 	"github.com/rs/zerolog"
-	"golang.org/x/sync/errgroup"
 )
 
 type Cerebro struct {
@@ -76,8 +76,10 @@ func NewCerebro(opts ...CerebroOption) *Cerebro {
 		Cancel: cancel,
 		log:    logger,
 		container: &datacontainer.DataContainer{
-			CandleData: make(map[string][]domain.Candle),
+			CandleData: []domain.Candle{},
 		},
+		containers:     make(map[string]domain.Container),
+		compress:       make(map[string]CompressInfo),
 		strategyEngine: &strategy.StrategyEngine{},
 		event:          make(chan event.Event, 1),
 		order:          make(chan order.Order, 1),
@@ -94,67 +96,46 @@ func NewCerebro(opts ...CerebroOption) *Cerebro {
 
 //load initializing data from injected store interface
 func (c *Cerebro) load() error {
-	g, ctx := errgroup.WithContext(c.Ctx)
 	if c.preload {
+		var wg sync.WaitGroup
+		wg.Add(len(c.stores))
 		for _, i := range c.stores {
-			g.Go(func() error {
-				com := c.compress[i.Uid()]
-				candle, err := i.LoadHistory(ctx, com.level)
+			go func(store domain.Store) {
+				defer wg.Done()
+				com := c.compress[store.Uid()]
+				candle, err := store.LoadHistory(c.Ctx, com.level)
 				if err != nil {
-					return err
+					c.log.Err(err).Send()
+					return
 				}
 
-				if con,ok := c.containers[i.Uid()]; !ok {
-					c.containers[i.Uid()] =
+				if _, ok := c.containers[store.Uid()]; !ok {
+					c.containers[store.Uid()] = datacontainer.NewDataContainer()
 				}
-
-				for _, i := range candle {
-					c.container.Add(i)
+				for _, j := range candle {
+					c.containers[store.Uid()].Add(j)
 				}
-				return nil
-			})
+			}(i)
 		}
-		if err := g.Wait(); err != nil {
-			c.log.Err(err).Send()
-			return err
-		}
+		wg.Wait()
 	}
 	c.log.Info().Msg("start load live data ")
 	if c.isLive {
-		var storeTicks []<-chan domain.Tick
 		for _, i := range c.stores {
-			tick, err := i.LoadTick(c.Ctx)
-			if err != nil {
-				return err
-			}
-
-			ch := make(chan domain.Tick, 1)
-			storeTicks = append(storeTicks, ch)
-			go func(t <-chan domain.Tick, tch chan domain.Tick) {
-				defer close(tch)
-				for j := range t {
-					tch <- j
+			go func(store domain.Store) {
+				tick, err := store.LoadTick(c.Ctx)
+				if err != nil {
+					c.log.Err(err).Send()
 				}
-			}(tick, ch)
-		}
-
-		//TODO: tick데이터도 저장?
-		for _, i := range storeTicks {
-			go func(ch <-chan domain.Tick) {
-				for _, com := range c.compress {
-					go func() {
-						for j := range Compression(ch, com.level) {
-							c.container.Add(j)
-							c.data <- c.container
-						}
-					}()
+				com := c.compress[store.Uid()]
+				for j := range Compression(tick, com.level) {
+					c.containers[store.Uid()].Add(j)
+					c.data <- c.containers[store.Uid()]
 				}
 			}(i)
 		}
 
 		<-c.Ctx.Done()
-
-		//Compression(ch,time.Minute * 3)
 	}
 	return nil
 }

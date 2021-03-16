@@ -11,6 +11,6 @@ require (
 	github.com/rs/zerolog v1.20.0
 	github.com/satori/go.uuid v1.2.0
 	github.com/stretchr/testify v1.6.1
-	golang.org/x/sync v0.0.0-20201020160332-67f06af15bc9
+	google.golang.org/grpc v1.35.0
 	gopkg.in/yaml.v3 v3.0.0-20200615113413-eeeca48fe776 // indirect
 )

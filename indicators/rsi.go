@@ -1,6 +1,8 @@
 package indicators
 
 import (
+	"fmt"
+
 	"github.com/gobenpark/trader/domain"
 )
 
@@ -62,10 +64,12 @@ func (r *rsi) Calculate(container domain.Container) {
 				})
 			}
 		}
-
+		fmt.Println(size)
+		fmt.Println(len(r.U))
+		fmt.Println(len(candle))
 		for i := 0; i < size-1; i++ {
 			if len(r.U) != 0 {
-				if r.U[i].Date.Before(candle[i].Date) {
+				if r.U[0].Date.Before(candle[i].Date) {
 					calcu(i)
 				} else {
 					break
@@ -76,8 +80,8 @@ func (r *rsi) Calculate(container domain.Container) {
 		}
 		r.U = append(uvalue, r.U...)
 		r.D = append(dvalue, r.D...)
-
-		for i := 0; i <= slide; i++ {
+		var indi []Indicate
+		for i := 0; i <= slide-1; i++ {
 			avg := func(s []Indicate) float64 {
 				value := float64(0)
 				for _, v := range s {
@@ -88,12 +92,15 @@ func (r *rsi) Calculate(container domain.Container) {
 
 			AU := avg(r.U[i : r.period+i])
 			AD := avg(r.D[i : r.period+i])
-			rsi := (AU / (AU + AD)) * 100
-			r.indicates = append(r.indicates, Indicate{
+			rs := AU / AD
+			rsi := 100.0 - 100.0/(1.0+rs)
+			indi = append(indi, Indicate{
 				Data: rsi,
 				Date: candle[i].Date,
 			})
+
 		}
+		r.indicates = indi
 	}
 }
 

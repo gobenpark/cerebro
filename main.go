@@ -1,8 +1,6 @@
 package main
 
 import (
-	"fmt"
-	"runtime"
 	"time"
 
 	"github.com/gobenpark/trader/broker"
@@ -12,12 +10,12 @@ import (
 )
 
 func main() {
-	go func() {
-		for {
-			time.Sleep(1 * time.Second)
-			fmt.Println(runtime.NumGoroutine())
-		}
-	}()
+	//go func() {
+	//	for {
+	//		time.Sleep(1 * time.Second)
+	//		fmt.Println(runtime.NumGoroutine())
+	//	}
+	//}()
 	bk := broker.NewBroker(100000, 0.005)
 
 	store := store2.NewStore("upbit", "KRW-BTC")

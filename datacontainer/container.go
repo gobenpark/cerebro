@@ -40,7 +40,5 @@ func (t *DataContainer) Values() []domain.Candle {
 }
 
 func (t *DataContainer) Add(candle domain.Candle) {
-	t.mu.Lock()
-	defer t.mu.Unlock()
 	t.CandleData = append([]domain.Candle{candle}, t.CandleData...)
 }

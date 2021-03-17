@@ -6,10 +6,12 @@ import (
 
 	"github.com/gobenpark/trader/domain"
 	"github.com/gobenpark/trader/event"
+	"github.com/gobenpark/trader/indicators"
 )
 
 type Bighands struct {
 	Broker domain.Broker
+	indi   indicators.Indicator
 }
 
 func (s *Bighands) Indicators() []domain.Indicator {
@@ -17,9 +19,17 @@ func (s *Bighands) Indicators() []domain.Indicator {
 }
 
 func (s *Bighands) Next(broker domain.Broker, container domain.Container) {
-	if container.Values()[0].Close > container.Values()[1].Close {
-		fmt.Println("value change more upper ")
+	if s.indi == nil {
+		s.indi = indicators.NewRsi(0)
 	}
+	if container.Values()[0].Code == "KRW-BORA" {
+		s.indi.Calculate(container)
+		fmt.Println(s.indi.Get())
+	}
+	//
+	//if container.Values()[0].Close > container.Values()[1].Close {
+	//	fmt.Println("value change more upper ")
+	//}
 
 	//broker.Buy("KRW-BTC", 10, 1)
 }

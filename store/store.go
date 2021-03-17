@@ -4,6 +4,7 @@ package store
 
 import (
 	"context"
+	"sort"
 	"time"
 
 	"github.com/gobenpark/proto/stock"
@@ -47,7 +48,7 @@ func (s *store) LoadHistory(ctx context.Context, du time.Duration) ([]domain.Can
 			log.Err(err).Send()
 		}
 		d = append(d, domain.Candle{
-			Code:   "KRW-BTC",
+			Code:   s.code,
 			Low:    i.GetLow(),
 			High:   i.GetHigh(),
 			Open:   i.GetOpen(),
@@ -56,6 +57,11 @@ func (s *store) LoadHistory(ctx context.Context, du time.Duration) ([]domain.Can
 			Date:   ti,
 		})
 	}
+
+	sort.Slice(d, func(i, j int) bool {
+		return d[i].Date.Before(d[j].Date)
+	})
+
 	return d, nil
 }
 
@@ -76,7 +82,7 @@ func (s *store) LoadTick(ctx context.Context) (<-chan domain.Tick, error) {
 				msg, err := r.Recv()
 				if err != nil {
 					st, _ := status.FromError(err)
-					if st.Code() == codes.Unimplemented {
+					if st.Code() == codes.Unimplemented || st.Code() == codes.Unavailable {
 						break
 					}
 					log.Err(err).Send()

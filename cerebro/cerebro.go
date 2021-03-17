@@ -5,6 +5,7 @@ package cerebro
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"os/signal"
 	"sync"
@@ -112,13 +113,16 @@ func (c *Cerebro) load() error {
 					c.log.Err(err).Send()
 					return
 				}
-
 				c.mu.Lock()
 				if _, ok := c.containers[store.Uid()]; !ok {
 					c.containers[store.Uid()] = datacontainer.NewDataContainer()
 				}
 				for _, j := range candle {
 					c.containers[store.Uid()].Add(j)
+				}
+
+				for _, i := range c.containers[store.Uid()].Values() {
+					fmt.Println(i.Date)
 				}
 				c.mu.Unlock()
 			}(i)

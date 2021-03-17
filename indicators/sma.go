@@ -47,11 +47,3 @@ func (s *sma) Get() []Indicate {
 func (s *sma) PeriodSatisfaction() bool {
 	return len(s.indicates) > s.period
 }
-
-func average(candle []domain.Candle) float64 {
-	total := 0.0
-	for _, v := range candle {
-		total += v.Close
-	}
-	return total / float64(len(candle))
-}

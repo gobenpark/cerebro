@@ -1,20 +1,20 @@
 package indicators
 
 import (
-	"fmt"
 	"testing"
 	"time"
 
 	"github.com/gobenpark/trader/datacontainer"
 	"github.com/gobenpark/trader/domain"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestNewIndicate_SMA(t *testing.T) {
-	s := NewSma(100)
+	s := NewSma(3)
 
 	container := datacontainer.NewDataContainer()
 
-	for i := float64(1); i < 10000; i++ {
+	for i := float64(1); i <= 10; i++ {
 		container.Add(domain.Candle{
 			Code:   "1234",
 			Low:    i,
@@ -26,10 +26,19 @@ func TestNewIndicate_SMA(t *testing.T) {
 		})
 	}
 
-	s.Set(container)
+	s.Calculate(container)
+	assert.Len(t, s.Get(), 8)
 
-	for _, i := range s.Get() {
-		fmt.Printf("%f , %v\n", i.Data, i.Date)
-	}
+	container.Add(domain.Candle{
+		Code:   "1234",
+		Low:    11,
+		High:   11,
+		Open:   11,
+		Close:  11,
+		Volume: 11,
+		Date:   time.Now(),
+	})
 
+	s.Calculate(container)
+	assert.Len(t, s.Get(), 9)
 }

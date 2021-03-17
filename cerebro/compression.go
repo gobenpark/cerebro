@@ -11,7 +11,6 @@ type CompressInfo struct {
 	level time.Duration
 }
 
-//TODO: 거래량이 없을경우 정해진 기간마다 빈 candle 전송
 func Compression(tick <-chan domain.Tick, level time.Duration) <-chan domain.Candle {
 	ch := make(chan domain.Candle, 1)
 	go func() {

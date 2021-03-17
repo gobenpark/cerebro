@@ -7,7 +7,7 @@ import (
 )
 
 type Indicator interface {
-	Set(container domain.Container)
+	Calculate(container domain.Container)
 	Get() []Indicate
 	PeriodSatisfaction() bool
 }

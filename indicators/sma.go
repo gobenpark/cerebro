@@ -13,19 +13,30 @@ func NewSma(period int) Indicator {
 	return &sma{period: period}
 }
 
-func (s *sma) Set(container domain.Container) {
+func (s *sma) Calculate(container domain.Container) {
 	size := container.Size()
+	var indicates []Indicate
 	if size >= s.period {
-		slide := (size - s.period) + 1
+		slide := (size - s.period)
 		candle := container.Values()
 
-		for i := 0; i < slide; i++ {
+		for i := 0; i <= slide; i++ {
 			id := Indicate{
 				Data: average(candle[i : s.period+i]),
 				Date: candle[i].Date,
 			}
-			s.indicates = append(s.indicates, id)
+
+			if len(s.indicates) != 0 {
+				if id.Date.After(s.indicates[0].Date) {
+					indicates = append(indicates, id)
+					continue
+				}
+				break
+			} else {
+				indicates = append(indicates, id)
+			}
 		}
+		s.indicates = append(indicates, s.indicates...)
 	}
 }
 

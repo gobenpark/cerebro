@@ -19,6 +19,7 @@ func main() {
 		}
 	}()
 	bk := broker.NewBroker(100000, 0.005)
+
 	store := store2.NewStore("upbit", "KRW-BTC")
 	mftstore := store2.NewStore("", "KRW-MFT")
 	dka := store2.NewStore("dka", "KRW-DKA")

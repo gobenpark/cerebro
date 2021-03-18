@@ -29,9 +29,9 @@ func main() {
 		cerebro.WithBroker(bk),
 		cerebro.WithStore(store, mftstore, dka),
 		cerebro.WithStrategy(smart),
-		cerebro.WithResample(store, time.Minute*3),
-		cerebro.WithResample(mftstore, time.Minute*3),
-		cerebro.WithResample(dka, time.Minute*3),
+		cerebro.WithResample(store, time.Minute*3, true),
+		cerebro.WithResample(mftstore, time.Minute*3, true),
+		cerebro.WithResample(dka, time.Minute*3, true),
 		cerebro.WithLive(true),
 		cerebro.WithPreload(true),
 	)

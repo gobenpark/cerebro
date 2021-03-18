@@ -1,7 +1,7 @@
 package indicators
 
 import (
-	"fmt"
+	"math"
 
 	"github.com/gobenpark/trader/domain"
 )
@@ -20,8 +20,6 @@ default
 type rsi struct {
 	period    int
 	indicates []Indicate
-	U         []Indicate
-	D         []Indicate
 }
 
 //NewRsi return new rsi indicator
@@ -39,66 +37,31 @@ func (r *rsi) Calculate(container domain.Container) {
 	if size >= r.period {
 		slide := size - r.period
 		candle := container.Values()
-		var uvalue []Indicate
-		var dvalue []Indicate
 
-		calcu := func(i int) {
-			v := candle[i].Close - candle[i+1].Close
-			if v > 0 {
-				uvalue = append(uvalue, Indicate{
-					Data: v,
-					Date: candle[i].Date,
-				})
-				dvalue = append(dvalue, Indicate{
-					Data: 0,
-					Date: candle[i].Date,
-				})
-			} else {
-				uvalue = append(uvalue, Indicate{
-					Data: 0,
-					Date: candle[i].Date,
-				})
-				dvalue = append(dvalue, Indicate{
-					Data: -v,
-					Date: candle[i].Date,
-				})
-			}
-		}
-		fmt.Println(size)
-		fmt.Println(len(r.U))
-		fmt.Println(len(candle))
-		for i := 0; i < size-1; i++ {
-			if len(r.U) != 0 {
-				if r.U[0].Date.Before(candle[i].Date) {
-					calcu(i)
+		rscal := func(c []domain.Candle) float64 {
+			uv := 0.0
+			dv := 0.0
+			for _, i := range c {
+				v := i.Close - i.Open
+				if v > 0 {
+					uv += v
 				} else {
-					break
+					dv += math.Abs(v)
 				}
-			} else {
-				calcu(i)
 			}
+			au := uv / float64(len(c))
+			du := dv / float64(len(c))
+			return au / du
 		}
-		r.U = append(uvalue, r.U...)
-		r.D = append(dvalue, r.D...)
-		var indi []Indicate
-		for i := 0; i <= slide-1; i++ {
-			avg := func(s []Indicate) float64 {
-				value := float64(0)
-				for _, v := range s {
-					value += v.Data
-				}
-				return value / float64(len(s))
-			}
 
-			AU := avg(r.U[i : r.period+i])
-			AD := avg(r.D[i : r.period+i])
-			rs := AU / AD
+		var indi []Indicate
+		for i := 0; i <= slide; i++ {
+			rs := rscal(candle[i : r.period+i])
 			rsi := 100.0 - 100.0/(1.0+rs)
 			indi = append(indi, Indicate{
 				Data: rsi,
 				Date: candle[i].Date,
 			})
-
 		}
 		r.indicates = indi
 	}

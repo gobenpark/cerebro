@@ -24,6 +24,7 @@ func (s *Bighands) Next(broker domain.Broker, container domain.Container) {
 	}
 	if container.Values()[0].Code == "KRW-BORA" {
 		s.indi.Calculate(container)
+		fmt.Println(container.Values()[:14])
 		fmt.Println(s.indi.Get()[0])
 	}
 	//

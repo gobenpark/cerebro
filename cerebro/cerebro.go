@@ -141,7 +141,7 @@ func (c *Cerebro) load() error {
 					c.log.Err(err).Send()
 				}
 				com := c.compress[store.Uid()]
-				for j := range Compression(tick, com.level) {
+				for j := range Compression(tick, com.level, com.LeftEdge) {
 					c.containers[store.Uid()].Add(j)
 					c.data <- c.containers[store.Uid()]
 				}

@@ -40,9 +40,9 @@ func WithLive(isLive bool) CerebroOption {
 	}
 }
 
-func WithResample(store domain.Store, level time.Duration) CerebroOption {
+func WithResample(store domain.Store, level time.Duration, leftEdge bool) CerebroOption {
 	return func(c *Cerebro) {
-		c.compress[store.Uid()] = CompressInfo{level: level}
+		c.compress[store.Uid()] = CompressInfo{level: level, LeftEdge: leftEdge}
 	}
 }
 

@@ -54,3 +54,22 @@ func TestSlice(t *testing.T) {
 	data := []int{1, 2, 3}
 	fmt.Println(data[2:4])
 }
+
+func TestSlice2(t *testing.T) {
+	rsi := NewRsi(14)
+	for _, i := range data[1:] {
+		ti, err := time.Parse("2006-01-02T15:04:05.999", i[0])
+		assert.NoError(t, err)
+		container.Add(domain.Candle{
+			Code:   "1234",
+			Low:    stof(i[3]),
+			High:   stof(i[2]),
+			Open:   stof(i[1]),
+			Close:  stof(i[4]),
+			Volume: stof(i[5]),
+			Date:   ti,
+		})
+	}
+
+	rsi.Calculate(container)
+}

@@ -20,12 +20,13 @@ func (s *Bighands) Indicators() []domain.Indicator {
 
 func (s *Bighands) Next(broker domain.Broker, container domain.Container) {
 	if s.indi == nil {
-		s.indi = indicators.NewRsi(0)
+		s.indi = indicators.NewRsi2(14)
 	}
 	if container.Values()[0].Code == "KRW-BORA" {
 		s.indi.Calculate(container)
-		fmt.Println(container.Values()[:14])
-		fmt.Println(s.indi.Get()[0])
+		if len(s.indi.Get()) != 0 {
+			fmt.Println(s.indi.Get()[0])
+		}
 	}
 	//
 	//if container.Values()[0].Close > container.Values()[1].Close {

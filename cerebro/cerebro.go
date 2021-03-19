@@ -4,7 +4,6 @@ package cerebro
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"os"
 	"os/signal"
@@ -42,9 +41,9 @@ type Cerebro struct {
 	//store can inject into cerebro what external api or oher tick,candle buy,sell history data
 	stores []domain.Store
 
-	containers map[string]domain.Container
+	compress map[string]CompressInfo
 
-	eventEngine *event.EventEngine
+	containers map[string]domain.Container
 
 	//strategy.StrategyEngine embedding property for managing user strategy
 	strategyEngine *strategy.StrategyEngine
@@ -57,7 +56,7 @@ type Cerebro struct {
 
 	order chan order.Order
 
-	compress map[string]CompressInfo
+	eventEngine *event.EventEngine
 
 	preload bool
 
@@ -106,6 +105,7 @@ func (c *Cerebro) load() error {
 				if com, ok := c.compress[store.Uid()]; ok {
 					level = com.level
 				}
+
 				c.mu.Unlock()
 
 				candle, err := store.LoadHistory(c.Ctx, level)
@@ -132,13 +132,16 @@ func (c *Cerebro) load() error {
 	c.log.Info().Msg("start load live data ")
 	if c.isLive {
 		if len(c.stores) == 0 {
-			return errors.New("store not exist")
+			return ErrStoreNotExists
 		}
 		for _, i := range c.stores {
 			go func(store domain.Store) {
 				tick, err := store.LoadTick(c.Ctx)
 				if err != nil {
 					c.log.Err(err).Send()
+				}
+				if _, ok := c.containers[store.Uid()]; !ok {
+					c.containers[store.Uid()] = datacontainer.NewDataContainer()
 				}
 				com := c.compress[store.Uid()]
 				for j := range Compression(tick, com.level, com.LeftEdge) {

@@ -39,6 +39,15 @@ func (t *DataContainer) Values() []domain.Candle {
 	return t.CandleData
 }
 
+//Add forword append container candle data
+// current candle [0] index
 func (t *DataContainer) Add(candle domain.Candle) {
+	if len(t.CandleData) != 0 {
+		for _, i := range t.CandleData {
+			if i.Date.Equal(candle.Date) {
+				return
+			}
+		}
+	}
 	t.CandleData = append([]domain.Candle{candle}, t.CandleData...)
 }

@@ -115,7 +115,7 @@ func (c *Cerebro) load() error {
 				}
 				c.mu.Lock()
 				if _, ok := c.containers[store.Uid()]; !ok {
-					c.containers[store.Uid()] = datacontainer.NewDataContainer()
+					c.containers[store.Uid()] = datacontainer.NewDataContainer(store.Code())
 				}
 				for _, j := range candle {
 					c.containers[store.Uid()].Add(j)
@@ -140,9 +140,11 @@ func (c *Cerebro) load() error {
 				if err != nil {
 					c.log.Err(err).Send()
 				}
+				c.mu.Lock()
 				if _, ok := c.containers[store.Uid()]; !ok {
-					c.containers[store.Uid()] = datacontainer.NewDataContainer()
+					c.containers[store.Uid()] = datacontainer.NewDataContainer(store.Code())
 				}
+				c.mu.Unlock()
 				com := c.compress[store.Uid()]
 				for j := range Compression(tick, com.level, com.LeftEdge) {
 					c.containers[store.Uid()].Add(j)

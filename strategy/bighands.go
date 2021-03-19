@@ -1,11 +1,9 @@
 package strategy
 
 import (
-	"context"
 	"fmt"
 
 	"github.com/gobenpark/trader/domain"
-	"github.com/gobenpark/trader/event"
 	"github.com/gobenpark/trader/indicators"
 )
 
@@ -19,15 +17,13 @@ func (s *Bighands) Indicators() []domain.Indicator {
 }
 
 func (s *Bighands) Next(broker domain.Broker, container domain.Container) {
-	if s.indi == nil {
-		s.indi = indicators.NewRsi2(14)
+	rsi := indicators.NewRsi(14)
+	rsi.Calculate(container)
+	if len(rsi.Get()) != 0 {
+		fmt.Println(container.Code())
+		fmt.Println(rsi.Get()[0])
 	}
-	if container.Values()[0].Code == "KRW-BORA" {
-		s.indi.Calculate(container)
-		if len(s.indi.Get()) != 0 {
-			fmt.Println(s.indi.Get()[0])
-		}
-	}
+
 	//
 	//if container.Values()[0].Close > container.Values()[1].Close {
 	//	fmt.Println("value change more upper ")
@@ -50,15 +46,4 @@ func (s *Bighands) NotifyCashValue() {
 
 func (s *Bighands) NotifyFund() {
 	panic("implement me")
-}
-
-func (s *Bighands) Start(ctx context.Context, event chan event.Event) {
-	for {
-		select {
-		case <-ctx.Done():
-			break
-		case e := <-event:
-			fmt.Println(e)
-		}
-	}
 }

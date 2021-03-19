@@ -6,25 +6,23 @@ import (
 	"github.com/gobenpark/trader/domain"
 )
 
-/*
-U = 전일 주가가 비교 대상 주가보다 상승했을 때 상승폭
-D = 전일 주가가 비교대상 주가보다 하락했을 때 하락폭
-AU = 일정기간동안 U의 평균
-AD = 일정 기간동안 D의 평균
-RS = AU/AD
-RSI = AU/(AU+AD) * 100
-default
-*/
-
-//rsi default period 14
+//첫번째 AU/AD 계산
+//- AU : 지난 14일 동안의 이득의 합 / 14
+//- AD : 지난 14일 동안의 하락의 합 / 14
+//
+//두번째 및 이후의 AU/AD 계산
+//- AU : [(이전 AU) * 13 + 현재 이득] / 14
+//- AD : [(이전 AD) * 13 + 현재 하락] / 14
+//
+//RS = AU / AD
+//RSI = RS / (1 + RS) 또는 RSI = AU / (AU + AD)
 type rsi struct {
 	period    int
 	indicates []Indicate
+	AD        []Indicate
+	AU        []Indicate
 }
 
-//NewRsi return new rsi indicator
-//default period 14
-//parameter period if set 0 then default set 14
 func NewRsi(period int) Indicator {
 	if period == 0 {
 		period = 14
@@ -32,38 +30,56 @@ func NewRsi(period int) Indicator {
 	return &rsi{period: period}
 }
 
+func upday(c []domain.Candle) float64 {
+	value := 0.0
+	for _, i := range c {
+		if v := i.Close - i.Open; v > 0 {
+			value += v
+		}
+	}
+	return value
+}
+
+func downday(c []domain.Candle) float64 {
+	value := 0.0
+	for _, i := range c {
+		if v := i.Close - i.Open; v < 0 {
+			value += math.Abs(v)
+		}
+	}
+	return value
+}
+
 func (r *rsi) Calculate(container domain.Container) {
-	size := container.Size()
-	if size >= r.period {
-		slide := size - r.period
-		candle := container.Values()
+	c := container.Values()
+	slide := len(c) - r.period
+	if len(c) < r.period {
+		return
+	}
 
-		rscal := func(c []domain.Candle) float64 {
-			uv := 0.0
-			dv := 0.0
-			for _, i := range c {
-				v := i.Close - i.Open
-				if v > 0 {
-					uv += v
-				} else {
-					dv += math.Abs(v)
-				}
+	AU := math.NaN()
+	AD := math.NaN()
+
+	for i := slide; i >= 0; i-- {
+		if math.IsNaN(AU) && math.IsNaN(AD) {
+			su := upday(c[i : i+r.period])
+			sd := downday(c[i : i+r.period])
+			AU = su / float64(r.period)
+			AD = sd / float64(r.period)
+		} else {
+			if v := c[i].Close - c[i].Open; v >= 0 {
+				AU = ((AU * float64(r.period-1)) + v) / float64(r.period)
+				AD = AD * float64(r.period-1) / float64(r.period)
+			} else {
+				AD = ((AD * float64(r.period-1)) + math.Abs(v)) / float64(r.period)
+				AU = AU * float64(r.period-1) / float64((r.period))
 			}
-			au := uv / float64(len(c))
-			du := dv / float64(len(c))
-			return au / du
 		}
-
-		var indi []Indicate
-		for i := 0; i <= slide; i++ {
-			rs := rscal(candle[i : r.period+i])
-			rsi := 100.0 - 100.0/(1.0+rs)
-			indi = append(indi, Indicate{
-				Data: rsi,
-				Date: candle[i].Date,
-			})
-		}
-		r.indicates = indi
+		rs := AU / AD
+		r.indicates = append([]Indicate{{
+			Data: 100.0 - 100.0/(1.0+rs),
+			Date: c[i].Date,
+		}})
 	}
 }
 

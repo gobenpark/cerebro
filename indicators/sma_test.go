@@ -12,7 +12,7 @@ import (
 func TestNewIndicate_SMA(t *testing.T) {
 	s := NewSma(3)
 
-	container := datacontainer.NewDataContainer()
+	container := datacontainer.NewDataContainer("code")
 
 	for i := float64(1); i <= 10; i++ {
 		container.Add(domain.Candle{

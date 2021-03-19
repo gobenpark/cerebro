@@ -12,4 +12,5 @@ type Store interface {
 	LoadHistory(ctx context.Context, d time.Duration) ([]Candle, error)
 	LoadTick(ctx context.Context) (<-chan Tick, error)
 	Uid() string
+	Code() string
 }

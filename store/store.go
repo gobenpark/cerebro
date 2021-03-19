@@ -115,3 +115,7 @@ func (s *store) Cancel() {
 func (s *store) Uid() string {
 	return s.uid
 }
+
+func (s *store) Code() string {
+	return s.code
+}

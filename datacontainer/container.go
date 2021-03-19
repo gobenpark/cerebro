@@ -17,10 +17,11 @@ const (
 type DataContainer struct {
 	mu         sync.Mutex
 	CandleData []domain.Candle
+	code       string
 }
 
-func NewDataContainer() *DataContainer {
-	return &DataContainer{CandleData: []domain.Candle{}}
+func NewDataContainer(code string) *DataContainer {
+	return &DataContainer{CandleData: []domain.Candle{}, code: code}
 }
 
 func (t *DataContainer) Empty() bool {
@@ -36,7 +37,11 @@ func (t *DataContainer) Clear() {
 }
 
 func (t *DataContainer) Values() []domain.Candle {
-	return t.CandleData
+	t.mu.Lock()
+	d := make([]domain.Candle, len(t.CandleData))
+	copy(d, t.CandleData)
+	t.mu.Unlock()
+	return d
 }
 
 //Add forword append container candle data
@@ -49,5 +54,11 @@ func (t *DataContainer) Add(candle domain.Candle) {
 			}
 		}
 	}
+	t.mu.Lock()
 	t.CandleData = append([]domain.Candle{candle}, t.CandleData...)
+	t.mu.Unlock()
+}
+
+func (t *DataContainer) Code() string {
+	return t.code
 }

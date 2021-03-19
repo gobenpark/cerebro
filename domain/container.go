@@ -7,4 +7,5 @@ type Container interface {
 	Clear()
 	Values() []Candle
 	Add(candle Candle)
+	Code() string
 }

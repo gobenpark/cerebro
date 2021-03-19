@@ -22,7 +22,7 @@ func TestRsi(t *testing.T) {
 	data, err := reader.ReadAll()
 	assert.NoError(t, err)
 
-	container := datacontainer.NewDataContainer()
+	container := datacontainer.NewDataContainer("code")
 
 	stof := func(s string) float64 {
 		f, _ := strconv.ParseFloat(s, 64)
@@ -90,8 +90,8 @@ func TestSlice2(t *testing.T) {
 		"2021-03-18 09:36:00",
 	}
 
-	container := datacontainer.NewDataContainer()
-	rsi := NewRsi2(14)
+	container := datacontainer.NewDataContainer("code")
+	rsi := NewRsi(14)
 
 	for k, v := range data {
 

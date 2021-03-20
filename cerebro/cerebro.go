@@ -4,7 +4,6 @@ package cerebro
 
 import (
 	"context"
-	"fmt"
 	"os"
 	"os/signal"
 	"sync"
@@ -120,10 +119,6 @@ func (c *Cerebro) load() error {
 				for _, j := range candle {
 					c.containers[store.Uid()].Add(j)
 				}
-
-				for _, i := range c.containers[store.Uid()].Values() {
-					fmt.Println(i.Date)
-				}
 				c.mu.Unlock()
 			}(i)
 		}
@@ -145,11 +140,26 @@ func (c *Cerebro) load() error {
 					c.containers[store.Uid()] = datacontainer.NewDataContainer(store.Code())
 				}
 				c.mu.Unlock()
-				com := c.compress[store.Uid()]
-				for j := range Compression(tick, com.level, com.LeftEdge) {
-					c.containers[store.Uid()].Add(j)
-					c.data <- c.containers[store.Uid()]
+				if com, ok := c.compress[store.Uid()]; ok {
+					for j := range Compression(tick, com.level, com.LeftEdge) {
+						c.containers[store.Uid()].Add(j)
+						c.data <- c.containers[store.Uid()]
+					}
+				} else {
+					for j := range tick {
+						c.containers[store.Uid()].Add(domain.Candle{
+							Code:   j.Code,
+							Open:   j.Price,
+							High:   j.Price,
+							Low:    j.Price,
+							Close:  j.Price,
+							Volume: j.Volume,
+							Date:   j.Date,
+						})
+						c.data <- c.containers[store.Uid()]
+					}
 				}
+
 			}(i)
 		}
 

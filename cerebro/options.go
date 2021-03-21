@@ -3,6 +3,7 @@ package cerebro
 import (
 	"time"
 
+	"github.com/gobenpark/trader/datacontainer"
 	"github.com/gobenpark/trader/domain"
 	"github.com/rs/zerolog"
 )
@@ -42,7 +43,11 @@ func WithLive(isLive bool) CerebroOption {
 
 func WithResample(store domain.Store, level time.Duration, leftEdge bool) CerebroOption {
 	return func(c *Cerebro) {
-		c.compress[store.Uid()] = CompressInfo{level: level, LeftEdge: leftEdge}
+		c.compress[store.Uid()] = append(c.compress[store.Uid()], CompressInfo{level: level, LeftEdge: leftEdge})
+		c.containers = append(c.containers, datacontainer.NewDataContainer(datacontainer.ContainerInfo{
+			Code:             store.Code(),
+			CompressionLevel: level,
+		}))
 	}
 }
 

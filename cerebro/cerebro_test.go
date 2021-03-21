@@ -67,8 +67,8 @@ func TestNewCerebro(t *testing.T) {
 			NewCerebro(),
 			func(c *Cerebro, t *testing.T) {
 				store := store.NewStore("upbit", "codes")
-				WithResample(store, 3*time.Minute)(c)
-				assert.Equal(t, 3*time.Minute, c.compress[store.Uid()].level)
+				WithResample(store, 3*time.Minute, true)(c)
+				assert.Equal(t, 3*time.Minute, c.compress[store.Uid()][0].level)
 			},
 		},
 		{
@@ -100,10 +100,10 @@ func TestNewCerebro(t *testing.T) {
 			},
 		},
 		{
-			"cerebro data container exist",
+			"cerebro data container not exist",
 			NewCerebro(),
 			func(c *Cerebro, t *testing.T) {
-				assert.NotNil(t, c.containers)
+				assert.Nil(t, c.containers)
 			},
 		},
 		{

@@ -6,16 +6,6 @@ import (
 	"github.com/gobenpark/trader/domain"
 )
 
-//첫번째 AU/AD 계산
-//- AU : 지난 14일 동안의 이득의 합 / 14
-//- AD : 지난 14일 동안의 하락의 합 / 14
-//
-//두번째 및 이후의 AU/AD 계산
-//- AU : [(이전 AU) * 13 + 현재 이득] / 14
-//- AD : [(이전 AD) * 13 + 현재 하락] / 14
-//
-//RS = AU / AD
-//RSI = RS / (1 + RS) 또는 RSI = AU / (AU + AD)
 type rsi struct {
 	period    int
 	indicates []Indicate
@@ -27,59 +17,51 @@ func NewRsi(period int) Indicator {
 	if period == 0 {
 		period = 14
 	}
-	return &rsi{period: period}
+	return &rsi{period: period, indicates: []Indicate{}}
 }
 
-func upday(c []domain.Candle) float64 {
-	value := 0.0
-	for _, i := range c {
-		if v := i.Close - i.Open; v > 0 {
-			value += v
-		}
-	}
-	return value
-}
-
-func downday(c []domain.Candle) float64 {
-	value := 0.0
-	for _, i := range c {
-		if v := i.Close - i.Open; v < 0 {
-			value += math.Abs(v)
-		}
-	}
-	return value
-}
-
+//self.line[0] = self.line[-1] * self.alpha1 + self.data[0] * self.alpha
 func (r *rsi) Calculate(container domain.Container) {
 	c := container.Values()
 	slide := len(c) - r.period
 	if len(c) < r.period {
 		return
 	}
+	alpha := 1.0 / float64(r.period)
+	alpha1 := 1.0 - alpha
+	aprev := 0.0
+	uprev := 0.0
 
-	AU := math.NaN()
-	AD := math.NaN()
+	if v := c[slide].Close - c[slide+1].Close; v > 0 {
+		aprev = v
+	} else {
+		uprev = math.Abs(v)
+	}
 
-	for i := slide; i >= 0; i-- {
-		if math.IsNaN(AU) && math.IsNaN(AD) {
-			su := upday(c[i : i+r.period])
-			sd := downday(c[i : i+r.period])
-			AU = su / float64(r.period)
-			AD = sd / float64(r.period)
+	var a []float64
+	var b []float64
+
+	for i := slide - 1; i >= 0; i-- {
+		if v := c[i].Close - c[i+1].Close; v >= 0 {
+			aprev = aprev*alpha1 + v*alpha
+			a = append([]float64{aprev}, a...)
+
+			uprev = uprev * alpha1
+			b = append([]float64{uprev}, b...)
 		} else {
-			if v := c[i].Close - c[i].Open; v >= 0 {
-				AU = ((AU * float64(r.period-1)) + v) / float64(r.period)
-				AD = AD * float64(r.period-1) / float64(r.period)
-			} else {
-				AD = ((AD * float64(r.period-1)) + math.Abs(v)) / float64(r.period)
-				AU = AU * float64(r.period-1) / float64((r.period))
-			}
+			aprev = aprev * alpha1
+			a = append([]float64{aprev}, a...)
+
+			uprev = uprev*alpha1 + math.Abs(v)*alpha
+			b = append([]float64{uprev}, b...)
 		}
-		rs := AU / AD
+
+		rs := aprev / uprev
+		rsi := 100.0 - 100.0/(1.0+rs)
 		r.indicates = append([]Indicate{{
-			Data: 100.0 - 100.0/(1.0+rs),
+			Data: rsi,
 			Date: c[i].Date,
-		}})
+		}}, r.indicates...)
 	}
 }
 

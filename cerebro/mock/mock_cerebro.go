@@ -3,7 +3,3 @@
 
 // Package mock_cerebro is a generated GoMock package.
 package mock_cerebro
-
-import (
-	gomock "github.com/golang/mock/gomock"
-)

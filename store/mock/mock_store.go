@@ -3,7 +3,3 @@
 
 // Package mock_store is a generated GoMock package.
 package mock_store
-
-import (
-	gomock "github.com/golang/mock/gomock"
-)

@@ -5,36 +5,49 @@
 package mock_domain
 
 import (
+	reflect "reflect"
+
 	event "github.com/gobenpark/trader/event"
 	position "github.com/gobenpark/trader/position"
 	gomock "github.com/golang/mock/gomock"
-	reflect "reflect"
 )
 
-// MockBroker is a mock of Broker interface
+// MockBroker is a mock of Broker interface.
 type MockBroker struct {
 	ctrl     *gomock.Controller
 	recorder *MockBrokerMockRecorder
 }
 
-// MockBrokerMockRecorder is the mock recorder for MockBroker
+// MockBrokerMockRecorder is the mock recorder for MockBroker.
 type MockBrokerMockRecorder struct {
 	mock *MockBroker
 }
 
-// NewMockBroker creates a new mock instance
+// NewMockBroker creates a new mock instance.
 func NewMockBroker(ctrl *gomock.Controller) *MockBroker {
 	mock := &MockBroker{ctrl: ctrl}
 	mock.recorder = &MockBrokerMockRecorder{mock}
 	return mock
 }
 
-// EXPECT returns an object that allows the caller to indicate expected use
+// EXPECT returns an object that allows the caller to indicate expected use.
 func (m *MockBroker) EXPECT() *MockBrokerMockRecorder {
 	return m.recorder
 }
 
-// Buy mocks base method
+// AddOrderHistory mocks base method.
+func (m *MockBroker) AddOrderHistory() {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "AddOrderHistory")
+}
+
+// AddOrderHistory indicates an expected call of AddOrderHistory.
+func (mr *MockBrokerMockRecorder) AddOrderHistory() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddOrderHistory", reflect.TypeOf((*MockBroker)(nil).AddOrderHistory))
+}
+
+// Buy mocks base method.
 func (m *MockBroker) Buy(code string, size int64, price float64) string {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Buy", code, size, price)
@@ -42,51 +55,37 @@ func (m *MockBroker) Buy(code string, size int64, price float64) string {
 	return ret0
 }
 
-// Buy indicates an expected call of Buy
+// Buy indicates an expected call of Buy.
 func (mr *MockBrokerMockRecorder) Buy(code, size, price interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Buy", reflect.TypeOf((*MockBroker)(nil).Buy), code, size, price)
 }
 
-// Sell mocks base method
-func (m *MockBroker) Sell(code string, size int64, price float64) string {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Sell", code, size, price)
-	ret0, _ := ret[0].(string)
-	return ret0
-}
-
-// Sell indicates an expected call of Sell
-func (mr *MockBrokerMockRecorder) Sell(code, size, price interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Sell", reflect.TypeOf((*MockBroker)(nil).Sell), code, size, price)
-}
-
-// Cancel mocks base method
+// Cancel mocks base method.
 func (m *MockBroker) Cancel(uuid string) {
 	m.ctrl.T.Helper()
 	m.ctrl.Call(m, "Cancel", uuid)
 }
 
-// Cancel indicates an expected call of Cancel
+// Cancel indicates an expected call of Cancel.
 func (mr *MockBrokerMockRecorder) Cancel(uuid interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Cancel", reflect.TypeOf((*MockBroker)(nil).Cancel), uuid)
 }
 
-// Submit mocks base method
-func (m *MockBroker) Submit(uid string) {
+// CommissionInfo mocks base method.
+func (m *MockBroker) CommissionInfo() {
 	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "Submit", uid)
+	m.ctrl.Call(m, "CommissionInfo")
 }
 
-// Submit indicates an expected call of Submit
-func (mr *MockBrokerMockRecorder) Submit(uid interface{}) *gomock.Call {
+// CommissionInfo indicates an expected call of CommissionInfo.
+func (mr *MockBrokerMockRecorder) CommissionInfo() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Submit", reflect.TypeOf((*MockBroker)(nil).Submit), uid)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CommissionInfo", reflect.TypeOf((*MockBroker)(nil).CommissionInfo))
 }
 
-// GetPosition mocks base method
+// GetPosition mocks base method.
 func (m *MockBroker) GetPosition(code string) (position.Position, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetPosition", code)
@@ -95,68 +94,70 @@ func (m *MockBroker) GetPosition(code string) (position.Position, error) {
 	return ret0, ret1
 }
 
-// GetPosition indicates an expected call of GetPosition
+// GetPosition indicates an expected call of GetPosition.
 func (mr *MockBrokerMockRecorder) GetPosition(code interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetPosition", reflect.TypeOf((*MockBroker)(nil).GetPosition), code)
 }
 
-// AddOrderHistory mocks base method
-func (m *MockBroker) AddOrderHistory() {
+// Sell mocks base method.
+func (m *MockBroker) Sell(code string, size int64, price float64) string {
 	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "AddOrderHistory")
+	ret := m.ctrl.Call(m, "Sell", code, size, price)
+	ret0, _ := ret[0].(string)
+	return ret0
 }
 
-// AddOrderHistory indicates an expected call of AddOrderHistory
-func (mr *MockBrokerMockRecorder) AddOrderHistory() *gomock.Call {
+// Sell indicates an expected call of Sell.
+func (mr *MockBrokerMockRecorder) Sell(code, size, price interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddOrderHistory", reflect.TypeOf((*MockBroker)(nil).AddOrderHistory))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Sell", reflect.TypeOf((*MockBroker)(nil).Sell), code, size, price)
 }
 
-// SetFundHistory mocks base method
-func (m *MockBroker) SetFundHistory() {
-	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "SetFundHistory")
-}
-
-// SetFundHistory indicates an expected call of SetFundHistory
-func (mr *MockBrokerMockRecorder) SetFundHistory() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetFundHistory", reflect.TypeOf((*MockBroker)(nil).SetFundHistory))
-}
-
-// CommissionInfo mocks base method
-func (m *MockBroker) CommissionInfo() {
-	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "CommissionInfo")
-}
-
-// CommissionInfo indicates an expected call of CommissionInfo
-func (mr *MockBrokerMockRecorder) CommissionInfo() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CommissionInfo", reflect.TypeOf((*MockBroker)(nil).CommissionInfo))
-}
-
-// SetCash mocks base method
+// SetCash mocks base method.
 func (m *MockBroker) SetCash(cash int64) {
 	m.ctrl.T.Helper()
 	m.ctrl.Call(m, "SetCash", cash)
 }
 
-// SetCash indicates an expected call of SetCash
+// SetCash indicates an expected call of SetCash.
 func (mr *MockBrokerMockRecorder) SetCash(cash interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetCash", reflect.TypeOf((*MockBroker)(nil).SetCash), cash)
 }
 
-// SetEventBroadCaster mocks base method
+// SetEventBroadCaster mocks base method.
 func (m *MockBroker) SetEventBroadCaster(e event.EventBroadcaster) {
 	m.ctrl.T.Helper()
 	m.ctrl.Call(m, "SetEventBroadCaster", e)
 }
 
-// SetEventBroadCaster indicates an expected call of SetEventBroadCaster
+// SetEventBroadCaster indicates an expected call of SetEventBroadCaster.
 func (mr *MockBrokerMockRecorder) SetEventBroadCaster(e interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetEventBroadCaster", reflect.TypeOf((*MockBroker)(nil).SetEventBroadCaster), e)
+}
+
+// SetFundHistory mocks base method.
+func (m *MockBroker) SetFundHistory() {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "SetFundHistory")
+}
+
+// SetFundHistory indicates an expected call of SetFundHistory.
+func (mr *MockBrokerMockRecorder) SetFundHistory() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetFundHistory", reflect.TypeOf((*MockBroker)(nil).SetFundHistory))
+}
+
+// Submit mocks base method.
+func (m *MockBroker) Submit(uid string) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "Submit", uid)
+}
+
+// Submit indicates an expected call of Submit.
+func (mr *MockBrokerMockRecorder) Submit(uid interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Submit", reflect.TypeOf((*MockBroker)(nil).Submit), uid)
 }

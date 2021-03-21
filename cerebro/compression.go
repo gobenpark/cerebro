@@ -12,31 +12,29 @@ type CompressInfo struct {
 }
 
 func Compression(tick <-chan domain.Tick, level time.Duration, leftEdge bool) <-chan domain.Candle {
+	compressionDate := func(date time.Time) time.Time {
+		rd := date.Round(level)
+		if leftEdge {
+			if date.Sub(rd) < 0 {
+				rd = rd.Add(-level)
+			}
+		} else {
+			if date.Sub(rd) > 0 {
+				rd = rd.Add(level)
+			}
+		}
+		return rd
+	}
 	ch := make(chan domain.Candle, 1)
 	go func() {
 		defer close(ch)
 		c := domain.Candle{}
 		for t := range tick {
 			if c.Date.Equal(time.Time{}) {
-				c.Date = t.Date.Round(level)
-				if !leftEdge {
-					if t.Date.Sub(c.Date) > 0 {
-						c.Date = c.Date.Add(level)
-					}
-				}
-			}
-			rd := t.Date.Round(level)
-			if leftEdge {
-				if t.Date.Sub(rd) < 0 {
-					rd = rd.Add(-level)
-				}
-			} else {
-				if t.Date.Sub(rd) > 0 {
-					rd = rd.Add(level)
-				}
+				c.Date = compressionDate(t.Date)
 			}
 
-			if c.Date.Equal(rd) {
+			if c.Date.Equal(compressionDate(t.Date)) {
 				c.Volume += t.Volume
 				c.Code = t.Code
 				c.Close = t.Price

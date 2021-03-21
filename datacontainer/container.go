@@ -2,6 +2,7 @@ package datacontainer
 
 import (
 	"sync"
+	"time"
 
 	"github.com/gobenpark/trader/domain"
 )
@@ -13,15 +14,23 @@ const (
 	External
 )
 
+type ContainerInfo struct {
+	Code             string
+	CompressionLevel time.Duration
+}
+
 //TODO: inmemory or external storage
 type DataContainer struct {
 	mu         sync.Mutex
 	CandleData []domain.Candle
-	code       string
+	ContainerInfo
 }
 
-func NewDataContainer(code string) *DataContainer {
-	return &DataContainer{CandleData: []domain.Candle{}, code: code}
+func NewDataContainer(info ContainerInfo) *DataContainer {
+	return &DataContainer{
+		CandleData:    []domain.Candle{},
+		ContainerInfo: info,
+	}
 }
 
 func (t *DataContainer) Empty() bool {
@@ -60,5 +69,9 @@ func (t *DataContainer) Add(candle domain.Candle) {
 }
 
 func (t *DataContainer) Code() string {
-	return t.code
+	return t.ContainerInfo.Code
+}
+
+func (t *DataContainer) Level() time.Duration {
+	return t.ContainerInfo.CompressionLevel
 }

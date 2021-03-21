@@ -20,7 +20,7 @@ func (s *Bighands) Next(broker domain.Broker, container domain.Container) {
 	rsi := indicators.NewRsi(14)
 	rsi.Calculate(container)
 	if len(rsi.Get()) != 0 {
-		fmt.Println(container.Code())
+		fmt.Printf("%s %d\n", container.Code(), container.Level())
 		fmt.Println(rsi.Get()[0])
 	}
 

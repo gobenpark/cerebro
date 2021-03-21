@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"github.com/go-playground/validator/v10"
-	"github.com/gobenpark/trader/datacontainer"
 	"github.com/gobenpark/trader/domain"
 	"github.com/gobenpark/trader/event"
 	"github.com/gobenpark/trader/order"
@@ -40,9 +39,9 @@ type Cerebro struct {
 	//store can inject into cerebro what external api or oher tick,candle buy,sell history data
 	stores []domain.Store
 
-	compress map[string]CompressInfo
+	compress map[string][]CompressInfo
 
-	containers map[string]domain.Container
+	containers []domain.Container
 
 	//strategy.StrategyEngine embedding property for managing user strategy
 	strategyEngine *strategy.StrategyEngine
@@ -74,8 +73,7 @@ func NewCerebro(opts ...CerebroOption) *Cerebro {
 		Ctx:            ctx,
 		Cancel:         cancel,
 		log:            logger,
-		containers:     make(map[string]domain.Container),
-		compress:       make(map[string]CompressInfo),
+		compress:       make(map[string][]CompressInfo),
 		strategyEngine: &strategy.StrategyEngine{},
 		event:          make(chan event.Event, 1),
 		order:          make(chan order.Order, 1),
@@ -90,6 +88,15 @@ func NewCerebro(opts ...CerebroOption) *Cerebro {
 	return c
 }
 
+func (c *Cerebro) getContainer(code string, level time.Duration) domain.Container {
+	for k, v := range c.containers {
+		if v.Code() == code && v.Level() == level {
+			return c.containers[k]
+		}
+	}
+	return nil
+}
+
 //load initializing data from injected store interface
 func (c *Cerebro) load() error {
 	if c.preload {
@@ -99,27 +106,17 @@ func (c *Cerebro) load() error {
 			go func(store domain.Store) {
 				defer wg.Done()
 
-				var level time.Duration
-				c.mu.Lock()
-				if com, ok := c.compress[store.Uid()]; ok {
-					level = com.level
+				for _, comp := range c.compress[store.Uid()] {
+					candles, err := store.LoadHistory(c.Ctx, comp.level)
+					if err != nil {
+						c.log.Err(err).Send()
+						return
+					}
+					con := c.getContainer(store.Code(), comp.level)
+					for _, candle := range candles {
+						con.Add(candle)
+					}
 				}
-
-				c.mu.Unlock()
-
-				candle, err := store.LoadHistory(c.Ctx, level)
-				if err != nil {
-					c.log.Err(err).Send()
-					return
-				}
-				c.mu.Lock()
-				if _, ok := c.containers[store.Uid()]; !ok {
-					c.containers[store.Uid()] = datacontainer.NewDataContainer(store.Code())
-				}
-				for _, j := range candle {
-					c.containers[store.Uid()].Add(j)
-				}
-				c.mu.Unlock()
 			}(i)
 		}
 		wg.Wait()
@@ -130,40 +127,26 @@ func (c *Cerebro) load() error {
 			return ErrStoreNotExists
 		}
 		for _, i := range c.stores {
+
+			//store per generate resample with containers
 			go func(store domain.Store) {
 				tick, err := store.LoadTick(c.Ctx)
 				if err != nil {
 					c.log.Err(err).Send()
 				}
-				c.mu.Lock()
-				if _, ok := c.containers[store.Uid()]; !ok {
-					c.containers[store.Uid()] = datacontainer.NewDataContainer(store.Code())
-				}
-				c.mu.Unlock()
-				if com, ok := c.compress[store.Uid()]; ok {
-					for j := range Compression(tick, com.level, com.LeftEdge) {
-						c.containers[store.Uid()].Add(j)
-						c.data <- c.containers[store.Uid()]
-					}
-				} else {
-					for j := range tick {
-						c.containers[store.Uid()].Add(domain.Candle{
-							Code:   j.Code,
-							Open:   j.Price,
-							High:   j.Price,
-							Low:    j.Price,
-							Close:  j.Price,
-							Volume: j.Volume,
-							Date:   j.Date,
-						})
-						c.data <- c.containers[store.Uid()]
-					}
-				}
 
+				for _, v := range c.compress[store.Uid()] {
+					if container := c.getContainer(store.Code(), v.level); container != nil {
+						go func(level time.Duration, isedge bool) {
+							for j := range Compression(tick, level, isedge) {
+								container.Add(j)
+								c.data <- container
+							}
+						}(v.level, v.LeftEdge)
+					}
+				}
 			}(i)
 		}
-
-		<-c.Ctx.Done()
 	}
 	return nil
 }

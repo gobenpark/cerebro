@@ -104,12 +104,39 @@ func (s *store) LoadTick(ctx context.Context) (<-chan domain.Tick, error) {
 	return ch, nil
 }
 
-func (s *store) Order() {
-	panic("implement me")
+func (s *store) Order(code string, ot domain.OrderType, size int, price float64) error {
+	switch ot {
+	case domain.Buy:
+		_, err := s.cli.Buy(context.Background(), &stock.BuyRequest{
+			Code:       code,
+			Otype:      stock.LimitOrder,
+			Volume:     float64(size),
+			Price:      price,
+			Identifier: uuid.NewV4().String(),
+		})
+		if err != nil {
+			return err
+		}
+	case domain.Sell:
+		_, err := s.cli.Sell(context.Background(), &stock.SellRequest{
+			Code:       code,
+			Otype:      stock.LimitOrder,
+			Volume:     float64(size),
+			Price:      price,
+			Identifier: uuid.NewV4().String(),
+		})
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
-func (s *store) Cancel() {
-	panic("implement me")
+func (s *store) Cancel(id string) error {
+	if _, err := s.cli.CancelOrder(context.Background(), &stock.CancelOrderRequest{Id: id}); err != nil {
+		return err
+	}
+	return nil
 }
 
 func (s *store) Uid() string {

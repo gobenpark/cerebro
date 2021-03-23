@@ -11,7 +11,7 @@ package event
 import "context"
 
 type EventEngine struct {
-	broadcast  chan Event
+	broadcast  chan interface{}
 	Register   chan EventListener
 	Unregister chan EventListener
 	childEvent map[EventListener]bool
@@ -19,7 +19,7 @@ type EventEngine struct {
 
 func NewEventEngine() *EventEngine {
 	return &EventEngine{
-		broadcast:  make(chan Event),
+		broadcast:  make(chan interface{}),
 		Register:   make(chan EventListener),
 		Unregister: make(chan EventListener),
 		childEvent: make(map[EventListener]bool),
@@ -47,6 +47,6 @@ func (e *EventEngine) Start(ctx context.Context) {
 	}()
 }
 
-func (e *EventEngine) BroadCast(evt Event) {
+func (e *EventEngine) BroadCast(evt interface{}) {
 	e.broadcast <- evt
 }

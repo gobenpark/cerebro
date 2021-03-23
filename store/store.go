@@ -4,6 +4,7 @@ package store
 
 import (
 	"context"
+	"fmt"
 	"sort"
 	"time"
 
@@ -104,9 +105,10 @@ func (s *store) LoadTick(ctx context.Context) (<-chan domain.Tick, error) {
 	return ch, nil
 }
 
-func (s *store) Order(code string, ot domain.OrderType, size int, price float64) error {
+func (s *store) Order(code string, ot domain.OrderType, size int64, price float64) error {
 	switch ot {
 	case domain.Buy:
+		fmt.Println("")
 		_, err := s.cli.Buy(context.Background(), &stock.BuyRequest{
 			Code:       code,
 			Otype:      stock.LimitOrder,

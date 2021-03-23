@@ -14,6 +14,7 @@ import (
 	"github.com/gobenpark/trader/domain"
 	"github.com/gobenpark/trader/event"
 	"github.com/gobenpark/trader/order"
+	"github.com/gobenpark/trader/store"
 	"github.com/gobenpark/trader/strategy"
 	"github.com/rs/zerolog"
 )
@@ -50,8 +51,6 @@ type Cerebro struct {
 	log zerolog.Logger `json:"log" validate:"required"`
 
 	//event channel of all event
-	event chan event.Event
-
 	order chan order.Order
 
 	eventEngine *event.EventEngine
@@ -60,7 +59,7 @@ type Cerebro struct {
 
 	data chan domain.Container
 
-	events []chan event.Event
+	storengine *store.StoreEngine
 }
 
 //NewCerebro generate new cerebro with cerebro option
@@ -75,10 +74,10 @@ func NewCerebro(opts ...CerebroOption) *Cerebro {
 		log:            logger,
 		compress:       make(map[string][]CompressInfo),
 		strategyEngine: &strategy.StrategyEngine{},
-		event:          make(chan event.Event, 1),
 		order:          make(chan order.Order, 1),
 		data:           make(chan domain.Container, 1),
 		eventEngine:    event.NewEventEngine(),
+		storengine:     new(store.StoreEngine),
 	}
 
 	for _, opt := range opts {
@@ -127,7 +126,6 @@ func (c *Cerebro) load() error {
 			return ErrStoreNotExists
 		}
 		for _, i := range c.stores {
-
 			//store per generate resample with containers
 			go func(store domain.Store) {
 				tick, err := store.LoadTick(c.Ctx)
@@ -150,8 +148,10 @@ func (c *Cerebro) load() error {
 	}
 	return nil
 }
+
 func (c *Cerebro) registEvent() {
 	c.eventEngine.Register <- c.strategyEngine
+	c.eventEngine.Register <- c.storengine
 }
 
 //Start run cerebro

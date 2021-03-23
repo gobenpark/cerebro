@@ -16,7 +16,7 @@ func main() {
 	//		fmt.Println(runtime.NumGoroutine())
 	//	}
 	//}()
-	bk := broker.NewBroker(100000, 0.005)
+	bk := broker.NewBroker(100000, 0.0005)
 
 	wax := store2.NewStore("upbit", "KRW-WAXP")
 	mlk := store2.NewStore("KRW-MLK", "KRW-MLK")

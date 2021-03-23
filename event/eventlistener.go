@@ -6,12 +6,14 @@
  * Vestibulum commodo. Ut rhoncus gravida arcu.
  */
 
+//go:generate mockgen -source=./eventlistener.go -destination=./mock/mock_eventlistener.go
+
 package event
 
 type EventListener interface {
-	Listen(e Event)
+	Listen(e interface{})
 }
 
 type EventBroadcaster interface {
-	BroadCast(e Event)
+	BroadCast(e interface{})
 }

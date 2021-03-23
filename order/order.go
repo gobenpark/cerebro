@@ -2,8 +2,6 @@ package order
 
 import (
 	"time"
-
-	"github.com/gobenpark/trader/domain"
 )
 
 type (
@@ -18,6 +16,7 @@ const (
 
 	Created Status = iota + 1
 	Submitted
+	Excuting
 	Accepted
 	Partial
 	Completed
@@ -38,21 +37,23 @@ const (
 
 type Order struct {
 	Status
-	Code       string        `json:"code"`
-	UUID       string        `json:"uuid"`
-	Broker     domain.Broker `json:"broker"`
-	OrderType  OType         `json:"orderType"`
-	Size       int64         `json:"size"`
-	Price      float64       `json:"price"`
-	CreatedAt  time.Time     `json:"createdAt"`
-	ExecutedAt time.Time     `json:"executedAt"`
+	OType
+	Code       string    `json:"code"`
+	UUID       string    `json:"uuid"`
+	Size       int64     `json:"size"`
+	Price      float64   `json:"price"`
+	CreatedAt  time.Time `json:"createdAt"`
+	ExecutedAt time.Time `json:"executedAt"`
 }
 
-func (o *Order) Reject() {
+func (o *Order) Reject(err error) {
+	o.Status = Rejected
+	o.ExecutedAt = time.Now()
 }
 
-func (*Order) Expire() {
-
+func (o *Order) Expire() {
+	o.Status = Expired
+	o.ExecutedAt = time.Now()
 }
 
 func (o *Order) Cancel() {
@@ -70,8 +71,9 @@ func (o *Order) Partial() {
 	o.ExecutedAt = time.Now()
 }
 
-func (*Order) Execute() {
-
+func (o *Order) Execute() {
+	o.Status = Excuting
+	o.ExecutedAt = time.Now()
 }
 
 func (o *Order) Submit() {

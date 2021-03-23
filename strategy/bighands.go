@@ -5,15 +5,12 @@ import (
 
 	"github.com/gobenpark/trader/domain"
 	"github.com/gobenpark/trader/indicators"
+	"github.com/gobenpark/trader/order"
 )
 
 type Bighands struct {
 	Broker domain.Broker
 	indi   indicators.Indicator
-}
-
-func (s *Bighands) Indicators() []domain.Indicator {
-	return []domain.Indicator{}
 }
 
 func (s *Bighands) Next(broker domain.Broker, container domain.Container) {
@@ -23,6 +20,7 @@ func (s *Bighands) Next(broker domain.Broker, container domain.Container) {
 		fmt.Printf("%s %d\n", container.Code(), container.Level())
 		fmt.Println(rsi.Get()[0])
 	}
+	broker.Buy(container.Code(), 10, 1000.0)
 
 	//
 	//if container.Values()[0].Close > container.Values()[1].Close {
@@ -32,8 +30,8 @@ func (s *Bighands) Next(broker domain.Broker, container domain.Container) {
 	//broker.Buy("KRW-BTC", 10, 1)
 }
 
-func (s *Bighands) NotifyOrder() {
-	panic("implement me")
+func (s *Bighands) NotifyOrder(o *order.Order) {
+	fmt.Println(o.Status)
 }
 
 func (s *Bighands) NotifyTrade() {

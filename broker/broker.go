@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	"github.com/gobenpark/trader/event"
 	"github.com/gobenpark/trader/order"
@@ -24,7 +25,6 @@ type DefaultBroker struct {
 
 //NewBroker Init new broker with cash,commission
 func NewBroker(cash int64, commission float32) *DefaultBroker {
-
 	return &DefaultBroker{
 		cash:       cash,
 		commission: commission,
@@ -36,50 +36,45 @@ func NewBroker(cash int64, commission float32) *DefaultBroker {
 func (b *DefaultBroker) Buy(code string, size int64, price float64) string {
 	uid := uuid.NewV4().String()
 	o := &order.Order{
+		Status:    order.Submitted,
+		OType:     order.Buy,
 		Code:      code,
 		UUID:      uid,
-		Status:    order.Submitted,
-		OrderType: order.Buy,
 		Size:      size,
 		Price:     price,
-		Broker:    b,
+		CreatedAt: time.Now(),
 	}
 	b.orders[o.UUID] = o
 	b.transmit(o)
-	b.eventEngine.BroadCast(event.OrderSubmit())
 	return uid
 }
 
 func (b *DefaultBroker) Sell(code string, size int64, price float64) string {
 	uid := uuid.NewV4().String()
 	o := &order.Order{
-		Code:      code,
-		UUID:      uid,
-		OrderType: order.Sell,
-		Size:      size,
-		Price:     price,
-		Broker:    b,
+		Code:  code,
+		UUID:  uid,
+		OType: order.Sell,
+		Size:  size,
+		Price: price,
 	}
 	b.orders[o.UUID] = o
 	b.transmit(o)
-
 	return uid
 }
 
 func (b *DefaultBroker) Cancel(uid string) {
 	if o, ok := b.orders[uid]; ok {
 		o.Cancel()
-		//TODO: fix cancel event send
-		b.eventEngine.BroadCast(event.Event{UUID: uuid.NewV4().String()})
+		b.eventEngine.BroadCast(o)
 		return
 	}
-	b.eventEngine.BroadCast(event.Event{UUID: uuid.NewV4().String()})
 }
 
 func (b *DefaultBroker) Submit(uid string) {
-	if ord, ok := b.orders[uid]; ok {
-		ord.Submit()
-		b.eventEngine.BroadCast(event.Event{UUID: uuid.NewV4().String()})
+	if o, ok := b.orders[uid]; ok {
+		o.Submit()
+		b.eventEngine.BroadCast(o)
 		return
 	}
 }
@@ -95,8 +90,10 @@ func (b *DefaultBroker) SetCash(cash int64) {
 	atomic.StoreInt64(&b.cash, cash)
 }
 
+//commission 반영
 func (b *DefaultBroker) transmit(o *order.Order) {
-	//TODO: Order create
+	o.Execute()
+	b.eventEngine.BroadCast(o)
 }
 
 func (b *DefaultBroker) AddOrderHistory() {

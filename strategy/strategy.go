@@ -2,18 +2,18 @@ package strategy
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/gobenpark/trader/domain"
-	"github.com/gobenpark/trader/event"
+	"github.com/gobenpark/trader/order"
 )
 
 type StrategyEngine struct {
-	E chan event.Event
 	domain.Broker
+	sts []domain.Strategy
 }
 
 func (s *StrategyEngine) Start(ctx context.Context, data chan domain.Container, sts []domain.Strategy) {
+	s.sts = sts
 	go func() {
 		for i := range data {
 			for _, strategy := range sts {
@@ -23,6 +23,11 @@ func (s *StrategyEngine) Start(ctx context.Context, data chan domain.Container, 
 	}()
 }
 
-func (s *StrategyEngine) Listen(e event.Event) {
-	fmt.Println(e)
+func (s *StrategyEngine) Listen(e interface{}) {
+	switch et := e.(type) {
+	case *order.Order:
+		for _, strategy := range s.sts {
+			strategy.NotifyOrder(et)
+		}
+	}
 }

@@ -109,6 +109,7 @@ func (s *store) Order(code string, ot domain.OrderType, size int64, price float6
 	switch ot {
 	case domain.Buy:
 		fmt.Println("")
+		return nil
 		_, err := s.cli.Buy(context.Background(), &stock.BuyRequest{
 			Code:       code,
 			Otype:      stock.LimitOrder,
@@ -120,6 +121,7 @@ func (s *store) Order(code string, ot domain.OrderType, size int64, price float6
 			return err
 		}
 	case domain.Sell:
+		return nil
 		_, err := s.cli.Sell(context.Background(), &stock.SellRequest{
 			Code:       code,
 			Otype:      stock.LimitOrder,

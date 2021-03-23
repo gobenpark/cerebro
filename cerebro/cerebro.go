@@ -45,7 +45,7 @@ type Cerebro struct {
 	containers []domain.Container
 
 	//strategy.StrategyEngine embedding property for managing user strategy
-	strategyEngine *strategy.StrategyEngine
+	strategyEngine *strategy.Engine
 
 	//log in cerebro global logger
 	log zerolog.Logger `json:"log" validate:"required"`
@@ -53,13 +53,13 @@ type Cerebro struct {
 	//event channel of all event
 	order chan order.Order
 
-	eventEngine *event.EventEngine
+	eventEngine *event.Engine
 
 	preload bool
 
 	data chan domain.Container
 
-	storengine *store.StoreEngine
+	storengine *store.Engine
 }
 
 //NewCerebro generate new cerebro with cerebro option
@@ -73,15 +73,19 @@ func NewCerebro(opts ...CerebroOption) *Cerebro {
 		Cancel:         cancel,
 		log:            logger,
 		compress:       make(map[string][]CompressInfo),
-		strategyEngine: &strategy.StrategyEngine{},
+		strategyEngine: &strategy.Engine{},
 		order:          make(chan order.Order, 1),
 		data:           make(chan domain.Container, 1),
 		eventEngine:    event.NewEventEngine(),
-		storengine:     new(store.StoreEngine),
 	}
 
 	for _, opt := range opts {
 		opt(c)
+	}
+
+	c.storengine = &store.Engine{
+		Stores:      c.stores,
+		EventEngine: c.eventEngine,
 	}
 
 	return c

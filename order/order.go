@@ -1,12 +1,13 @@
 package order
 
 import (
+	"sync"
 	"time"
 )
 
 type (
 	OType    int
-	Status   int
+	Status   int32
 	ExecType int
 )
 
@@ -16,7 +17,6 @@ const (
 
 	Created Status = iota + 1
 	Submitted
-	Excuting
 	Accepted
 	Partial
 	Completed
@@ -36,7 +36,7 @@ const (
 )
 
 type Order struct {
-	Status
+	status Status
 	OType
 	Code       string    `json:"code"`
 	UUID       string    `json:"uuid"`
@@ -44,39 +44,62 @@ type Order struct {
 	Price      float64   `json:"price"`
 	CreatedAt  time.Time `json:"createdAt"`
 	ExecutedAt time.Time `json:"executedAt"`
+	mu         sync.RWMutex
 }
 
 func (o *Order) Reject(err error) {
-	o.Status = Rejected
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	o.status = Rejected
 	o.ExecutedAt = time.Now()
 }
 
 func (o *Order) Expire() {
-	o.Status = Expired
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	o.status = Expired
 	o.ExecutedAt = time.Now()
 }
 
 func (o *Order) Cancel() {
-	o.Status = Canceled
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	o.status = Canceled
 	o.ExecutedAt = time.Now()
 }
 
 func (o *Order) Margin() {
-	o.Status = Margin
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	o.status = Margin
 	o.ExecutedAt = time.Now()
 }
 
 func (o *Order) Partial() {
-	o.Status = Partial
-	o.ExecutedAt = time.Now()
-}
-
-func (o *Order) Execute() {
-	o.Status = Excuting
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	o.status = Partial
 	o.ExecutedAt = time.Now()
 }
 
 func (o *Order) Submit() {
-	o.Status = Submitted
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	o.status = Submitted
 	o.CreatedAt = time.Now()
+}
+
+func (o *Order) Complete() {
+	o.mu.Lock()
+	o.status = Completed
+	o.mu.Unlock()
+	o.ExecutedAt = time.Now()
+}
+
+func (o *Order) Status() Status {
+	value := Created
+	o.mu.RLock()
+	value = o.status
+	o.mu.RUnlock()
+	return value
 }

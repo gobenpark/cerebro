@@ -18,8 +18,8 @@ func (s *Bighands) Next(broker domain.Broker, container domain.Container) {
 	rsi.Calculate(container)
 	if len(rsi.Get()) != 0 {
 		fmt.Printf("%s %d\n", container.Code(), container.Level())
-		fmt.Println(rsi.Get()[0])
 	}
+	fmt.Println("buy")
 	broker.Buy(container.Code(), 10, 1000.0)
 
 	//
@@ -31,7 +31,20 @@ func (s *Bighands) Next(broker domain.Broker, container domain.Container) {
 }
 
 func (s *Bighands) NotifyOrder(o *order.Order) {
-	fmt.Println(o.Status)
+	//switch o.Status {
+	//case order.Submitted:
+	//	fmt.Println("Submitted")
+	//case order.Expired:
+	//	fmt.Println("expired")
+	//case order.Rejected:
+	//	fmt.Println("rejected")
+	//case order.Canceled:
+	//	fmt.Println("canceled")
+	//case order.Completed:
+	//	fmt.Println("Completed")
+	//case order.Partial:
+	//	fmt.Println("partial")
+	//}
 }
 
 func (s *Bighands) NotifyTrade() {

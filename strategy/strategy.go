@@ -7,12 +7,12 @@ import (
 	"github.com/gobenpark/trader/order"
 )
 
-type StrategyEngine struct {
+type Engine struct {
 	domain.Broker
 	sts []domain.Strategy
 }
 
-func (s *StrategyEngine) Start(ctx context.Context, data chan domain.Container, sts []domain.Strategy) {
+func (s *Engine) Start(ctx context.Context, data chan domain.Container, sts []domain.Strategy) {
 	s.sts = sts
 	go func() {
 		for i := range data {
@@ -23,7 +23,7 @@ func (s *StrategyEngine) Start(ctx context.Context, data chan domain.Container, 
 	}()
 }
 
-func (s *StrategyEngine) Listen(e interface{}) {
+func (s *Engine) Listen(e interface{}) {
 	switch et := e.(type) {
 	case *order.Order:
 		for _, strategy := range s.sts {

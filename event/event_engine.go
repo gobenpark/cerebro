@@ -8,17 +8,19 @@
 
 package event
 
-import "context"
+import (
+	"context"
+)
 
-type EventEngine struct {
+type Engine struct {
 	broadcast  chan interface{}
 	Register   chan EventListener
 	Unregister chan EventListener
 	childEvent map[EventListener]bool
 }
 
-func NewEventEngine() *EventEngine {
-	return &EventEngine{
+func NewEventEngine() *Engine {
+	return &Engine{
 		broadcast:  make(chan interface{}),
 		Register:   make(chan EventListener),
 		Unregister: make(chan EventListener),
@@ -26,7 +28,7 @@ func NewEventEngine() *EventEngine {
 	}
 }
 
-func (e *EventEngine) Start(ctx context.Context) {
+func (e *Engine) Start(ctx context.Context) {
 	go func() {
 		for {
 			select {
@@ -34,7 +36,7 @@ func (e *EventEngine) Start(ctx context.Context) {
 				break
 			case evt := <-e.broadcast:
 				for c := range e.childEvent {
-					c.Listen(evt)
+					go c.Listen(evt)
 				}
 			case cli := <-e.Register:
 				e.childEvent[cli] = true
@@ -47,6 +49,6 @@ func (e *EventEngine) Start(ctx context.Context) {
 	}()
 }
 
-func (e *EventEngine) BroadCast(evt interface{}) {
+func (e *Engine) BroadCast(evt interface{}) {
 	e.broadcast <- evt
 }

@@ -36,7 +36,6 @@ func NewBroker(cash int64, commission float32) *DefaultBroker {
 func (b *DefaultBroker) Buy(code string, size int64, price float64) string {
 	uid := uuid.NewV4().String()
 	o := &order.Order{
-		Status:    order.Submitted,
 		OType:     order.Buy,
 		Code:      code,
 		UUID:      uid,
@@ -44,8 +43,10 @@ func (b *DefaultBroker) Buy(code string, size int64, price float64) string {
 		Price:     price,
 		CreatedAt: time.Now(),
 	}
+	o.Submit()
 	b.orders[o.UUID] = o
 	b.transmit(o)
+	fmt.Println("buy finish")
 	return uid
 }
 
@@ -92,8 +93,10 @@ func (b *DefaultBroker) SetCash(cash int64) {
 
 //commission 반영
 func (b *DefaultBroker) transmit(o *order.Order) {
-	o.Execute()
+	o.Submit()
+	fmt.Println("buy transmit")
 	b.eventEngine.BroadCast(o)
+	fmt.Println("buy transmit finish")
 }
 
 func (b *DefaultBroker) AddOrderHistory() {

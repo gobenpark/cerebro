@@ -6,63 +6,64 @@ package mock_domain
 
 import (
 	context "context"
-	reflect "reflect"
-	time "time"
-
 	domain "github.com/gobenpark/trader/domain"
 	gomock "github.com/golang/mock/gomock"
+	reflect "reflect"
+	time "time"
 )
 
-// MockStore is a mock of Store interface.
+// MockStore is a mock of Store interface
 type MockStore struct {
 	ctrl     *gomock.Controller
 	recorder *MockStoreMockRecorder
 }
 
-// MockStoreMockRecorder is the mock recorder for MockStore.
+// MockStoreMockRecorder is the mock recorder for MockStore
 type MockStoreMockRecorder struct {
 	mock *MockStore
 }
 
-// NewMockStore creates a new mock instance.
+// NewMockStore creates a new mock instance
 func NewMockStore(ctrl *gomock.Controller) *MockStore {
 	mock := &MockStore{ctrl: ctrl}
 	mock.recorder = &MockStoreMockRecorder{mock}
 	return mock
 }
 
-// EXPECT returns an object that allows the caller to indicate expected use.
+// EXPECT returns an object that allows the caller to indicate expected use
 func (m *MockStore) EXPECT() *MockStoreMockRecorder {
 	return m.recorder
 }
 
-// Cancel mocks base method.
-func (m *MockStore) Cancel() {
+// Order mocks base method
+func (m *MockStore) Order(code string, ot domain.OrderType, size int64, price float64) error {
 	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "Cancel")
-}
-
-// Cancel indicates an expected call of Cancel.
-func (mr *MockStoreMockRecorder) Cancel() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Cancel", reflect.TypeOf((*MockStore)(nil).Cancel))
-}
-
-// Code mocks base method.
-func (m *MockStore) Code() string {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Code")
-	ret0, _ := ret[0].(string)
+	ret := m.ctrl.Call(m, "Order", code, ot, size, price)
+	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-// Code indicates an expected call of Code.
-func (mr *MockStoreMockRecorder) Code() *gomock.Call {
+// Order indicates an expected call of Order
+func (mr *MockStoreMockRecorder) Order(code, ot, size, price interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Code", reflect.TypeOf((*MockStore)(nil).Code))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Order", reflect.TypeOf((*MockStore)(nil).Order), code, ot, size, price)
 }
 
-// LoadHistory mocks base method.
+// Cancel mocks base method
+func (m *MockStore) Cancel(id string) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Cancel", id)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// Cancel indicates an expected call of Cancel
+func (mr *MockStoreMockRecorder) Cancel(id interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Cancel", reflect.TypeOf((*MockStore)(nil).Cancel), id)
+}
+
+// LoadHistory mocks base method
 func (m *MockStore) LoadHistory(ctx context.Context, d time.Duration) ([]domain.Candle, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "LoadHistory", ctx, d)
@@ -71,13 +72,13 @@ func (m *MockStore) LoadHistory(ctx context.Context, d time.Duration) ([]domain.
 	return ret0, ret1
 }
 
-// LoadHistory indicates an expected call of LoadHistory.
+// LoadHistory indicates an expected call of LoadHistory
 func (mr *MockStoreMockRecorder) LoadHistory(ctx, d interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "LoadHistory", reflect.TypeOf((*MockStore)(nil).LoadHistory), ctx, d)
 }
 
-// LoadTick mocks base method.
+// LoadTick mocks base method
 func (m *MockStore) LoadTick(ctx context.Context) (<-chan domain.Tick, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "LoadTick", ctx)
@@ -86,25 +87,13 @@ func (m *MockStore) LoadTick(ctx context.Context) (<-chan domain.Tick, error) {
 	return ret0, ret1
 }
 
-// LoadTick indicates an expected call of LoadTick.
+// LoadTick indicates an expected call of LoadTick
 func (mr *MockStoreMockRecorder) LoadTick(ctx interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "LoadTick", reflect.TypeOf((*MockStore)(nil).LoadTick), ctx)
 }
 
-// Order mocks base method.
-func (m *MockStore) Order() {
-	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "Order")
-}
-
-// Order indicates an expected call of Order.
-func (mr *MockStoreMockRecorder) Order() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Order", reflect.TypeOf((*MockStore)(nil).Order))
-}
-
-// Uid mocks base method.
+// Uid mocks base method
 func (m *MockStore) Uid() string {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Uid")
@@ -112,8 +101,22 @@ func (m *MockStore) Uid() string {
 	return ret0
 }
 
-// Uid indicates an expected call of Uid.
+// Uid indicates an expected call of Uid
 func (mr *MockStoreMockRecorder) Uid() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Uid", reflect.TypeOf((*MockStore)(nil).Uid))
+}
+
+// Code mocks base method
+func (m *MockStore) Code() string {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Code")
+	ret0, _ := ret[0].(string)
+	return ret0
+}
+
+// Code indicates an expected call of Code
+func (mr *MockStoreMockRecorder) Code() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Code", reflect.TypeOf((*MockStore)(nil).Code))
 }

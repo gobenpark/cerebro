@@ -2,7 +2,6 @@ package broker
 
 import (
 	"testing"
-	"time"
 
 	mock_event "github.com/gobenpark/trader/event/mock"
 	"github.com/gobenpark/trader/order"
@@ -23,14 +22,13 @@ func TestDefaultBroker_Buy(t *testing.T) {
 	b := NewBroker(1, 0.0005)
 	b.eventEngine = e
 	input := &order.Order{
-		Status:    order.Submitted,
-		OType:     order.Buy,
-		Code:      "testcode",
-		UUID:      uuid.NewV4().String(),
-		Size:      1,
-		Price:     1,
-		CreatedAt: time.Now(),
+		OType: order.Buy,
+		Code:  "testcode",
+		UUID:  uuid.NewV4().String(),
+		Size:  1,
+		Price: 1,
 	}
+	input.Submit()
 	e.EXPECT().BroadCast(gomock.AssignableToTypeOf(input)).Times(2)
 	result := b.Buy("testcode", 1, 1)
 	assert.NotNil(t, result)
@@ -42,14 +40,13 @@ func TestDefaultBroker_Sell(t *testing.T) {
 	b := NewBroker(1, 0.0005)
 	b.eventEngine = e
 	input := &order.Order{
-		Status:    order.Submitted,
-		OType:     order.Buy,
-		Code:      "testcode",
-		UUID:      uuid.NewV4().String(),
-		Size:      1,
-		Price:     1,
-		CreatedAt: time.Now(),
+		OType: order.Buy,
+		Code:  "testcode",
+		UUID:  uuid.NewV4().String(),
+		Size:  1,
+		Price: 1,
 	}
+	input.Submit()
 
 	e.EXPECT().BroadCast(gomock.AssignableToTypeOf(input)).Times(2)
 	result := b.Sell("testcode", 1, 1)

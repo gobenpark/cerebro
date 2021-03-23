@@ -86,13 +86,6 @@ func TestNewCerebro(t *testing.T) {
 			},
 		},
 		{
-			"cerebro event channel exist",
-			NewCerebro(),
-			func(c *Cerebro, t *testing.T) {
-				assert.NotNil(t, c.event)
-			},
-		},
-		{
 			"cerebro order channel exist",
 			NewCerebro(),
 			func(c *Cerebro, t *testing.T) {

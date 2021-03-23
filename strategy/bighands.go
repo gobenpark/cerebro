@@ -16,10 +16,11 @@ type Bighands struct {
 func (s *Bighands) Next(broker domain.Broker, container domain.Container) {
 	rsi := indicators.NewRsi(14)
 	rsi.Calculate(container)
-	if len(rsi.Get()) != 0 {
-		fmt.Printf("%s %d\n", container.Code(), container.Level())
+	fmt.Printf("%s:%f", container.Code(), rsi.Get()[0].Data)
+
+	if len(rsi.Get()) != 0 && rsi.Get()[0].Data < 30 {
+		fmt.Printf("%s is upper 30 rsi\n", container.Code())
 	}
-	fmt.Println("buy")
 	broker.Buy(container.Code(), 10, 1000.0)
 
 	//
@@ -31,20 +32,20 @@ func (s *Bighands) Next(broker domain.Broker, container domain.Container) {
 }
 
 func (s *Bighands) NotifyOrder(o *order.Order) {
-	//switch o.Status {
-	//case order.Submitted:
-	//	fmt.Println("Submitted")
-	//case order.Expired:
-	//	fmt.Println("expired")
-	//case order.Rejected:
-	//	fmt.Println("rejected")
-	//case order.Canceled:
-	//	fmt.Println("canceled")
-	//case order.Completed:
-	//	fmt.Println("Completed")
-	//case order.Partial:
-	//	fmt.Println("partial")
-	//}
+	switch o.Status() {
+	case order.Submitted:
+		fmt.Printf("%s:%s\n", o.Code, "Submitted")
+	case order.Expired:
+		fmt.Println("expired")
+	case order.Rejected:
+		fmt.Println("rejected")
+	case order.Canceled:
+		fmt.Println("canceled")
+	case order.Completed:
+		fmt.Printf("%s:%s\n", o.Code, "Completed")
+	case order.Partial:
+		fmt.Println("partial")
+	}
 }
 
 func (s *Bighands) NotifyTrade() {

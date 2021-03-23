@@ -3,3 +3,7 @@
 
 // Package mock_broker is a generated GoMock package.
 package mock_broker
+
+import (
+	gomock "github.com/golang/mock/gomock"
+)

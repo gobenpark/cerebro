@@ -8,8 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gobenpark/trader/datacontainer"
-	"github.com/gobenpark/trader/domain"
+	"github.com/gobenpark/trader/container"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -22,7 +21,7 @@ func TestRsi(t *testing.T) {
 	data, err := reader.ReadAll()
 	assert.NoError(t, err)
 
-	container := datacontainer.NewDataContainer(datacontainer.ContainerInfo{
+	container := container.NewDataContainer(container.Info{
 		Code:             "code",
 		CompressionLevel: 0,
 	})
@@ -36,7 +35,7 @@ func TestRsi(t *testing.T) {
 	for _, i := range data[1:] {
 		ti, err := time.Parse("2006-01-02T15:04:05Z", i[6])
 		assert.NoError(t, err)
-		container.Add(domain.Candle{
+		container.Add(container.Candle{
 			Code:   i[0],
 			Low:    stof(i[3]),
 			High:   stof(i[2]),

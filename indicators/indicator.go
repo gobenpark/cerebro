@@ -3,11 +3,11 @@ package indicators
 import (
 	"time"
 
-	"github.com/gobenpark/trader/domain"
+	"github.com/gobenpark/trader/container"
 )
 
 type Indicator interface {
-	Calculate(container domain.Container)
+	Calculate(container container.Container)
 	Get() []Indicate
 }
 

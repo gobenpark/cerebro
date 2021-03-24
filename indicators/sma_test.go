@@ -4,21 +4,20 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gobenpark/trader/datacontainer"
-	"github.com/gobenpark/trader/domain"
+	"github.com/gobenpark/trader/container"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestNewIndicate_SMA(t *testing.T) {
 	s := NewSma(3)
 
-	container := datacontainer.NewDataContainer(datacontainer.ContainerInfo{
+	container := container.NewDataContainer(container.Info{
 		Code:             "1",
 		CompressionLevel: 0,
 	})
 
 	for i := float64(1); i <= 10; i++ {
-		container.Add(domain.Candle{
+		container.Add(container.Candle{
 			Code:   "1234",
 			Low:    i,
 			High:   i,
@@ -32,7 +31,7 @@ func TestNewIndicate_SMA(t *testing.T) {
 	s.Calculate(container)
 	assert.Len(t, s.Get(), 8)
 
-	container.Add(domain.Candle{
+	container.Add(container.Candle{
 		Code:   "1234",
 		Low:    11,
 		High:   11,

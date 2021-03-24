@@ -1,11 +1,19 @@
-package datacontainer
+package container
 
 import (
 	"sync"
 	"time"
-
-	"github.com/gobenpark/trader/domain"
 )
+
+type Container interface {
+	Empty() bool
+	Size() int
+	Clear()
+	Values() []Candle
+	Add(candle Candle)
+	Code() string
+	Level() time.Duration
+}
 
 type SaveMode int
 
@@ -14,7 +22,7 @@ const (
 	External
 )
 
-type ContainerInfo struct {
+type Info struct {
 	Code             string
 	CompressionLevel time.Duration
 }
@@ -22,14 +30,14 @@ type ContainerInfo struct {
 //TODO: inmemory or external storage
 type DataContainer struct {
 	mu         sync.Mutex
-	CandleData []domain.Candle
-	ContainerInfo
+	CandleData []Candle
+	Info
 }
 
-func NewDataContainer(info ContainerInfo) *DataContainer {
+func NewDataContainer(info Info) *DataContainer {
 	return &DataContainer{
-		CandleData:    []domain.Candle{},
-		ContainerInfo: info,
+		CandleData: []Candle{},
+		Info:       info,
 	}
 }
 
@@ -42,12 +50,12 @@ func (t *DataContainer) Size() int {
 }
 
 func (t *DataContainer) Clear() {
-	t.CandleData = []domain.Candle{}
+	t.CandleData = []Candle{}
 }
 
-func (t *DataContainer) Values() []domain.Candle {
+func (t *DataContainer) Values() []Candle {
 	t.mu.Lock()
-	d := make([]domain.Candle, len(t.CandleData))
+	d := make([]Candle, len(t.CandleData))
 	copy(d, t.CandleData)
 	t.mu.Unlock()
 	return d
@@ -55,7 +63,7 @@ func (t *DataContainer) Values() []domain.Candle {
 
 //Add forword append container candle data
 // current candle [0] index
-func (t *DataContainer) Add(candle domain.Candle) {
+func (t *DataContainer) Add(candle Candle) {
 	if len(t.CandleData) != 0 {
 		for _, i := range t.CandleData {
 			if i.Date.Equal(candle.Date) {
@@ -64,14 +72,14 @@ func (t *DataContainer) Add(candle domain.Candle) {
 		}
 	}
 	t.mu.Lock()
-	t.CandleData = append([]domain.Candle{candle}, t.CandleData...)
+	t.CandleData = append([]Candle{candle}, t.CandleData...)
 	t.mu.Unlock()
 }
 
 func (t *DataContainer) Code() string {
-	return t.ContainerInfo.Code
+	return t.Info.Code
 }
 
 func (t *DataContainer) Level() time.Duration {
-	return t.ContainerInfo.CompressionLevel
+	return t.Info.CompressionLevel
 }

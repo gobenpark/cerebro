@@ -1,12 +1,14 @@
 package cerebro
 
 import (
+	"context"
 	"testing"
 	"time"
 
 	"github.com/gobenpark/trader/broker"
+	"github.com/gobenpark/trader/domain"
 	mock_domain "github.com/gobenpark/trader/domain/mock"
-	"github.com/gobenpark/trader/store"
+	mock_store "github.com/gobenpark/trader/store/mock"
 	"github.com/gobenpark/trader/strategy"
 	"github.com/golang/mock/gomock"
 	"github.com/rs/zerolog"
@@ -66,9 +68,8 @@ func TestNewCerebro(t *testing.T) {
 			"resample",
 			NewCerebro(),
 			func(c *Cerebro, t *testing.T) {
-				store := store.NewStore("upbit", "codes")
-				WithResample(store, 3*time.Minute, true)(c)
-				assert.Equal(t, 3*time.Minute, c.compress[store.Uid()][0].level)
+				WithResample("KRW", 3*time.Minute, true)(c)
+				assert.Equal(t, 3*time.Minute, c.compress["KRW"][0].level)
 			},
 		},
 		{
@@ -76,13 +77,6 @@ func TestNewCerebro(t *testing.T) {
 			NewCerebro(WithLogLevel(zerolog.InfoLevel)),
 			func(c *Cerebro, t *testing.T) {
 				assert.Equal(t, zerolog.InfoLevel, c.log.GetLevel())
-			},
-		},
-		{
-			"store option",
-			NewCerebro(WithStore(store.NewStore("test", "code"))),
-			func(c *Cerebro, t *testing.T) {
-				assert.Len(t, c.stores, 1)
 			},
 		},
 		{
@@ -124,11 +118,11 @@ func TestNewCerebro(t *testing.T) {
 
 func TestCerebro_load(t *testing.T) {
 	ctrl := gomock.NewController(t)
-	store := mock_domain.NewMockStore(ctrl)
+	store := mock_store.NewMockStore(ctrl)
 	store.EXPECT().Uid().Return(uuid.NewV4().String()).AnyTimes()
-	store.EXPECT().LoadHistory(gomock.Any(), 0*time.Second)
-	store.EXPECT().LoadTick(gomock.Any())
-	c := NewCerebro(WithLive(true), WithPreload(true), WithStore(store))
+	store.EXPECT().LoadHistory(gomock.Any(), "KRW", 0*time.Second)
+	store.EXPECT().LoadTick(gomock.Any(), "KRW")
+	c := NewCerebro(WithLive(true), WithPreload(true), WithStore(store, "KRW"))
 	go func() {
 		<-time.After(time.Second)
 		c.Stop()

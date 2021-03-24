@@ -5,6 +5,9 @@
 package mock_strategy
 
 import (
+	broker "github.com/gobenpark/trader/broker"
+	domain "github.com/gobenpark/trader/domain"
+	order "github.com/gobenpark/trader/order"
 	gomock "github.com/golang/mock/gomock"
 	reflect "reflect"
 )
@@ -33,27 +36,27 @@ func (m *MockStrategy) EXPECT() *MockStrategyMockRecorder {
 }
 
 // Next mocks base method
-func (m *MockStrategy) Next() {
+func (m *MockStrategy) Next(broker broker.Broker, container domain.Container) {
 	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "Next")
+	m.ctrl.Call(m, "Next", broker, container)
 }
 
 // Next indicates an expected call of Next
-func (mr *MockStrategyMockRecorder) Next() *gomock.Call {
+func (mr *MockStrategyMockRecorder) Next(broker, container interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Next", reflect.TypeOf((*MockStrategy)(nil).Next))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Next", reflect.TypeOf((*MockStrategy)(nil).Next), broker, container)
 }
 
 // NotifyOrder mocks base method
-func (m *MockStrategy) NotifyOrder() {
+func (m *MockStrategy) NotifyOrder(o *order.Order) {
 	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "NotifyOrder")
+	m.ctrl.Call(m, "NotifyOrder", o)
 }
 
 // NotifyOrder indicates an expected call of NotifyOrder
-func (mr *MockStrategyMockRecorder) NotifyOrder() *gomock.Call {
+func (mr *MockStrategyMockRecorder) NotifyOrder(o interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NotifyOrder", reflect.TypeOf((*MockStrategy)(nil).NotifyOrder))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NotifyOrder", reflect.TypeOf((*MockStrategy)(nil).NotifyOrder), o)
 }
 
 // NotifyTrade mocks base method

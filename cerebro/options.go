@@ -4,8 +4,6 @@ import (
 	"time"
 
 	"github.com/gobenpark/trader/broker"
-	"github.com/gobenpark/trader/datacontainer"
-	"github.com/gobenpark/trader/domain"
 	"github.com/gobenpark/trader/store"
 	"github.com/gobenpark/trader/strategy"
 	"github.com/rs/zerolog"
@@ -45,13 +43,9 @@ func WithLive(isLive bool) Option {
 	}
 }
 
-func WithResample(store domain.Store, level time.Duration, leftEdge bool) Option {
+func WithResample(code string, level time.Duration, leftEdge bool) Option {
 	return func(c *Cerebro) {
-		c.compress[store.Uid()] = append(c.compress[store.Uid()], CompressInfo{level: level, LeftEdge: leftEdge})
-		c.containers = append(c.containers, datacontainer.NewDataContainer(datacontainer.ContainerInfo{
-			Code:             store.Code(),
-			CompressionLevel: level,
-		}))
+		c.compress[code] = append(c.compress[code], CompressInfo{level: level, LeftEdge: leftEdge})
 	}
 }
 

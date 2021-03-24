@@ -3,7 +3,7 @@ package indicators
 import (
 	"math"
 
-	"github.com/gobenpark/trader/domain"
+	"github.com/gobenpark/trader/container"
 )
 
 type rsi struct {
@@ -21,7 +21,7 @@ func NewRsi(period int) Indicator {
 }
 
 //self.line[0] = self.line[-1] * self.alpha1 + self.data[0] * self.alpha
-func (r *rsi) Calculate(container domain.Container) {
+func (r *rsi) Calculate(container container.Container) {
 	c := container.Values()
 	slide := len(c) - r.period
 	if len(c) < r.period {

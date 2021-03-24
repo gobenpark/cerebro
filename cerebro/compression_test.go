@@ -12,7 +12,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gobenpark/trader/domain"
+	"github.com/gobenpark/trader/container"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -26,7 +26,7 @@ func TestCompression(t *testing.T) {
 	ti7, _ := time.Parse("2006-01-02 15:04:05", "2021-03-12 00:05:02")
 	ti8, _ := time.Parse("2006-01-02 15:04:05", "2021-03-12 00:06:02")
 	ti9, _ := time.Parse("2006-01-02 15:04:05", "2021-03-12 00:07:02")
-	input := []domain.Tick{
+	input := []container.Tick{
 		{
 			Code:   "test",
 			Date:   ti1,
@@ -82,7 +82,7 @@ func TestCompression(t *testing.T) {
 			Volume: 10,
 		},
 	}
-	ch := make(chan domain.Tick)
+	ch := make(chan container.Tick)
 	go func() {
 		defer close(ch)
 		for _, i := range input {
@@ -96,7 +96,7 @@ func TestCompression(t *testing.T) {
 	//}
 	//assert.Len(t, leftedge,2)
 
-	rightedge := []domain.Candle{}
+	rightedge := []container.Candle{}
 	for d := range Compression(ch, time.Minute*3, false) {
 		rightedge = append(rightedge, d)
 	}

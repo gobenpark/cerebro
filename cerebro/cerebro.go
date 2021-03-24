@@ -12,7 +12,7 @@ import (
 
 	"github.com/go-playground/validator/v10"
 	"github.com/gobenpark/trader/broker"
-	"github.com/gobenpark/trader/domain"
+	"github.com/gobenpark/trader/container"
 	"github.com/gobenpark/trader/event"
 	"github.com/gobenpark/trader/order"
 	"github.com/gobenpark/trader/store"
@@ -37,13 +37,10 @@ type Cerebro struct {
 	//strategies
 	strategies []strategy.Strategy `json:"strategis" validate:"gte=1,dive,required"`
 
-	//stores external api, etc
-	//store can inject into cerebro what external api or oher tick,candle buy,sell history data
-	stores []domain.Store
-
+	//compress compress info map for codes
 	compress map[string][]CompressInfo
 
-	containers []domain.Container
+	containers []container.Container
 
 	//strategy.StrategyEngine embedding property for managing user strategy
 	strategyEngine *strategy.Engine
@@ -58,7 +55,7 @@ type Cerebro struct {
 
 	preload bool
 
-	data chan domain.Container
+	data chan container.Container
 
 	storengine *store.Engine
 }
@@ -76,7 +73,7 @@ func NewCerebro(opts ...Option) *Cerebro {
 		compress:       make(map[string][]CompressInfo),
 		strategyEngine: &strategy.Engine{},
 		order:          make(chan order.Order, 1),
-		data:           make(chan domain.Container, 1),
+		data:           make(chan container.Container, 1),
 		eventEngine:    event.NewEventEngine(),
 		storengine:     store.NewEngine(),
 	}
@@ -90,7 +87,7 @@ func NewCerebro(opts ...Option) *Cerebro {
 	return c
 }
 
-func (c *Cerebro) getContainer(code string, level time.Duration) domain.Container {
+func (c *Cerebro) getContainer(code string, level time.Duration) container.Container {
 	for k, v := range c.containers {
 		if v.Code() == code && v.Level() == level {
 			return c.containers[k]
@@ -102,10 +99,9 @@ func (c *Cerebro) getContainer(code string, level time.Duration) domain.Containe
 //load initializing data from injected store interface
 func (c *Cerebro) load() error {
 	if c.preload {
-
 		for k, v := range c.storengine.Mapper {
 			for _, code := range v {
-				for _, comp := range c.compress[k] {
+				for _, comp := range c.compress[code] {
 					candles, err := c.storengine.Stores[k].LoadHistory(c.Ctx, code, comp.level)
 					if err != nil {
 						c.log.Err(err).Send()
@@ -121,28 +117,31 @@ func (c *Cerebro) load() error {
 	}
 	c.log.Info().Msg("start load live data ")
 	if c.isLive {
-		if len(c.stores) == 0 {
+		if len(c.storengine.Stores) == 0 {
 			return ErrStoreNotExists
 		}
-		for _, i := range c.stores {
-			//store per generate resample with containers
-			go func(store domain.Store) {
-				tick, err := store.LoadTick(c.Ctx)
+		//All Store
+
+		for k, v := range c.storengine.Mapper {
+			// all codes
+			for _, i := range v {
+
+				tick, err := c.storengine.Stores[k].LoadTick(c.Ctx, i)
 				if err != nil {
 					c.log.Err(err).Send()
 				}
+				for _, com := range c.compress[i] {
 
-				for _, v := range c.compress[store.Uid()] {
-					if container := c.getContainer(store.Code(), v.level); container != nil {
-						go func(level time.Duration, isedge bool) {
-							for j := range Compression(tick, level, isedge) {
-								container.Add(j)
-								c.data <- container
+					if con := c.getContainer(i, com.level); con != nil {
+						go func(t <-chan container.Tick, con container.Container, level time.Duration, isedge bool) {
+							for j := range Compression(t, level, isedge) {
+								con.Add(j)
+								c.data <- con
 							}
-						}(v.level, v.LeftEdge)
+						}(tick, con, com.level, com.LeftEdge)
 					}
 				}
-			}(i)
+			}
 		}
 	}
 	return nil
@@ -151,6 +150,19 @@ func (c *Cerebro) load() error {
 func (c *Cerebro) registEvent() {
 	c.eventEngine.Register <- c.strategyEngine
 	c.eventEngine.Register <- c.storengine
+}
+
+func (c *Cerebro) createContainer() {
+	for _, v := range c.storengine.Mapper {
+		for _, i := range v {
+			for _, j := range c.compress[i] {
+				c.containers = append(c.containers, container.NewDataContainer(container.Info{
+					Code:             i,
+					CompressionLevel: j.level,
+				}))
+			}
+		}
+	}
 }
 
 //Start run cerebro
@@ -166,6 +178,8 @@ func (c *Cerebro) Start() error {
 		c.log.Err(err).Send()
 		return err
 	}
+
+	c.createContainer()
 
 	c.eventEngine.Start(c.Ctx)
 	c.registEvent()

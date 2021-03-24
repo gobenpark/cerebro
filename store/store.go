@@ -16,26 +16,33 @@ import (
 	"google.golang.org/grpc/status"
 )
 
+type Store interface {
+	Order(code string, ot domain.OrderType, size int64, price float64) error
+	Cancel(id string) error
+	LoadHistory(ctx context.Context, code string, d time.Duration) ([]domain.Candle, error)
+	LoadTick(ctx context.Context, code string) (<-chan domain.Tick, error)
+	Uid() string
+}
+
 type store struct {
 	name string
 	uid  string
 	cli  stock.StockClient
-	code string
 }
 
-func NewStore(name string, code string) *store {
+func NewStore(name string) *store {
 	cli, err := stock.NewSocketClient(context.Background(), "localhost:50051")
 	if err != nil {
 		panic(err)
 	}
 
-	return &store{name, uuid.NewV4().String(), cli, code}
+	return &store{name, uuid.NewV4().String(), cli}
 }
 
-func (s *store) LoadHistory(ctx context.Context, du time.Duration) ([]domain.Candle, error) {
+func (s *store) LoadHistory(ctx context.Context, code string, du time.Duration) ([]domain.Candle, error) {
 
 	r, err := s.cli.Chart(context.Background(), &stock.ChartRequest{
-		Code: s.code,
+		Code: code,
 		To:   nil,
 	})
 	if err != nil {
@@ -48,7 +55,7 @@ func (s *store) LoadHistory(ctx context.Context, du time.Duration) ([]domain.Can
 			log.Err(err).Send()
 		}
 		d = append(d, domain.Candle{
-			Code:   s.code,
+			Code:   code,
 			Low:    i.GetLow(),
 			High:   i.GetHigh(),
 			Open:   i.GetOpen(),
@@ -65,10 +72,10 @@ func (s *store) LoadHistory(ctx context.Context, du time.Duration) ([]domain.Can
 	return d, nil
 }
 
-func (s *store) LoadTick(ctx context.Context) (<-chan domain.Tick, error) {
+func (s *store) LoadTick(ctx context.Context, code string) (<-chan domain.Tick, error) {
 	ch := make(chan domain.Tick, 1)
 
-	r, err := s.cli.TickStream(ctx, &stock.TickRequest{Codes: s.code})
+	r, err := s.cli.TickStream(ctx, &stock.TickRequest{Codes: code})
 	if err != nil {
 		return nil, err
 	}
@@ -92,7 +99,7 @@ func (s *store) LoadTick(ctx context.Context) (<-chan domain.Tick, error) {
 					log.Err(err).Send()
 				}
 				tch <- domain.Tick{
-					Code:   s.code,
+					Code:   code,
 					Date:   ti,
 					Price:  msg.GetPrice(),
 					Volume: msg.GetVolume(),
@@ -143,8 +150,4 @@ func (s *store) Cancel(id string) error {
 
 func (s *store) Uid() string {
 	return s.uid
-}
-
-func (s *store) Code() string {
-	return s.code
 }

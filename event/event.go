@@ -10,10 +10,10 @@
 
 package event
 
-type EventListener interface {
+type Listener interface {
 	Listen(e interface{})
 }
 
-type EventBroadcaster interface {
+type Broadcaster interface {
 	BroadCast(e interface{})
 }

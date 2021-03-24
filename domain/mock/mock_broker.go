@@ -150,7 +150,7 @@ func (mr *MockBrokerMockRecorder) SetCash(cash interface{}) *gomock.Call {
 }
 
 // SetEventBroadCaster mocks base method
-func (m *MockBroker) SetEventBroadCaster(e event.EventBroadcaster) {
+func (m *MockBroker) SetEventBroadCaster(e event.Broadcaster) {
 	m.ctrl.T.Helper()
 	m.ctrl.Call(m, "SetEventBroadCaster", e)
 }

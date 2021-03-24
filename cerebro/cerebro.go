@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/go-playground/validator/v10"
+	"github.com/gobenpark/trader/broker"
 	"github.com/gobenpark/trader/domain"
 	"github.com/gobenpark/trader/event"
 	"github.com/gobenpark/trader/order"
@@ -25,7 +26,7 @@ type Cerebro struct {
 	isLive bool
 
 	//Broker buy, sell and manage order
-	broker domain.Broker `json:"broker" validate:"required"`
+	broker broker.Broker `json:"broker" validate:"required"`
 
 	//Ctx cerebro global context
 	Ctx context.Context `json:"ctx" validate:"required"`
@@ -34,7 +35,7 @@ type Cerebro struct {
 	Cancel context.CancelFunc `json:"cancel" validate:"required"`
 
 	//strategies
-	strategies []domain.Strategy `json:"strategis" validate:"gte=1,dive,required"`
+	strategies []strategy.Strategy `json:"strategis" validate:"gte=1,dive,required"`
 
 	//stores external api, etc
 	//store can inject into cerebro what external api or oher tick,candle buy,sell history data
@@ -63,7 +64,7 @@ type Cerebro struct {
 }
 
 //NewCerebro generate new cerebro with cerebro option
-func NewCerebro(opts ...CerebroOption) *Cerebro {
+func NewCerebro(opts ...Option) *Cerebro {
 	logger := zerolog.New(zerolog.ConsoleWriter{Out: os.Stdout, TimeFormat: time.RFC3339}).
 		With().Timestamp().Str("logger", "cerebro").Logger()
 	ctx, cancel := context.WithCancel(context.Background())
@@ -77,16 +78,14 @@ func NewCerebro(opts ...CerebroOption) *Cerebro {
 		order:          make(chan order.Order, 1),
 		data:           make(chan domain.Container, 1),
 		eventEngine:    event.NewEventEngine(),
+		storengine:     store.NewEngine(),
 	}
 
 	for _, opt := range opts {
 		opt(c)
 	}
 
-	c.storengine = &store.Engine{
-		Stores:      c.stores,
-		EventEngine: c.eventEngine,
-	}
+	c.storengine.EventEngine = c.eventEngine
 
 	return c
 }
@@ -103,26 +102,22 @@ func (c *Cerebro) getContainer(code string, level time.Duration) domain.Containe
 //load initializing data from injected store interface
 func (c *Cerebro) load() error {
 	if c.preload {
-		var wg sync.WaitGroup
-		wg.Add(len(c.stores))
-		for _, i := range c.stores {
-			go func(store domain.Store) {
-				defer wg.Done()
 
-				for _, comp := range c.compress[store.Uid()] {
-					candles, err := store.LoadHistory(c.Ctx, comp.level)
+		for k, v := range c.storengine.Mapper {
+			for _, code := range v {
+				for _, comp := range c.compress[k] {
+					candles, err := c.storengine.Stores[k].LoadHistory(c.Ctx, code, comp.level)
 					if err != nil {
 						c.log.Err(err).Send()
-						return
+						return err
 					}
-					con := c.getContainer(store.Code(), comp.level)
+					con := c.getContainer(code, comp.level)
 					for _, candle := range candles {
 						con.Add(candle)
 					}
 				}
-			}(i)
+			}
 		}
-		wg.Wait()
 	}
 	c.log.Info().Msg("start load live data ")
 	if c.isLive {

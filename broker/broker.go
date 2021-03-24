@@ -13,13 +13,26 @@ import (
 	"github.com/satori/go.uuid"
 )
 
+type Broker interface {
+	Buy(code string, size int64, price float64) string
+	Sell(code string, size int64, price float64) string
+	Cancel(uuid string)
+	Submit(uid string)
+	GetPosition(code string) (position.Position, error)
+	AddOrderHistory()
+	SetFundHistory()
+	CommissionInfo()
+	SetCash(cash int64)
+	SetEventBroadCaster(e event.Broadcaster)
+}
+
 type DefaultBroker struct {
 	sync.RWMutex
 	cash        int64
 	commission  float32
 	orders      map[string]*order.Order
 	mu          sync.Mutex
-	eventEngine event.EventBroadcaster
+	eventEngine event.Broadcaster
 	positions   map[string]position.Position
 }
 
@@ -108,6 +121,6 @@ func (b *DefaultBroker) CommissionInfo() {
 	panic("implement me")
 }
 
-func (b *DefaultBroker) SetEventBroadCaster(e event.EventBroadcaster) {
+func (b *DefaultBroker) SetEventBroadCaster(e event.Broadcaster) {
 	b.eventEngine = e
 }

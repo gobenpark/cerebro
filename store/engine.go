@@ -7,8 +7,16 @@ import (
 )
 
 type Engine struct {
-	Stores      []domain.Store
-	EventEngine event.EventBroadcaster
+	Stores      map[string]Store
+	Mapper      map[string][]string
+	EventEngine event.Broadcaster
+}
+
+func NewEngine() *Engine {
+	return &Engine{
+		Stores: make(map[string]Store),
+		Mapper: make(map[string][]string),
+	}
 }
 
 func (s *Engine) Listen(e interface{}) {

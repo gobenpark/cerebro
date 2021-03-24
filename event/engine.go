@@ -14,17 +14,17 @@ import (
 
 type Engine struct {
 	broadcast  chan interface{}
-	Register   chan EventListener
-	Unregister chan EventListener
-	childEvent map[EventListener]bool
+	Register   chan Listener
+	Unregister chan Listener
+	childEvent map[Listener]bool
 }
 
 func NewEventEngine() *Engine {
 	return &Engine{
 		broadcast:  make(chan interface{}),
-		Register:   make(chan EventListener),
-		Unregister: make(chan EventListener),
-		childEvent: make(map[EventListener]bool),
+		Register:   make(chan Listener),
+		Unregister: make(chan Listener),
+		childEvent: make(map[Listener]bool),
 	}
 }
 

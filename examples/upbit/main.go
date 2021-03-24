@@ -18,11 +18,7 @@ func main() {
 	//}()
 	bk := broker.NewBroker(100000, 0.0005)
 
-	wax := store2.NewStore("upbit", "KRW-WAXP")
-	mlk := store2.NewStore("KRW-MLK", "KRW-MLK")
-	ong := store2.NewStore("upbit", "KRW-ONG")
-	bora := store2.NewStore("bora", "KRW-BORA")
-	lbc := store2.NewStore("lbc", "KRW-LBC")
+	upbit := store2.NewStore("upbit")
 
 	smart := &strategy.Bighands{
 		Broker: bk,
@@ -30,7 +26,7 @@ func main() {
 
 	cb := cerebro.NewCerebro(
 		cerebro.WithBroker(bk),
-		cerebro.WithStore(wax, mlk, ong, bora, lbc),
+		cerebro.WithStore(upbit, "KRW-MFT", "KRW-LBC"),
 		cerebro.WithStrategy(smart),
 		cerebro.WithResample(wax, time.Minute*3, true),
 		cerebro.WithResample(mlk, time.Minute*3, true),

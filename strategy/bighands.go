@@ -3,17 +3,18 @@ package strategy
 import (
 	"fmt"
 
+	"github.com/gobenpark/trader/broker"
 	"github.com/gobenpark/trader/domain"
 	"github.com/gobenpark/trader/indicators"
 	"github.com/gobenpark/trader/order"
 )
 
 type Bighands struct {
-	Broker domain.Broker
+	Broker broker.Broker
 	indi   indicators.Indicator
 }
 
-func (s *Bighands) Next(broker domain.Broker, container domain.Container) {
+func (s *Bighands) Next(broker broker.Broker, container domain.Container) {
 	rsi := indicators.NewRsi(14)
 	rsi.Calculate(container)
 	fmt.Printf("%s:%f", container.Code(), rsi.Get()[0].Data)

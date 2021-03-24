@@ -1,13 +1,10 @@
 package cerebro
 
 import (
-	"context"
 	"testing"
 	"time"
 
 	"github.com/gobenpark/trader/broker"
-	"github.com/gobenpark/trader/domain"
-	mock_domain "github.com/gobenpark/trader/domain/mock"
 	mock_store "github.com/gobenpark/trader/store/mock"
 	"github.com/gobenpark/trader/strategy"
 	"github.com/golang/mock/gomock"

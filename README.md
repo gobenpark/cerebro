@@ -15,6 +15,100 @@ so i want solve by golang
 
 🙏 Plz wait for beta version 
 
+1. first implement interface `store.Store` 
+
+```go
+package main
+
+import (
+	"context"
+	"sort"
+	"time"
+
+	"github.com/gobenpark/proto/stock"
+	"github.com/gobenpark/trader/container"
+	"github.com/gobenpark/trader/order"
+	"github.com/rs/zerolog/log"
+	uuid "github.com/satori/go.uuid"
+)
+
+type store struct {
+	name string
+	uid  string
+	cli  Client
+}
+
+func NewStore(name string) *store {
+	cli, err := stock.NewSocketClient(context.Background(), "localhost:50051")
+	if err != nil {
+		panic(err)
+	}
+
+	return &store{name, uuid.NewV4().String(), cli}
+}
+
+func (s *store) LoadHistory(ctx context.Context, code string, du time.Duration) ([]container.Candle, error) {
+	panic("implement me ")
+}
+
+func (s *store) LoadTick(ctx context.Context, code string) (<-chan container.Tick, error) {
+	panic("implement me ")
+}
+
+func (s *store) Order(code string, ot order.OType, size int64, price float64) error {
+	panic("implement me ")
+}
+
+func (s *store) Cancel(id string) error {
+	panic("implement me ")
+}
+
+func (s *store) Uid() string {
+	return s.uid
+}
+```
+
+2. implement your own strategy
+
+3. using cerebro !!
+
+```go
+package main
+
+import (
+	"time"
+	"github.com/gobenpark/trader/broker"
+	"github.com/gobenpark/trader/cerebro"
+	"github.com/gobenpark/trader/strategy"
+)
+
+func main() {
+	bk := broker.NewBroker(100000, 0.0005)
+
+	upbit := NewStore("binance")
+
+	smart := &strategy.Bighands{
+		Broker: bk,
+	}
+
+	cb := cerebro.NewCerebro(
+		cerebro.WithBroker(bk),
+		cerebro.WithStore(upbit, "KRW-MFT", "KRW-LBC"),
+		cerebro.WithStrategy(smart),
+		cerebro.WithResample("KRW-MFT", time.Minute*3, true),
+		cerebro.WithResample("KRW-LBC", time.Minute*3, true),
+		cerebro.WithLive(true),
+		cerebro.WithPreload(true),
+	)
+
+	err := cb.Start()
+	if err != nil {
+		panic(err)
+	}
+}
+
+```
+
 
 ## Concepts
 
@@ -27,6 +121,9 @@ Live Trader have several part of trading components
 ex) Binance , upbit , etc 
    
 3. **Strategy** is user base own strategy
+
+
+
 
 
 

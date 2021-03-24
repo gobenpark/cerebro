@@ -1,4 +1,4 @@
-## BackTrader
+## Live Trader
 
 ## Introduce
 This project was inspired by [backtrader](https://www.backtrader.com)

@@ -3,7 +3,7 @@ package cerebro
 import (
 	"time"
 
-	"github.com/gobenpark/trader/domain"
+	"github.com/gobenpark/trader/container"
 )
 
 type CompressInfo struct {
@@ -11,7 +11,7 @@ type CompressInfo struct {
 	LeftEdge bool
 }
 
-func Compression(tick <-chan domain.Tick, level time.Duration, leftEdge bool) <-chan domain.Candle {
+func Compression(tick <-chan container.Tick, level time.Duration, leftEdge bool) <-chan container.Candle {
 	compressionDate := func(date time.Time) time.Time {
 		rd := date.Round(level)
 		if leftEdge {
@@ -25,10 +25,10 @@ func Compression(tick <-chan domain.Tick, level time.Duration, leftEdge bool) <-
 		}
 		return rd
 	}
-	ch := make(chan domain.Candle, 1)
+	ch := make(chan container.Candle, 1)
 	go func() {
 		defer close(ch)
-		c := domain.Candle{}
+		c := container.Candle{}
 		for t := range tick {
 			if c.Date.Equal(time.Time{}) {
 				c.Date = compressionDate(t.Date)
@@ -51,7 +51,7 @@ func Compression(tick <-chan domain.Tick, level time.Duration, leftEdge bool) <-
 				}
 			} else {
 				ch <- c
-				c = domain.Candle{}
+				c = container.Candle{}
 			}
 		}
 	}()

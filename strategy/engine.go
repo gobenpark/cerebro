@@ -4,7 +4,7 @@ import (
 	"context"
 
 	"github.com/gobenpark/trader/broker"
-	"github.com/gobenpark/trader/domain"
+	"github.com/gobenpark/trader/container"
 	"github.com/gobenpark/trader/order"
 )
 
@@ -13,7 +13,7 @@ type Engine struct {
 	sts []Strategy
 }
 
-func (s *Engine) Start(ctx context.Context, data chan domain.Container, sts []Strategy) {
+func (s *Engine) Start(ctx context.Context, data chan container.Container, sts []Strategy) {
 	s.sts = sts
 	go func() {
 		for i := range data {

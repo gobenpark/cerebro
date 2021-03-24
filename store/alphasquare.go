@@ -8,7 +8,7 @@ import (
 	"net/url"
 	"time"
 
-	"github.com/gobenpark/trader/store/model"
+	"github.com/gobenpark/trader/container"
 	"github.com/gorilla/websocket"
 	"github.com/rs/zerolog/log"
 )
@@ -18,11 +18,11 @@ func init() {
 }
 
 type AlpaSquare struct {
-	charts chan model.Chart
+	charts chan container.Candle
 }
 
 func NewAlpaSquareStore() *AlpaSquare {
-	return &AlpaSquare{charts: make(chan model.Chart, 1000)}
+	return &AlpaSquare{charts: make(chan container.Candle, 1000)}
 }
 
 func (a *AlpaSquare) day(ctx context.Context, code string) error {
@@ -63,7 +63,7 @@ func (a *AlpaSquare) day(ctx context.Context, code string) error {
 	}
 
 	for _, i := range charts {
-		result := model.Chart{
+		result := container.Candle{
 			Code:   code,
 			Low:    i[3].(float64),
 			High:   i[2].(float64),
@@ -133,7 +133,7 @@ func (a *AlpaSquare) TickStream(ctx context.Context) {
 
 				if result, ok := res[1].(map[string]interface{}); ok {
 					data := result["datacontainer"].(string)
-					var tick model.Tick
+					var tick container.Tick
 					err := json.Unmarshal([]byte(data), &tick)
 					if err != nil {
 						fmt.Println(err)
@@ -149,6 +149,6 @@ func (a *AlpaSquare) Start(ctx context.Context) {
 	a.day(ctx, "005930")
 }
 
-func (a *AlpaSquare) Data() <-chan model.Chart {
+func (a *AlpaSquare) Data() <-chan container.Candle {
 	return a.charts
 }

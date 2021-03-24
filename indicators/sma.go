@@ -1,7 +1,7 @@
 package indicators
 
 import (
-	"github.com/gobenpark/trader/domain"
+	"github.com/gobenpark/trader/container"
 )
 
 type sma struct {
@@ -13,7 +13,7 @@ func NewSma(period int) Indicator {
 	return &sma{period: period}
 }
 
-func (s *sma) Calculate(container domain.Container) {
+func (s *sma) Calculate(container container.Container) {
 	size := container.Size()
 	var indicates []Indicate
 	if size >= s.period {

@@ -16,6 +16,21 @@ so i want solve by golang
 🙏 Plz wait for beta version 
 
 
+## Concepts
+
+Live Trader have several part of trading components 
+
+1. **Cerebro**
+: the **Cerebro**  managements all trading components and make dependency graph
+
+2. **Store** components is user base implements for external real server 
+ex) Binance , upbit , etc 
+   
+3. **Strategy** is user base own strategy
+
+
+
+
 ## Version
 
 1. MAJOR version when you make incompatible API changes,

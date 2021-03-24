@@ -14,6 +14,7 @@ import (
 	"github.com/gobenpark/trader/broker"
 	"github.com/gobenpark/trader/container"
 	"github.com/gobenpark/trader/event"
+	"github.com/gobenpark/trader/internal/pkg/retry"
 	"github.com/gobenpark/trader/order"
 	"github.com/gobenpark/trader/store"
 	"github.com/gobenpark/trader/strategy"
@@ -102,14 +103,19 @@ func (c *Cerebro) load() error {
 		for k, v := range c.storengine.Mapper {
 			for _, code := range v {
 				for _, comp := range c.compress[code] {
-					candles, err := c.storengine.Stores[k].LoadHistory(c.Ctx, code, comp.level)
-					if err != nil {
-						c.log.Err(err).Send()
+					if err := retry.Retry(10, func() error {
+						candles, err := c.storengine.Stores[k].LoadHistory(c.Ctx, code, comp.level)
+						if err != nil {
+							c.log.Err(err).Send()
+							return err
+						}
+						con := c.getContainer(code, comp.level)
+						for _, candle := range candles {
+							con.Add(candle)
+						}
+						return nil
+					}); err != nil {
 						return err
-					}
-					con := c.getContainer(code, comp.level)
-					for _, candle := range candles {
-						con.Add(candle)
 					}
 				}
 			}
@@ -121,17 +127,22 @@ func (c *Cerebro) load() error {
 			return ErrStoreNotExists
 		}
 		//All Store
-
 		for k, v := range c.storengine.Mapper {
 			// all codes
 			for _, i := range v {
-
-				tick, err := c.storengine.Stores[k].LoadTick(c.Ctx, i)
-				if err != nil {
-					c.log.Err(err).Send()
+				var tick <-chan container.Tick
+				if err := retry.Retry(10, func() error {
+					var err error
+					tick, err = c.storengine.Stores[k].LoadTick(c.Ctx, i)
+					if err != nil {
+						return err
+					}
+					return nil
+				}); err != nil {
+					return err
 				}
-				for _, com := range c.compress[i] {
 
+				for _, com := range c.compress[i] {
 					if con := c.getContainer(i, com.level); con != nil {
 						go func(t <-chan container.Tick, con container.Container, level time.Duration, isedge bool) {
 							for j := range Compression(t, level, isedge) {

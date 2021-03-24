@@ -15,7 +15,7 @@ so i want solve by golang
 
 🙏 Plz wait for beta version 
 
-1. first implement interface `store.Store` 
+### 1. first implement interface `store.Store` 
 
 ```go
 package main
@@ -68,9 +68,9 @@ func (s *store) Uid() string {
 }
 ```
 
-2. implement your own strategy
+### 2. implement your own strategy
 
-3. using cerebro !!
+### 3. using cerebro !!
 
 ```go
 package main

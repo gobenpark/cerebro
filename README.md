@@ -1,7 +1,12 @@
 ## Live Trader
-
+---
+[![made-with-Go](https://img.shields.io/badge/Made%20with-Go-1f425f.svg)](http://golang.org)
+[![GitHub go.mod Go version of a Go module](https://img.shields.io/github/go-mod/go-version/gomods/athens.svg)](https://github.com/gobenpark/trader)
+[![GoDoc reference example](https://img.shields.io/badge/godoc-reference-blue.svg)](https://github.com/gobenpark/trader)
+[![GitHub release](https://img.shields.io/github/release/Naereen/StrapDown.js.svg)](https://github.com/gobenpark/trader/releases/)
 ## Introduce
 This project was inspired by [backtrader](https://www.backtrader.com)
+
 
 python backtrader is a great project but it has disadvantage of python GIL 
 so i want solve by golang

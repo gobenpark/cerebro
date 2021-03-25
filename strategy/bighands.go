@@ -20,8 +20,20 @@ func (s *Bighands) Next(broker broker.Broker, container container.Container) {
 	//fmt.Printf("%s:%f", container.Code(), rsi.Get()[0])
 	fmt.Println(rsi.Get()[0])
 
+	sma := indicators.NewSma(20)
+	sma.Calculate(container)
+	fmt.Println(sma.Get()[0])
+
 	if len(rsi.Get()) != 0 && rsi.Get()[0].Data < 30 {
 		fmt.Printf("%s is upper 30 rsi\n", container.Code())
+	}
+
+	b := indicators.NewBollingerBand(20)
+	b.Calculate(container)
+	if len(b.Top) != 0 {
+		fmt.Printf("top: %f\n", b.Top[0].Data)
+		fmt.Printf("mid: %f\n", b.Mid[0].Data)
+		fmt.Printf("bottom: %f\n", b.Bottom[0].Data)
 	}
 	broker.Buy(container.Code(), 10, 1000.0)
 

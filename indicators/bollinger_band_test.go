@@ -3,6 +3,7 @@ package indicators
 import (
 	"encoding/csv"
 	"fmt"
+	"math"
 	"os"
 	"strconv"
 	"testing"
@@ -12,7 +13,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestRsi(t *testing.T) {
+func TestBollingerBand_Calculate(t *testing.T) {
 
 	f, err := os.Open("ticksample.csv")
 	assert.NoError(t, err)
@@ -31,7 +32,8 @@ func TestRsi(t *testing.T) {
 		return f
 	}
 
-	rsi := NewRsi(14)
+	b := NewBollingerBand(20)
+
 	for _, i := range data[1:] {
 		ti, err := time.Parse("2006-01-02T15:04:05Z", i[6])
 		assert.NoError(t, err)
@@ -45,9 +47,10 @@ func TestRsi(t *testing.T) {
 			Date:   ti,
 		})
 	}
+	b.Calculate(c)
+}
 
-	rsi.Calculate(c)
-	for _, i := range rsi.Get() {
-		fmt.Println(i)
-	}
+func TestRoot(t *testing.T) {
+	fmt.Println(math.Sqrt(4))
+	fmt.Println(math.Pow(-10, 2))
 }

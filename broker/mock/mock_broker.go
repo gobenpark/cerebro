@@ -87,10 +87,10 @@ func (mr *MockBrokerMockRecorder) Submit(uid interface{}) *gomock.Call {
 }
 
 // GetPosition mocks base method
-func (m *MockBroker) GetPosition(code string) (position.Position, error) {
+func (m *MockBroker) GetPosition(code string) ([]position.Position, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetPosition", code)
-	ret0, _ := ret[0].(position.Position)
+	ret0, _ := ret[0].([]position.Position)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }

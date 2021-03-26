@@ -3,6 +3,7 @@ module github.com/gobenpark/trader
 go 1.16
 
 require (
+	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/go-playground/validator/v10 v10.3.0
 	github.com/gobenpark/proto v0.0.0-20210303032736-d6994a3fc7fd
 	github.com/gogo/protobuf v1.3.2

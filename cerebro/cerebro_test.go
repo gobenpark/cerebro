@@ -122,7 +122,9 @@ func TestCerebro_load(t *testing.T) {
 	c := NewCerebro(WithLive(true), WithPreload(true), WithStore(store, "KRW"))
 	go func() {
 		<-time.After(time.Second)
-		c.Stop()
+		if err := c.Stop(); err != nil {
+			c.log.Err(err).Send()
+		}
 	}()
 	err := c.load()
 	assert.NoError(t, err)

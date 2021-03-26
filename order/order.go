@@ -91,15 +91,15 @@ func (o *Order) Submit() {
 
 func (o *Order) Complete() {
 	o.mu.Lock()
+	defer o.mu.Unlock()
 	o.status = Completed
-	o.mu.Unlock()
 	o.ExecutedAt = time.Now()
 }
 
 func (o *Order) Status() Status {
 	var value Status
 	o.mu.RLock()
+	defer o.mu.Unlock()
 	value = o.status
-	o.mu.RUnlock()
 	return value
 }

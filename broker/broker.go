@@ -3,11 +3,11 @@ package broker
 //go:generate mockgen -source=./broker.go -destination=./mock/mock_broker.go
 
 import (
-	"fmt"
 	"sync"
 	"sync/atomic"
 	"time"
 
+	terr "github.com/gobenpark/trader/error"
 	"github.com/gobenpark/trader/event"
 	"github.com/gobenpark/trader/order"
 	"github.com/gobenpark/trader/position"
@@ -19,7 +19,7 @@ type Broker interface {
 	Sell(code string, size int64, price float64) string
 	Cancel(uuid string)
 	Submit(uid string)
-	GetPosition(code string) (position.Position, error)
+	GetPosition(code string) ([]position.Position, error)
 	AddOrderHistory()
 	SetFundHistory()
 	CommissionInfo()
@@ -30,20 +30,20 @@ type Broker interface {
 type DefaultBroker struct {
 	sync.RWMutex
 	cash        int64
-	commission  float32
+	commission  float64
 	orders      map[string]*order.Order
 	mu          sync.Mutex
 	eventEngine event.Broadcaster
-	positions   map[string]position.Position
+	positions   map[string][]position.Position
 }
 
 // NewBroker Init new broker with cash,commission
-func NewBroker(cash int64, commission float32) *DefaultBroker {
+func NewBroker(cash int64, commission float64) *DefaultBroker {
 	return &DefaultBroker{
 		cash:       cash,
 		commission: commission,
 		orders:     make(map[string]*order.Order),
-		positions:  make(map[string]position.Position),
+		positions:  make(map[string][]position.Position),
 	}
 }
 
@@ -59,7 +59,6 @@ func (b *DefaultBroker) Buy(code string, size int64, price float64) string {
 	}
 	o.Submit()
 	b.orders[o.UUID] = o
-	b.transmit(o)
 	return uid
 }
 
@@ -73,7 +72,7 @@ func (b *DefaultBroker) Sell(code string, size int64, price float64) string {
 		Price: price,
 	}
 	b.orders[o.UUID] = o
-	b.transmit(o)
+	b.Submit(o.UUID)
 	return uid
 }
 
@@ -89,25 +88,25 @@ func (b *DefaultBroker) Submit(uid string) {
 	if o, ok := b.orders[uid]; ok {
 		o.Submit()
 		b.eventEngine.BroadCast(o)
+		b.positions[o.Code] = append(b.positions[o.Code], position.Position{
+			Size:      o.Size,
+			Price:     o.Price,
+			CreatedAt: o.CreatedAt,
+		})
 		return
 	}
 }
 
-func (b *DefaultBroker) GetPosition(code string) (position.Position, error) {
+func (b *DefaultBroker) GetPosition(code string) ([]position.Position, error) {
 	if p, ok := b.positions[code]; ok {
 		return p, nil
 	}
-	return position.Position{}, fmt.Errorf("not exist code %s", code)
+
+	return nil, terr.ErrNotExistCode
 }
 
 func (b *DefaultBroker) SetCash(cash int64) {
 	atomic.StoreInt64(&b.cash, cash)
-}
-
-// commission 반영
-func (b *DefaultBroker) transmit(o *order.Order) {
-	o.Submit()
-	b.eventEngine.BroadCast(o)
 }
 
 func (b *DefaultBroker) AddOrderHistory() {

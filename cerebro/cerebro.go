@@ -1,7 +1,5 @@
 package cerebro
 
-//go:generate mockgen -source=./cerebro.go -destination=./mock/mock_cerebro.go
-
 import (
 	"context"
 	"os"
@@ -12,6 +10,7 @@ import (
 	"github.com/go-playground/validator/v10"
 	"github.com/gobenpark/trader/broker"
 	"github.com/gobenpark/trader/container"
+	error2 "github.com/gobenpark/trader/error"
 	"github.com/gobenpark/trader/event"
 	"github.com/gobenpark/trader/internal/pkg/retry"
 	"github.com/gobenpark/trader/order"
@@ -125,7 +124,7 @@ func (c *Cerebro) load() error {
 	c.log.Info().Msg("start load live data ")
 	if c.isLive {
 		if len(c.storengine.Stores) == 0 {
-			return ErrStoreNotExists
+			return error2.ErrStoreNotExists
 		}
 		//All Store
 		for k, v := range c.storengine.Mapper {

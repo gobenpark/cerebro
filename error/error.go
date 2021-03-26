@@ -1,4 +1,4 @@
-package cerebro
+package error
 
 type Error struct {
 	Code    int
@@ -10,7 +10,7 @@ func (c Error) Error() string {
 }
 
 var (
-	ErrUnexpected = Error{Code: 1, Message: "raise unexpected error"}
-
+	ErrUnexpected     = Error{Code: 1, Message: "raise unexpected error"}
 	ErrStoreNotExists = Error{Code: 2, Message: "store not in cerebro"}
+	ErrNotExistCode   = Error{Code: 3, Message: "does not exist code"}
 )

@@ -1,5 +1,6 @@
-//go:generate mockgen -source=./broker.go -destination=./mock/mock_broker.go
 package broker
+
+//go:generate mockgen -source=./broker.go -destination=./mock/mock_broker.go
 
 import (
 	"fmt"
@@ -36,7 +37,7 @@ type DefaultBroker struct {
 	positions   map[string]position.Position
 }
 
-//NewBroker Init new broker with cash,commission
+// NewBroker Init new broker with cash,commission
 func NewBroker(cash int64, commission float32) *DefaultBroker {
 	return &DefaultBroker{
 		cash:       cash,
@@ -103,7 +104,7 @@ func (b *DefaultBroker) SetCash(cash int64) {
 	atomic.StoreInt64(&b.cash, cash)
 }
 
-//commission 반영
+// commission 반영
 func (b *DefaultBroker) transmit(o *order.Order) {
 	o.Submit()
 	b.eventEngine.BroadCast(o)

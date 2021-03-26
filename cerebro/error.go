@@ -1,16 +1,16 @@
 package cerebro
 
-type CerebroError struct {
+type Error struct {
 	Code    int
 	Message string
 }
 
-func (c CerebroError) Error() string {
+func (c Error) Error() string {
 	return c.Message
 }
 
 var (
-	ErrUnexpected = CerebroError{Code: 1, Message: "raise unexpected error"}
+	ErrUnexpected = Error{Code: 1, Message: "raise unexpected error"}
 
-	ErrStoreNotExists = CerebroError{Code: 2, Message: "store not in cerebro"}
+	ErrStoreNotExists = Error{Code: 2, Message: "store not in cerebro"}
 )

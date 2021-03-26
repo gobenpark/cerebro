@@ -11,23 +11,23 @@ import (
 
 type Option func(*Cerebro)
 
-func WithBroker(broker broker.Broker) Option {
+func WithBroker(b broker.Broker) Option {
 	return func(c *Cerebro) {
-		c.broker = broker
+		c.broker = b
 		c.broker.SetEventBroadCaster(c.eventEngine)
 	}
 }
 
-func WithStrategy(strategy ...strategy.Strategy) Option {
+func WithStrategy(s ...strategy.Strategy) Option {
 	return func(c *Cerebro) {
-		c.strategies = strategy
+		c.strategies = s
 	}
 }
 
-func WithStore(store store.Store, codes ...string) Option {
+func WithStore(s store.Store, codes ...string) Option {
 	return func(c *Cerebro) {
-		c.storengine.Stores[store.Uid()] = store
-		c.storengine.Mapper[store.Uid()] = append(c.storengine.Mapper[store.Uid()], codes...)
+		c.storengine.Stores[s.Uid()] = s
+		c.storengine.Mapper[s.Uid()] = append(c.storengine.Mapper[s.Uid()], codes...)
 	}
 }
 

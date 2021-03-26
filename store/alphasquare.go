@@ -13,10 +13,6 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
-func init() {
-	log.Logger = log.With().Caller().Logger()
-}
-
 type AlpaSquare struct {
 	charts chan container.Candle
 }
@@ -146,7 +142,9 @@ func (a *AlpaSquare) TickStream(ctx context.Context) {
 }
 
 func (a *AlpaSquare) Start(ctx context.Context) {
-	a.day(ctx, "005930")
+	if err := a.day(ctx, "005930"); err != nil {
+
+	}
 }
 
 func (a *AlpaSquare) Data() <-chan container.Candle {

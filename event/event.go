@@ -6,7 +6,7 @@
  * Vestibulum commodo. Ut rhoncus gravida arcu.
  */
 
-//go:generate mockgen -source=./eventlistener.go -destination=./mock/mock_eventlistener.go
+//go:generate mockgen -source=./event.go -destination=./mock/mock_event.go
 
 package event
 

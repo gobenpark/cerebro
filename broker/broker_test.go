@@ -18,7 +18,7 @@ func TestNewBroker(t *testing.T) {
 
 func TestDefaultBroker_Buy(t *testing.T) {
 	ctrl := gomock.NewController(t)
-	e := mock_event.NewMockEventBroadcaster(ctrl)
+	e := mock_event.NewMockBroadcaster(ctrl)
 	b := NewBroker(1, 0.0005)
 	b.eventEngine = e
 	input := &order.Order{
@@ -36,7 +36,7 @@ func TestDefaultBroker_Buy(t *testing.T) {
 
 func TestDefaultBroker_Sell(t *testing.T) {
 	ctrl := gomock.NewController(t)
-	e := mock_event.NewMockEventBroadcaster(ctrl)
+	e := mock_event.NewMockBroadcaster(ctrl)
 	b := NewBroker(1, 0.0005)
 	b.eventEngine = e
 	input := &order.Order{

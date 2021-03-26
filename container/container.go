@@ -61,7 +61,7 @@ func (t *DataContainer) Values() []Candle {
 	return d
 }
 
-//Add forword append container candle data
+// Add foreword append container candle data
 // current candle [0] index
 func (t *DataContainer) Add(candle Candle) {
 	if len(t.CandleData) != 0 {

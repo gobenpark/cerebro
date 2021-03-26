@@ -10,5 +10,4 @@ func TestLeftInsert(t *testing.T) {
 
 	data = append([]int{7}, data...)
 	fmt.Println(data)
-
 }

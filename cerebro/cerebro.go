@@ -6,7 +6,6 @@ import (
 	"context"
 	"os"
 	"os/signal"
-	"sync"
 	"syscall"
 	"time"
 
@@ -22,12 +21,11 @@ import (
 )
 
 type Cerebro struct {
-	mu sync.RWMutex
 	//isLive flog of live trading
 	isLive bool
 
 	//Broker buy, sell and manage order
-	broker broker.Broker `json:"broker" validate:"required"`
+	broker broker.Broker `validate:"required"`
 
 	//Ctx cerebro global context
 	Ctx context.Context `json:"ctx" validate:"required"`
@@ -47,7 +45,7 @@ type Cerebro struct {
 	strategyEngine *strategy.Engine
 
 	//log in cerebro global logger
-	log zerolog.Logger `json:"log" validate:"required"`
+	log zerolog.Logger `validate:"required"`
 
 	//event channel of all event
 	order chan order.Order
@@ -99,6 +97,7 @@ func (c *Cerebro) getContainer(code string, level time.Duration) container.Conta
 
 //load initializing data from injected store interface
 func (c *Cerebro) load() error {
+	//gocyclo:ignore
 	if c.preload {
 		for k, v := range c.storengine.Mapper {
 			for _, code := range v {
@@ -182,7 +181,7 @@ func (c *Cerebro) createContainer() {
 // third other engine setup
 func (c *Cerebro) Start() error {
 	ch := make(chan os.Signal)
-	signal.Notify(ch, syscall.SIGTERM, syscall.SIGKILL)
+	signal.Notify(ch, syscall.SIGTERM)
 
 	validate := validator.New()
 	if err := validate.Struct(c); err != nil {

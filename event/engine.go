@@ -41,9 +41,7 @@ func (e *Engine) Start(ctx context.Context) {
 			case cli := <-e.Register:
 				e.childEvent[cli] = true
 			case cli := <-e.Unregister:
-				if _, ok := e.childEvent[cli]; ok {
-					delete(e.childEvent, cli)
-				}
+				delete(e.childEvent, cli)
 			}
 		}
 	}()

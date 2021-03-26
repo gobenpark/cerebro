@@ -136,7 +136,6 @@ func TestCerebro_load(t *testing.T) {
 		err := c.load()
 		assert.Error(t, err)
 	})
-
 }
 
 func TestCerebro_Stop(t *testing.T) {

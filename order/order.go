@@ -97,7 +97,7 @@ func (o *Order) Complete() {
 }
 
 func (o *Order) Status() Status {
-	value := Created
+	var value Status
 	o.mu.RLock()
 	value = o.status
 	o.mu.RUnlock()

@@ -6,7 +6,7 @@ package mock_strategy
 
 import (
 	broker "github.com/gobenpark/trader/broker"
-	domain "github.com/gobenpark/trader/domain"
+	container "github.com/gobenpark/trader/container"
 	order "github.com/gobenpark/trader/order"
 	gomock "github.com/golang/mock/gomock"
 	reflect "reflect"
@@ -36,7 +36,7 @@ func (m *MockStrategy) EXPECT() *MockStrategyMockRecorder {
 }
 
 // Next mocks base method
-func (m *MockStrategy) Next(broker broker.Broker, container domain.Container) {
+func (m *MockStrategy) Next(broker broker.Broker, container container.Container) {
 	m.ctrl.T.Helper()
 	m.ctrl.Call(m, "Next", broker, container)
 }

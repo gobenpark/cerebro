@@ -24,40 +24,32 @@ import (
 type Cerebro struct {
 	//isLive flog of live trading
 	isLive bool
-
 	//Broker buy, sell and manage order
 	broker broker.Broker `validate:"required"`
-
 	//Ctx cerebro global context
 	Ctx context.Context `json:"ctx" validate:"required"`
-
 	//Cancel cerebro global context cancel
 	Cancel context.CancelFunc `json:"cancel" validate:"required"`
-
 	//strategies
 	strategies []strategy.Strategy `validate:"gte=1,dive,required"`
-
 	//compress compress info map for codes
 	compress map[string][]CompressInfo
-
+	// containers list of all container
 	containers []container.Container
-
 	//strategy.StrategyEngine embedding property for managing user strategy
 	strategyEngine *strategy.Engine
-
 	//log in cerebro global logger
 	log zerolog.Logger `validate:"required"`
-
 	//event channel of all event
 	order chan order.Order
-
+	// eventEngine engine of management all event
 	eventEngine *event.Engine
-
+	// preload bool value, decide use candle history
 	preload bool
-
-	data chan container.Container
-
-	storengine *store.Engine
+	// dataCh all data container channel
+	dataCh chan container.Container
+	// storeEngine Management stores
+	storeEngine *store.Engine
 }
 
 //NewCerebro generate new cerebro with cerebro option
@@ -73,16 +65,16 @@ func NewCerebro(opts ...Option) *Cerebro {
 		compress:       make(map[string][]CompressInfo),
 		strategyEngine: &strategy.Engine{},
 		order:          make(chan order.Order, 1),
-		data:           make(chan container.Container, 1),
+		dataCh:         make(chan container.Container, 1),
 		eventEngine:    event.NewEventEngine(),
-		storengine:     store.NewEngine(),
+		storeEngine:    store.NewEngine(),
 	}
 
 	for _, opt := range opts {
 		opt(c)
 	}
 
-	c.storengine.EventEngine = c.eventEngine
+	c.storeEngine.EventEngine = c.eventEngine
 
 	return c
 }
@@ -100,11 +92,11 @@ func (c *Cerebro) getContainer(code string, level time.Duration) container.Conta
 func (c *Cerebro) load() error {
 	//gocyclo:ignore
 	if c.preload {
-		for k, v := range c.storengine.Mapper {
+		for k, v := range c.storeEngine.Mapper {
 			for _, code := range v {
 				for _, comp := range c.compress[code] {
 					if err := retry.Retry(10, func() error {
-						candles, err := c.storengine.Stores[k].LoadHistory(c.Ctx, code, comp.level)
+						candles, err := c.storeEngine.Stores[k].LoadHistory(c.Ctx, code, comp.level)
 						if err != nil {
 							c.log.Err(err).Send()
 							return err
@@ -123,17 +115,17 @@ func (c *Cerebro) load() error {
 	}
 	c.log.Info().Msg("start load live data ")
 	if c.isLive {
-		if len(c.storengine.Stores) == 0 {
+		if len(c.storeEngine.Stores) == 0 {
 			return error2.ErrStoreNotExists
 		}
 		//All Store
-		for k, v := range c.storengine.Mapper {
+		for k, v := range c.storeEngine.Mapper {
 			// all codes
 			for _, i := range v {
 				var tick <-chan container.Tick
 				if err := retry.Retry(10, func() error {
 					var err error
-					tick, err = c.storengine.Stores[k].LoadTick(c.Ctx, i)
+					tick, err = c.storeEngine.Stores[k].LoadTick(c.Ctx, i)
 					if err != nil {
 						return err
 					}
@@ -147,7 +139,7 @@ func (c *Cerebro) load() error {
 						go func(t <-chan container.Tick, con container.Container, level time.Duration, isedge bool) {
 							for j := range Compression(t, level, isedge) {
 								con.Add(j)
-								c.data <- con
+								c.dataCh <- con
 							}
 						}(tick, con, com.level, com.LeftEdge)
 					}
@@ -160,11 +152,11 @@ func (c *Cerebro) load() error {
 
 func (c *Cerebro) registEvent() {
 	c.eventEngine.Register <- c.strategyEngine
-	c.eventEngine.Register <- c.storengine
+	c.eventEngine.Register <- c.storeEngine
 }
 
 func (c *Cerebro) createContainer() {
-	for _, v := range c.storengine.Mapper {
+	for _, v := range c.storeEngine.Mapper {
 		for _, i := range v {
 			for _, j := range c.compress[i] {
 				c.containers = append(c.containers, container.NewDataContainer(container.Info{
@@ -195,15 +187,13 @@ func (c *Cerebro) Start() error {
 	c.eventEngine.Start(c.Ctx)
 	c.registEvent()
 	c.log.Info().Msg("Cerebro start...")
-
 	c.strategyEngine.Broker = c.broker
-	c.strategyEngine.Start(c.Ctx, c.data, c.strategies)
+	c.strategyEngine.Start(c.Ctx, c.dataCh, c.strategies)
 
-	c.log.Info().Msg("startload")
+	c.log.Info().Msg("loading...")
 	if err := c.load(); err != nil {
 		return err
 	}
-	c.log.Info().Msg("end load")
 
 	select {
 	case <-c.Ctx.Done():

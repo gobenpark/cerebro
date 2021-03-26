@@ -1,7 +1,6 @@
 package indicators
 
 import (
-	"fmt"
 	"math"
 
 	"github.com/gobenpark/trader/container"
@@ -44,7 +43,6 @@ func (b *BollingerBand) Calculate(c container.Container) {
 
 	slice := len(con) - b.period
 	for i := slice - 1; i >= 0; i-- {
-		fmt.Println(len(con[i : i+b.period]))
 		mean := b.mean(con[i : i+b.period])
 		sd := b.standardDeviation(mean, con[i:i+b.period])
 

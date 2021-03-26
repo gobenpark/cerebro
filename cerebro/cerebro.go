@@ -20,6 +20,8 @@ import (
 	"github.com/rs/zerolog"
 )
 
+// Cerebro head of trading system
+// make all dependency manage
 type Cerebro struct {
 	//isLive flog of live trading
 	isLive bool
@@ -34,7 +36,7 @@ type Cerebro struct {
 	Cancel context.CancelFunc `json:"cancel" validate:"required"`
 
 	//strategies
-	strategies []strategy.Strategy `json:"strategis" validate:"gte=1,dive,required"`
+	strategies []strategy.Strategy `validate:"gte=1,dive,required"`
 
 	//compress compress info map for codes
 	compress map[string][]CompressInfo

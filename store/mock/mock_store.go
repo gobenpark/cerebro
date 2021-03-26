@@ -6,12 +6,11 @@ package mock_store
 
 import (
 	context "context"
+	container "github.com/gobenpark/trader/container"
+	order "github.com/gobenpark/trader/order"
+	gomock "github.com/golang/mock/gomock"
 	reflect "reflect"
 	time "time"
-
-	"github.com/gobenpark/trader/container"
-	domain "github.com/gobenpark/trader/domain"
-	gomock "github.com/golang/mock/gomock"
 )
 
 // MockStore is a mock of Store interface
@@ -38,7 +37,7 @@ func (m *MockStore) EXPECT() *MockStoreMockRecorder {
 }
 
 // Order mocks base method
-func (m *MockStore) Order(code string, ot domain.OrderType, size int64, price float64) error {
+func (m *MockStore) Order(code string, ot order.OType, size int64, price float64) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Order", code, ot, size, price)
 	ret0, _ := ret[0].(error)

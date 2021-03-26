@@ -53,10 +53,10 @@ func (r *rsi) Calculate(container container.Container) {
 			aprev = aprev*alpha1 + v*alpha
 			a = append([]float64{aprev}, a...)
 
-			uprev = uprev * alpha1
+			uprev *= alpha1
 			b = append([]float64{uprev}, b...)
 		} else {
-			aprev = aprev * alpha1
+			aprev *= alpha1
 			a = append([]float64{aprev}, a...)
 
 			uprev = uprev*alpha1 + math.Abs(v)*alpha

@@ -7,7 +7,7 @@ func Retry(max int, f func() error) error {
 	for {
 		if err := f(); err != nil {
 			<-time.After((1 << retries) * time.Second)
-			retries += 1
+			retries++
 
 			if retries >= max {
 				return err

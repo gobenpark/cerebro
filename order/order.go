@@ -38,6 +38,7 @@ const (
 type Order struct {
 	status Status
 	OType
+	ExecType
 	Code       string    `json:"code"`
 	UUID       string    `json:"uuid"`
 	Size       int64     `json:"size"`

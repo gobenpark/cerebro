@@ -35,7 +35,7 @@ func (s *Bighands) Next(broker broker.Broker, container container.Container) {
 		fmt.Printf("mid: %f\n", b.Mid[0].Data)
 		fmt.Printf("bottom: %f\n", b.Bottom[0].Data)
 	}
-	broker.Buy(container.Code(), 10, 1000.0)
+	broker.Buy(container.Code(), 10, 1000.0, order.Market)
 
 	//
 	//if container.Values()[0].Close > container.Values()[1].Close {

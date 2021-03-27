@@ -15,8 +15,8 @@ import (
 )
 
 type Broker interface {
-	Buy(code string, size int64, price float64) string
-	Sell(code string, size int64, price float64) string
+	Buy(code string, size int64, price float64, exec order.ExecType) string
+	Sell(code string, size int64, price float64, exec order.ExecType) string
 	Cancel(uuid string)
 	Submit(uid string)
 	GetPosition(code string) ([]position.Position, error)
@@ -47,7 +47,7 @@ func NewBroker(cash int64, commission float64) *DefaultBroker {
 	}
 }
 
-func (b *DefaultBroker) Buy(code string, size int64, price float64) string {
+func (b *DefaultBroker) Buy(code string, size int64, price float64, exec order.ExecType) string {
 	uid := uuid.NewV4().String()
 	o := &order.Order{
 		OType:     order.Buy,
@@ -55,6 +55,7 @@ func (b *DefaultBroker) Buy(code string, size int64, price float64) string {
 		UUID:      uid,
 		Size:      size,
 		Price:     price,
+		ExecType:  exec,
 		CreatedAt: time.Now(),
 	}
 	o.Submit()
@@ -62,14 +63,15 @@ func (b *DefaultBroker) Buy(code string, size int64, price float64) string {
 	return uid
 }
 
-func (b *DefaultBroker) Sell(code string, size int64, price float64) string {
+func (b *DefaultBroker) Sell(code string, size int64, price float64, exec order.ExecType) string {
 	uid := uuid.NewV4().String()
 	o := &order.Order{
-		Code:  code,
-		UUID:  uid,
-		OType: order.Sell,
-		Size:  size,
-		Price: price,
+		Code:     code,
+		UUID:     uid,
+		OType:    order.Sell,
+		Size:     size,
+		Price:    price,
+		ExecType: exec,
 	}
 	b.orders[o.UUID] = o
 	b.Submit(o.UUID)

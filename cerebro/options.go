@@ -6,7 +6,6 @@ import (
 	"github.com/gobenpark/trader/broker"
 	"github.com/gobenpark/trader/store"
 	"github.com/gobenpark/trader/strategy"
-	"github.com/rs/zerolog"
 )
 
 type Option func(*Cerebro)
@@ -28,12 +27,6 @@ func WithStore(s store.Store, codes ...string) Option {
 	return func(c *Cerebro) {
 		c.storeEngine.Stores[s.Uid()] = s
 		c.storeEngine.Mapper[s.Uid()] = append(c.storeEngine.Mapper[s.Uid()], codes...)
-	}
-}
-
-func WithLogLevel(level zerolog.Level) Option {
-	return func(c *Cerebro) {
-		c.log = c.log.Level(level)
 	}
 }
 

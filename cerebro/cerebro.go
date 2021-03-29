@@ -16,7 +16,6 @@ import (
 	"github.com/gobenpark/trader/order"
 	"github.com/gobenpark/trader/store"
 	"github.com/gobenpark/trader/strategy"
-	"github.com/rs/zerolog"
 )
 
 // Cerebro head of trading system
@@ -39,7 +38,7 @@ type Cerebro struct {
 	//strategy.StrategyEngine embedding property for managing user strategy
 	strategyEngine *strategy.Engine
 	//log in cerebro global logger
-	log zerolog.Logger `validate:"required"`
+	Logger Logger `validate:"required"`
 	//event channel of all event
 	order chan order.Order
 	// eventEngine engine of management all event
@@ -54,14 +53,11 @@ type Cerebro struct {
 
 //NewCerebro generate new cerebro with cerebro option
 func NewCerebro(opts ...Option) *Cerebro {
-	logger := zerolog.New(zerolog.ConsoleWriter{Out: os.Stdout, TimeFormat: time.RFC3339}).
-		With().Timestamp().Str("logger", "cerebro").Logger()
 	ctx, cancel := context.WithCancel(context.Background())
 
 	c := &Cerebro{
 		Ctx:            ctx,
 		Cancel:         cancel,
-		log:            logger,
 		compress:       make(map[string][]CompressInfo),
 		strategyEngine: &strategy.Engine{},
 		order:          make(chan order.Order, 1),
@@ -75,6 +71,10 @@ func NewCerebro(opts ...Option) *Cerebro {
 	}
 
 	c.storeEngine.EventEngine = c.eventEngine
+
+	if c.Logger == nil {
+		c.Logger = getLogger()
+	}
 
 	return c
 }
@@ -98,7 +98,7 @@ func (c *Cerebro) load() error {
 					if err := retry.Retry(10, func() error {
 						candles, err := c.storeEngine.Stores[k].LoadHistory(c.Ctx, code, comp.level)
 						if err != nil {
-							c.log.Err(err).Send()
+							c.Logger.Error(err)
 							return err
 						}
 						con := c.getContainer(code, comp.level)
@@ -113,7 +113,7 @@ func (c *Cerebro) load() error {
 			}
 		}
 	}
-	c.log.Info().Msg("start load live data ")
+	c.Logger.Info("start load live data")
 	if c.isLive {
 		if len(c.storeEngine.Stores) == 0 {
 			return error2.ErrStoreNotExists
@@ -150,7 +150,7 @@ func (c *Cerebro) load() error {
 	return nil
 }
 
-func (c *Cerebro) registEvent() {
+func (c *Cerebro) registerEvent() {
 	c.eventEngine.Register <- c.strategyEngine
 	c.eventEngine.Register <- c.storeEngine
 }
@@ -178,19 +178,19 @@ func (c *Cerebro) Start() error {
 
 	validate := validator.New()
 	if err := validate.Struct(c); err != nil {
-		c.log.Err(err).Send()
+		c.Logger.Error(err)
 		return err
 	}
 
 	c.createContainer()
 
 	c.eventEngine.Start(c.Ctx)
-	c.registEvent()
-	c.log.Info().Msg("Cerebro start...")
+	c.registerEvent()
+	c.Logger.Info("Cerebro start ...")
 	c.strategyEngine.Broker = c.broker
 	c.strategyEngine.Start(c.Ctx, c.dataCh, c.strategies)
 
-	c.log.Info().Msg("loading...")
+	c.Logger.Info("loading...")
 	if err := c.load(); err != nil {
 		return err
 	}

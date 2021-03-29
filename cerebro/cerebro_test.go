@@ -8,7 +8,6 @@ import (
 	mock_store "github.com/gobenpark/trader/store/mock"
 	"github.com/gobenpark/trader/strategy"
 	"github.com/golang/mock/gomock"
-	"github.com/rs/zerolog"
 	uuid "github.com/satori/go.uuid"
 	"github.com/stretchr/testify/assert"
 )
@@ -70,13 +69,6 @@ func TestNewCerebro(t *testing.T) {
 			},
 		},
 		{
-			"log level info",
-			NewCerebro(WithLogLevel(zerolog.InfoLevel)),
-			func(c *Cerebro, t *testing.T) {
-				assert.Equal(t, zerolog.InfoLevel, c.log.GetLevel())
-			},
-		},
-		{
 			"cerebro order channel exist",
 			NewCerebro(),
 			func(c *Cerebro, t *testing.T) {
@@ -123,7 +115,7 @@ func TestCerebro_load(t *testing.T) {
 	go func() {
 		<-time.After(time.Second)
 		if err := c.Stop(); err != nil {
-			c.log.Err(err).Send()
+			c.Logger.Error(err)
 		}
 	}()
 	err := c.load()

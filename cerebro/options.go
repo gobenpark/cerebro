@@ -13,7 +13,6 @@ type Option func(*Cerebro)
 func WithBroker(b broker.Broker) Option {
 	return func(c *Cerebro) {
 		c.broker = b
-		c.broker.SetEventBroadCaster(c.eventEngine)
 	}
 }
 

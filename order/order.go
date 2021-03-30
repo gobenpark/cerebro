@@ -89,6 +89,7 @@ func (o *Order) Submit() {
 	defer o.mu.Unlock()
 	o.status = Submitted
 	o.CreatedAt = time.Now()
+	o.ExecutedAt = time.Now()
 }
 
 func (o *Order) Complete() {

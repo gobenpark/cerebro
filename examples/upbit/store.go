@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"sort"
 	"time"
 
@@ -104,8 +103,6 @@ func (s *store) LoadTick(ctx context.Context, code string) (<-chan container.Tic
 }
 
 func (s *store) Order(code string, ot order.OType, exec order.ExecType, size int64, price float64) error {
-
-	fmt.Println(ot)
 	return nil
 	switch ot {
 	case order.Buy:

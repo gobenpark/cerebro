@@ -17,7 +17,7 @@ func (s *Engine) Start(ctx context.Context, data chan container.Container) {
 	go func() {
 		for i := range data {
 			for _, strategy := range s.Sts {
-				strategy.Next(s.Broker, i)
+				go strategy.Next(s.Broker, i)
 			}
 		}
 	}()
@@ -27,7 +27,7 @@ func (s *Engine) Listen(e interface{}) {
 	switch et := e.(type) {
 	case *order.Order:
 		for _, strategy := range s.Sts {
-			strategy.NotifyOrder(et)
+			go strategy.NotifyOrder(et)
 		}
 	}
 }

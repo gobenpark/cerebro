@@ -3,6 +3,7 @@ package broker
 //go:generate mockgen -source=./broker.go -destination=./mock/mock_broker.go
 
 import (
+	"fmt"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -87,6 +88,7 @@ func (b *DefaultBroker) Cancel(uid string) {
 func (b *DefaultBroker) Submit(uid string) {
 	if o, ok := b.orders[uid]; ok {
 		o.Submit()
+		fmt.Println("broadcast ")
 		b.eventEngine.BroadCast(o)
 		b.positions[o.Code] = append(b.positions[o.Code], position.Position{
 			Size:      o.Size,

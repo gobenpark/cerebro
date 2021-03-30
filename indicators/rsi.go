@@ -1,7 +1,6 @@
 package indicators
 
 import (
-	"fmt"
 	"math"
 
 	"github.com/gobenpark/trader/container"
@@ -27,8 +26,6 @@ func (r *rsi) Calculate(container container.Container) {
 	if len(c) > 100 {
 		c = c[:100]
 	}
-
-	fmt.Println(len(c))
 
 	slide := len(c) - r.period
 	if len(c) < r.period {

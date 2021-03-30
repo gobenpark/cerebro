@@ -29,7 +29,7 @@ type Info struct {
 
 //TODO: inmemory or external storage
 type DataContainer struct {
-	mu         sync.Mutex
+	mu         sync.RWMutex
 	CandleData []Candle
 	Info
 }
@@ -46,7 +46,11 @@ func (t *DataContainer) Empty() bool {
 }
 
 func (t *DataContainer) Size() int {
-	return len(t.CandleData)
+	l := 0
+	t.mu.RLock()
+	l = len(t.CandleData)
+	t.mu.RUnlock()
+	return l
 }
 
 func (t *DataContainer) Clear() {

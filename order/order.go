@@ -96,7 +96,6 @@ func (o *Order) Complete() {
 	o.mu.Lock()
 	defer o.mu.Unlock()
 	o.status = Completed
-	o.ExecutedAt = time.Now()
 }
 
 func (o *Order) Status() Status {

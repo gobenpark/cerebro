@@ -1,8 +1,6 @@
 package store
 
 import (
-	"fmt"
-
 	"github.com/gobenpark/trader/event"
 	"github.com/gobenpark/trader/order"
 )
@@ -24,8 +22,6 @@ func (s *Engine) Listen(e interface{}) {
 	}
 
 	if o.Status() == order.Submitted {
-
-		fmt.Println("this submitted")
 		if err := s.Store.Order(o.Code, o.OType, o.ExecType, o.Size, o.Price); err != nil {
 			o.Reject(err)
 			s.EventEngine.BroadCast(o)

@@ -25,10 +25,12 @@ func main() {
 
 	cb := cerebro.NewCerebro(
 		cerebro.WithBroker(bk),
-		cerebro.WithStore(upbit, "KRW-MFT", "KRW-LBC"),
+		cerebro.WithStore(upbit, "KRW-MFT", "KRW-LBC", "KRW-MLK", "KRW-BTC"),
 		cerebro.WithStrategy(smart),
 		cerebro.WithResample("KRW-MFT", time.Minute*3, true),
 		cerebro.WithResample("KRW-LBC", time.Minute*3, true),
+		cerebro.WithResample("KRW-MLK", time.Minute*3, true),
+		cerebro.WithResample("KRW-BTC", time.Minute*3, true),
 		cerebro.WithLive(true),
 		cerebro.WithPreload(true),
 	)

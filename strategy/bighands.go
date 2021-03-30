@@ -15,25 +15,26 @@ type Bighands struct {
 }
 
 func (s *Bighands) Next(broker broker.Broker, container container.Container) {
-	rsi := indicators.NewRsi(14)
-	rsi.Calculate(container)
-	fmt.Println(rsi.Get()[0])
-
-	sma := indicators.NewSma(20)
-	sma.Calculate(container)
-	fmt.Println(sma.Get()[0])
-
-	if len(rsi.Get()) != 0 && rsi.Get()[0].Data < 30 {
-		fmt.Printf("%s is upper 30 rsi\n", container.Code())
-	}
-
-	b := indicators.NewBollingerBand(20)
-	b.Calculate(container)
-	if len(b.Top) != 0 {
-		fmt.Printf("top: %f\n", b.Top[0].Data)
-		fmt.Printf("mid: %f\n", b.Mid[0].Data)
-		fmt.Printf("bottom: %f\n", b.Bottom[0].Data)
-	}
+	fmt.Println(container.Code())
+	//rsi := indicators.NewRsi(14)
+	//rsi.Calculate(container)
+	////fmt.Println(rsi.Get()[0])
+	//
+	//sma := indicators.NewSma(20)
+	//sma.Calculate(container)
+	////fmt.Println(sma.Get()[0])
+	//
+	//if len(rsi.Get()) != 0 && rsi.Get()[0].Data < 30 {
+	//	fmt.Printf("%s is upper 30 rsi\n", container.Code())
+	//}
+	//
+	//b := indicators.NewBollingerBand(20)
+	//b.Calculate(container)
+	//if len(b.Top) != 0 {
+	//	fmt.Printf("top: %f\n", b.Top[0].Data)
+	//	fmt.Printf("mid: %f\n", b.Mid[0].Data)
+	//	fmt.Printf("bottom: %f\n", b.Bottom[0].Data)
+	//}
 	broker.Buy(container.Code(), 10, 1000.0, order.Market)
 
 	//
@@ -45,26 +46,25 @@ func (s *Bighands) Next(broker broker.Broker, container container.Container) {
 }
 
 func (s *Bighands) NotifyOrder(o *order.Order) {
-	fmt.Println(o.Status() == order.Submitted)
 	switch o.Status() {
 	case order.Submitted:
 		fmt.Printf("%s:%s\n", o.Code, "Submitted")
 		fmt.Println(o.ExecutedAt)
-	case order.Expired:
-		fmt.Println("expired")
-		fmt.Println(o.ExecutedAt)
-	case order.Rejected:
-		fmt.Println("rejected")
-		fmt.Println(o.ExecutedAt)
-	case order.Canceled:
-		fmt.Println("canceled")
-		fmt.Println(o.ExecutedAt)
-	case order.Completed:
-		fmt.Printf("%s:%s\n", o.Code, "Completed")
-		fmt.Println(o.ExecutedAt)
-	case order.Partial:
-		fmt.Println("partial")
-		fmt.Println(o.ExecutedAt)
+		//case order.Expired:
+		//	fmt.Println("expired")
+		//	fmt.Println(o.ExecutedAt)
+		//case order.Rejected:
+		//	fmt.Println("rejected")
+		//	fmt.Println(o.ExecutedAt)
+		//case order.Canceled:
+		//	fmt.Println("canceled")
+		//	fmt.Println(o.ExecutedAt)
+		//case order.Completed:
+		//	fmt.Printf("%s:%s\n", o.Code, "Completed")
+		//	fmt.Println(o.ExecutedAt)
+		//case order.Partial:
+		//	fmt.Println("partial")
+		//	fmt.Println(o.ExecutedAt)
 	}
 }
 

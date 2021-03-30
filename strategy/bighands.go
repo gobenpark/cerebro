@@ -17,7 +17,6 @@ type Bighands struct {
 func (s *Bighands) Next(broker broker.Broker, container container.Container) {
 	rsi := indicators.NewRsi(14)
 	rsi.Calculate(container)
-	//fmt.Printf("%s:%f", container.Code(), rsi.Get()[0])
 	fmt.Println(rsi.Get()[0])
 
 	sma := indicators.NewSma(20)

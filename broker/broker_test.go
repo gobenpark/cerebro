@@ -30,7 +30,7 @@ func TestDefaultBroker_Buy(t *testing.T) {
 	}
 	input.Submit()
 	e.EXPECT().BroadCast(gomock.AssignableToTypeOf(input)).Times(2)
-	result := b.Buy("testcode", 1, 1)
+	result := b.Buy("testcode", 1, 1, order.Market)
 	assert.NotNil(t, result)
 }
 
@@ -49,7 +49,7 @@ func TestDefaultBroker_Sell(t *testing.T) {
 	input.Submit()
 
 	e.EXPECT().BroadCast(gomock.AssignableToTypeOf(input)).Times(2)
-	result := b.Sell("testcode", 1, 1)
+	result := b.Sell("testcode", 1, 1, order.Limit)
 	assert.NotNil(t, result)
 
 }

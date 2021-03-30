@@ -11,7 +11,7 @@ import (
 )
 
 type Store interface {
-	Order(code string, ot order.OType, size int64, price float64) error
+	Order(code string, ot order.OType, exec order.ExecType, size int64, price float64) error
 	Cancel(id string) error
 	LoadHistory(ctx context.Context, code string, d time.Duration) ([]container.Candle, error)
 	LoadTick(ctx context.Context, code string) (<-chan container.Tick, error)

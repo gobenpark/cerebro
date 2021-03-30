@@ -21,8 +21,6 @@ type Broker interface {
 	Submit(uid string)
 	GetPosition(code string) ([]position.Position, error)
 	AddOrderHistory()
-	SetFundHistory()
-	CommissionInfo()
 	SetCash(cash int64)
 	SetEventBroadCaster(e event.Broadcaster)
 }
@@ -58,8 +56,8 @@ func (b *DefaultBroker) Buy(code string, size int64, price float64, exec order.E
 		ExecType:  exec,
 		CreatedAt: time.Now(),
 	}
-	o.Submit()
 	b.orders[o.UUID] = o
+	b.Submit(o.UUID)
 	return uid
 }
 
@@ -116,10 +114,6 @@ func (b *DefaultBroker) AddOrderHistory() {
 }
 
 func (b *DefaultBroker) SetFundHistory() {
-	panic("implement me")
-}
-
-func (b *DefaultBroker) CommissionInfo() {
 	panic("implement me")
 }
 

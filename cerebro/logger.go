@@ -34,7 +34,7 @@ type DefaultLogger struct {
 }
 
 var (
-	defaultLogger   = &DefaultLogger{Logger: log.New(os.Stderr, "cerebro ", log.LstdFlags)}
+	defaultLogger   = &DefaultLogger{Logger: log.New(os.Stderr, "cerebro: ", log.LstdFlags)}
 	discardLogger   = &DefaultLogger{Logger: log.New(ioutil.Discard, "", 0)}
 	cerebroLoggerMu sync.Mutex
 	cerebroLogger   = Logger(defaultLogger)

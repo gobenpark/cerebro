@@ -6,16 +6,13 @@ import (
 )
 
 type Engine struct {
-	Stores      map[string]Store
-	Mapper      map[string][]string
+	Store       Store
+	Codes       []string
 	EventEngine event.Broadcaster
 }
 
 func NewEngine() *Engine {
-	return &Engine{
-		Stores: make(map[string]Store),
-		Mapper: make(map[string][]string),
-	}
+	return &Engine{}
 }
 
 func (s *Engine) Listen(e interface{}) {
@@ -25,14 +22,13 @@ func (s *Engine) Listen(e interface{}) {
 	}
 
 	if o.Status() == order.Submitted {
-		for _, store := range s.Stores {
-			if err := store.Order(o.Code, o.OType, o.Size, o.Price); err != nil {
-				o.Reject(err)
-				s.EventEngine.BroadCast(o)
-				continue
-			}
-			o.Complete()
+		if err := s.Store.Order(o.Code, o.OType, o.ExecType, o.Size, o.Price); err != nil {
+			o.Reject(err)
 			s.EventEngine.BroadCast(o)
+			return
 		}
+		o.Complete()
+		s.EventEngine.BroadCast(o)
 	}
+
 }

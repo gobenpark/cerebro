@@ -37,17 +37,17 @@ func (m *MockStore) EXPECT() *MockStoreMockRecorder {
 }
 
 // Order mocks base method
-func (m *MockStore) Order(code string, ot order.OType, size int64, price float64) error {
+func (m *MockStore) Order(code string, ot order.OType, exec order.ExecType, size int64, price float64) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Order", code, ot, size, price)
+	ret := m.ctrl.Call(m, "Order", code, ot, exec, size, price)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // Order indicates an expected call of Order
-func (mr *MockStoreMockRecorder) Order(code, ot, size, price interface{}) *gomock.Call {
+func (mr *MockStoreMockRecorder) Order(code, ot, exec, size, price interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Order", reflect.TypeOf((*MockStore)(nil).Order), code, ot, size, price)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Order", reflect.TypeOf((*MockStore)(nil).Order), code, ot, exec, size, price)
 }
 
 // Cancel mocks base method

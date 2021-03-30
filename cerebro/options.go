@@ -19,14 +19,14 @@ func WithBroker(b broker.Broker) Option {
 
 func WithStrategy(s ...strategy.Strategy) Option {
 	return func(c *Cerebro) {
-		c.strategies = s
+		c.strategyEngine.Sts = s
 	}
 }
 
-func WithStore(s store.Store, codes ...string) Option {
+func WithStore(s store.Store, initCodes ...string) Option {
 	return func(c *Cerebro) {
-		c.storeEngine.Stores[s.Uid()] = s
-		c.storeEngine.Mapper[s.Uid()] = append(c.storeEngine.Mapper[s.Uid()], codes...)
+		c.storeEngine.Store = s
+		c.storeEngine.Codes = initCodes
 	}
 }
 

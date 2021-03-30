@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"sort"
 	"time"
 
@@ -102,10 +103,12 @@ func (s *store) LoadTick(ctx context.Context, code string) (<-chan container.Tic
 	return ch, nil
 }
 
-func (s *store) Order(code string, ot order.OType, size int64, price float64) error {
+func (s *store) Order(code string, ot order.OType, exec order.ExecType, size int64, price float64) error {
+
+	fmt.Println(ot)
+	return nil
 	switch ot {
 	case order.Buy:
-		return nil
 		_, err := s.cli.Buy(context.Background(), &stock.BuyRequest{
 			Code:       code,
 			Otype:      stock.LimitOrder,
@@ -117,7 +120,6 @@ func (s *store) Order(code string, ot order.OType, size int64, price float64) er
 			return err
 		}
 	case order.Sell:
-		return nil
 		_, err := s.cli.Sell(context.Background(), &stock.SellRequest{
 			Code:       code,
 			Otype:      stock.LimitOrder,

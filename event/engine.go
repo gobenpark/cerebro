@@ -21,7 +21,7 @@ type Engine struct {
 
 func NewEventEngine() *Engine {
 	return &Engine{
-		broadcast:  make(chan interface{}),
+		broadcast:  make(chan interface{}, 10),
 		Register:   make(chan Listener),
 		Unregister: make(chan Listener),
 		childEvent: make(map[Listener]bool),

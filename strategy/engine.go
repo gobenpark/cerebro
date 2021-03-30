@@ -10,14 +10,13 @@ import (
 
 type Engine struct {
 	broker.Broker
-	sts []Strategy
+	Sts []Strategy
 }
 
-func (s *Engine) Start(ctx context.Context, data chan container.Container, sts []Strategy) {
-	s.sts = sts
+func (s *Engine) Start(ctx context.Context, data chan container.Container) {
 	go func() {
 		for i := range data {
-			for _, strategy := range sts {
+			for _, strategy := range s.Sts {
 				strategy.Next(s.Broker, i)
 			}
 		}
@@ -27,7 +26,7 @@ func (s *Engine) Start(ctx context.Context, data chan container.Container, sts [
 func (s *Engine) Listen(e interface{}) {
 	switch et := e.(type) {
 	case *order.Order:
-		for _, strategy := range s.sts {
+		for _, strategy := range s.Sts {
 			strategy.NotifyOrder(et)
 		}
 	}

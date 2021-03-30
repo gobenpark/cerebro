@@ -46,6 +46,7 @@ type Order struct {
 	CreatedAt  time.Time `json:"createdAt"`
 	ExecutedAt time.Time `json:"executedAt"`
 	mu         sync.RWMutex
+	StoreUID   string `json:"-"`
 }
 
 func (o *Order) Reject(err error) {
@@ -100,7 +101,7 @@ func (o *Order) Complete() {
 func (o *Order) Status() Status {
 	var value Status
 	o.mu.RLock()
-	defer o.mu.Unlock()
+	defer o.mu.RUnlock()
 	value = o.status
 	return value
 }

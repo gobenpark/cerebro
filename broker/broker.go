@@ -23,6 +23,7 @@ type Broker interface {
 	AddOrderHistory()
 	SetCash(cash int64)
 	SetEventBroadCaster(e event.Broadcaster)
+	GetCash() int64
 }
 
 type DefaultBroker struct {
@@ -103,6 +104,10 @@ func (b *DefaultBroker) GetPosition(code string) ([]position.Position, error) {
 	}
 
 	return nil, terr.ErrNotExistCode
+}
+
+func (b *DefaultBroker) GetCash() int64 {
+	return b.cash
 }
 
 func (b *DefaultBroker) SetCash(cash int64) {

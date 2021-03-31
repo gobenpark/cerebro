@@ -20,4 +20,5 @@ type Store interface {
 	Cash() int64
 	Commission() float64
 	Positions() []position.Position
+	OrderState(oid string) (*order.Order, error)
 }

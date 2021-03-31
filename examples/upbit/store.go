@@ -168,3 +168,52 @@ func (s *store) Positions() []position.Position {
 	}
 	return p
 }
+
+func (s *store) AllCodes() (map[string]string, error) {
+	codes := map[string]string{}
+	res, err := s.cli.AllMarkets(context.Background(), &emptypb.Empty{})
+	if err != nil {
+		return nil, err
+	}
+
+	for _, i := range res.GetMarkets() {
+		codes[i.GetCode()] = i.GetName()
+	}
+	return codes, nil
+}
+
+func (s *store) OrderState(oid string) (*order.Order, error) {
+	re, err := s.cli.Order(context.Background(), &stock.OrderRequest{
+		Uuid:       "",
+		Identifier: oid,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	switch re.GetOrder().GetState() {
+	case "wait":
+		o := &order.Order{
+			Code:       re.GetOrder().GetCode(),
+			UUID:       "",
+			Size:       int64(re.GetOrder().GetVolume()),
+			Price:      re.GetOrder().GetPrice(),
+			CreatedAt:  re.GetOrder().GetCreatedAt().AsTime(),
+			ExecutedAt: time.Time{},
+			StoreUID:   "",
+		}
+		o.
+	case "cancel":
+	case "done":
+
+	}
+
+	o := &order.Order{
+		Code:      re.GetOrder().GetCode(),
+		Size:      int64(re.GetOrder().GetVolume()),
+		Price:     re.GetOrder().GetPrice(),
+		CreatedAt: re.GetOrder().GetCreatedAt().AsTime(),
+	}
+	return o, nil
+
+}

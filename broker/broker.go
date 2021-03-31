@@ -3,7 +3,6 @@ package broker
 //go:generate mockgen -source=./broker.go -destination=./mock/mock_broker.go
 
 import (
-	"fmt"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -103,16 +102,29 @@ func (b *Broker) Submit(uid string) {
 			CreatedAt: o.CreatedAt,
 		})
 
-		o.Complete()
-		b.eventEngine.BroadCast(o)
 		return
 	}
 }
 
+//
+//func (b *Broker) OrderStateCheck() {
+//	go func() {
+//		for {
+//			for k,v := range b.orders {
+//				od, err := b.Store.OrderState(k)
+//				if err != nil {
+//					fmt.Println(err)
+//				}
+//				switch od.Status(){
+//				}
+//			}
+//		}
+//	}()
+//}
+
 func (b *Broker) GetPosition(code string) []position.Position {
 	b.Do(func() {
 		p := b.Store.Positions()
-		fmt.Println("onece")
 		for _, i := range p {
 			b.positions[i.Code] = append(b.positions[i.Code], i)
 		}

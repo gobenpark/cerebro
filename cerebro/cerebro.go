@@ -25,7 +25,11 @@ type Cerebro struct {
 	isLive bool
 
 	//Broker buy, sell and manage order
-	broker broker.Broker `validate:"required"`
+	broker *broker.Broker `validate:"required"`
+
+	store store.Store
+
+	codes []string
 
 	//Ctx cerebro global context
 	Ctx context.Context `json:"ctx" validate:"required"`
@@ -59,9 +63,6 @@ type Cerebro struct {
 
 	// dataCh all data container channel
 	dataCh chan container.Container
-
-	// storeEngine Management stores
-	storeEngine *store.Engine
 }
 
 //NewCerebro generate new cerebro with cerebro option
@@ -76,7 +77,7 @@ func NewCerebro(opts ...Option) *Cerebro {
 		order:          make(chan order.Order, 1),
 		dataCh:         make(chan container.Container, 1),
 		eventEngine:    event.NewEventEngine(),
-		storeEngine:    store.NewEngine(),
+		broker:         broker.NewBroker(),
 	}
 
 	for _, opt := range opts {
@@ -102,10 +103,10 @@ func (c *Cerebro) getContainer(code string, level time.Duration) container.Conta
 func (c *Cerebro) load() error {
 	//gocyclo:ignore
 	if c.preload {
-		for _, code := range c.storeEngine.Codes {
+		for _, code := range c.codes {
 			for _, comp := range c.compress[code] {
 				if err := retry.Retry(10, func() error {
-					candles, err := c.storeEngine.Store.LoadHistory(c.Ctx, code, comp.level)
+					candles, err := c.store.LoadHistory(c.Ctx, code, comp.level)
 					if err != nil {
 						c.Logger.Error(err)
 						return err
@@ -124,15 +125,15 @@ func (c *Cerebro) load() error {
 
 	if c.isLive {
 		c.Logger.Info("start load live data")
-		if c.storeEngine.Store == nil {
+		if c.store == nil {
 			return error2.ErrStoreNotExists
 		}
 
-		for _, i := range c.storeEngine.Codes {
+		for _, i := range c.codes {
 			var tick <-chan container.Tick
 			if err := retry.Retry(10, func() error {
 				var err error
-				tick, err = c.storeEngine.Store.LoadTick(c.Ctx, i)
+				tick, err = c.store.LoadTick(c.Ctx, i)
 				if err != nil {
 					return err
 				}
@@ -159,11 +160,10 @@ func (c *Cerebro) load() error {
 
 func (c *Cerebro) registerEvent() {
 	c.eventEngine.Register <- c.strategyEngine
-	c.eventEngine.Register <- c.storeEngine
 }
 
 func (c *Cerebro) createContainer() {
-	for _, i := range c.storeEngine.Codes {
+	for _, i := range c.codes {
 		for _, j := range c.compress[i] {
 			c.containers = append(c.containers, container.NewDataContainer(container.Info{
 				Code:             i,
@@ -192,10 +192,10 @@ func (c *Cerebro) Start() error {
 	c.eventEngine.Start(c.Ctx)
 	c.registerEvent()
 	c.Logger.Info("Cerebro start ...")
+	c.broker.Store = c.store
 	c.strategyEngine.Broker = c.broker
 	c.strategyEngine.Start(c.Ctx, c.dataCh)
 
-	c.storeEngine.EventEngine = c.eventEngine
 	c.broker.SetEventBroadCaster(c.eventEngine)
 
 	c.Logger.Info("loading...")

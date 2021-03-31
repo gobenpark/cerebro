@@ -9,7 +9,7 @@ import (
 )
 
 type Strategy interface {
-	Next(broker broker.Broker, container container.Container)
+	Next(broker *broker.Broker, container container.Container)
 
 	NotifyOrder(o *order.Order)
 	NotifyTrade()

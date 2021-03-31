@@ -8,11 +8,12 @@ import (
 	"github.com/gobenpark/proto/stock"
 	"github.com/gobenpark/trader/container"
 	"github.com/gobenpark/trader/order"
-	"github.com/gogo/protobuf/types"
+	"github.com/gobenpark/trader/position"
 	"github.com/rs/zerolog/log"
 	uuid "github.com/satori/go.uuid"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/types/known/emptypb"
 )
 
 type store struct {
@@ -41,10 +42,6 @@ func (s *store) LoadHistory(ctx context.Context, code string, du time.Duration) 
 	}
 	var d []container.Candle
 	for _, i := range r.GetData() {
-		ti, err := types.TimestampFromProto(i.GetDate())
-		if err != nil {
-			log.Err(err).Send()
-		}
 		d = append(d, container.Candle{
 			Code:   code,
 			Low:    i.GetLow(),
@@ -52,7 +49,7 @@ func (s *store) LoadHistory(ctx context.Context, code string, du time.Duration) 
 			Open:   i.GetOpen(),
 			Close:  i.GetClose(),
 			Volume: i.GetVolume(),
-			Date:   ti,
+			Date:   i.GetDate().AsTime(),
 		})
 	}
 
@@ -85,13 +82,9 @@ func (s *store) LoadTick(ctx context.Context, code string) (<-chan container.Tic
 					}
 					log.Err(err).Send()
 				}
-				ti, err := types.TimestampFromProto(msg.GetDate())
-				if err != nil {
-					log.Err(err).Send()
-				}
 				tch <- container.Tick{
 					Code:   code,
-					Date:   ti,
+					Date:   msg.GetDate().AsTime(),
 					Price:  msg.GetPrice(),
 					Volume: msg.GetVolume(),
 				}
@@ -102,15 +95,14 @@ func (s *store) LoadTick(ctx context.Context, code string) (<-chan container.Tic
 	return ch, nil
 }
 
-func (s *store) Order(code string, ot order.OType, exec order.ExecType, size int64, price float64) error {
-	return nil
-	switch ot {
+func (s *store) Order(o *order.Order) error {
+	switch o.OType {
 	case order.Buy:
 		_, err := s.cli.Buy(context.Background(), &stock.BuyRequest{
-			Code:       code,
-			Otype:      stock.LimitOrder,
-			Volume:     float64(size),
-			Price:      price,
+			Code:       o.Code,
+			Otype:      stock.OrderType_LimitOrder,
+			Volume:     float64(o.Size),
+			Price:      o.Price,
 			Identifier: uuid.NewV4().String(),
 		})
 		if err != nil {
@@ -118,10 +110,10 @@ func (s *store) Order(code string, ot order.OType, exec order.ExecType, size int
 		}
 	case order.Sell:
 		_, err := s.cli.Sell(context.Background(), &stock.SellRequest{
-			Code:       code,
-			Otype:      stock.LimitOrder,
-			Volume:     float64(size),
-			Price:      price,
+			Code:       o.Code,
+			Otype:      stock.OrderType_LimitOrder,
+			Volume:     float64(o.Size),
+			Price:      o.Price,
 			Identifier: uuid.NewV4().String(),
 		})
 		if err != nil {
@@ -140,4 +132,39 @@ func (s *store) Cancel(id string) error {
 
 func (s *store) Uid() string {
 	return s.uid
+}
+
+func (s *store) Cash() int64 {
+	res, err := s.cli.Position(context.Background(), &emptypb.Empty{})
+	if err != nil {
+		return 0
+	}
+	for _, i := range res.GetPositions() {
+		if i.GetCode() == "KRW" {
+			return int64(i.Amount)
+		}
+	}
+	return 0
+}
+
+func (s *store) Commission() float64 {
+	return 0.0005
+}
+
+func (s *store) Positions() []position.Position {
+	res, err := s.cli.Position(context.Background(), &emptypb.Empty{})
+	if err != nil {
+		return nil
+	}
+
+	var p []position.Position
+	for _, i := range res.GetPositions() {
+		p = append(p, position.Position{
+			Code:      i.GetCode(),
+			Size:      int64(i.GetAmount()),
+			Price:     i.GetPrice(),
+			CreatedAt: i.GetDate().AsTime(),
+		})
+	}
+	return p
 }

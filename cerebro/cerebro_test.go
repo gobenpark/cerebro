@@ -4,7 +4,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gobenpark/trader/broker"
 	mock_store "github.com/gobenpark/trader/store/mock"
 	"github.com/gobenpark/trader/strategy"
 	"github.com/golang/mock/gomock"
@@ -18,13 +17,6 @@ func TestNewCerebro(t *testing.T) {
 		cerebro *Cerebro
 		checker func(c *Cerebro, t *testing.T)
 	}{
-		{
-			"insert broker",
-			NewCerebro(WithBroker(broker.NewBroker(10, 10))),
-			func(c *Cerebro, t *testing.T) {
-				assert.NotNil(t, c.broker)
-			},
-		},
 		{
 			"not insert broker",
 			NewCerebro(),
@@ -111,7 +103,7 @@ func TestCerebro_load(t *testing.T) {
 	store.EXPECT().Uid().Return(uuid.NewV4().String()).AnyTimes()
 	store.EXPECT().LoadHistory(gomock.Any(), "KRW", 0*time.Second)
 	store.EXPECT().LoadTick(gomock.Any(), "KRW")
-	c := NewCerebro(WithLive(true), WithPreload(true), WithStore(store, "KRW"))
+	c := NewCerebro(WithLive(true), WithPreload(true))
 	go func() {
 		<-time.After(time.Second)
 		if err := c.Stop(); err != nil {

@@ -3,16 +3,21 @@ package cerebro
 import (
 	"time"
 
-	"github.com/gobenpark/trader/broker"
 	"github.com/gobenpark/trader/store"
 	"github.com/gobenpark/trader/strategy"
 )
 
 type Option func(*Cerebro)
 
-func WithBroker(b broker.Broker) Option {
+func WithCash(cash int64) Option {
 	return func(c *Cerebro) {
-		c.broker = b
+		c.broker.Cash = cash
+	}
+}
+
+func WithCommission(commission float64) Option {
+	return func(c *Cerebro) {
+		c.broker.Commission = commission
 	}
 }
 
@@ -24,8 +29,8 @@ func WithStrategy(s ...strategy.Strategy) Option {
 
 func WithStore(s store.Store, initCodes ...string) Option {
 	return func(c *Cerebro) {
-		c.storeEngine.Store = s
-		c.storeEngine.Codes = initCodes
+		c.store = s
+		c.codes = initCodes
 	}
 }
 

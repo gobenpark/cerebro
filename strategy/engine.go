@@ -9,7 +9,7 @@ import (
 )
 
 type Engine struct {
-	broker.Broker
+	*broker.Broker
 	Sts []Strategy
 }
 

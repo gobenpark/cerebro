@@ -1,4 +1,4 @@
-package strategy
+package main
 
 import (
 	"fmt"
@@ -15,12 +15,10 @@ type Bighands struct {
 }
 
 func (s *Bighands) Next(broker *broker.Broker, container container.Container) {
-	fmt.Println(container.Code())
-
 	rsi := indicators.NewRsi(14)
 	rsi.Calculate(container)
 	fmt.Println(rsi.Get()[0])
-	//
+
 	//sma := indicators.NewSma(20)
 	//sma.Calculate(container)
 	////fmt.Println(sma.Get()[0])
@@ -36,19 +34,20 @@ func (s *Bighands) Next(broker *broker.Broker, container container.Container) {
 	//	fmt.Printf("mid: %f\n", b.Mid[0].Data)
 	//	fmt.Printf("bottom: %f\n", b.Bottom[0].Data)
 	//}
+	broker.Buy(container.Code(), 10000, 1, order.Limit)
 
-	if len(broker.GetPosition(container.Code())) == 0 {
-		if rsi.Get()[0].Data <= 30 {
-			broker.Buy(container.Code(), int64(float64(broker.GetCash()/3)/container.Values()[0].Close), container.Values()[0].Close, order.Limit)
-		}
-	} else {
-		if rsi.Get()[0].Data > 70 {
-			po := broker.GetPosition(container.Code())
-			for _, i := range po {
-				broker.Sell(container.Code(), i.Size, i.Price, order.Limit)
-			}
-		}
-	}
+	//if len(broker.GetPosition(container.Code())) == 0 {
+	//	if rsi.Get()[0].Data <= 30 {
+	//		broker.Buy(container.Code(), int64(float64(broker.GetCash()/3)/container.Values()[0].Close), container.Values()[0].Close, order.Limit)
+	//	}
+	//} else {
+	//	if rsi.Get()[0].Data > 70 {
+	//		po := broker.GetPosition(container.Code())
+	//		for _, i := range po {
+	//			broker.Sell(container.Code(), i.Size, i.Price, order.Limit)
+	//		}
+	//	}
+	//}
 	//
 	//if container.Values()[0].Close > container.Values()[1].Close {
 	//	fmt.Println("value change more upper ")

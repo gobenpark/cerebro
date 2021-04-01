@@ -5,7 +5,7 @@ go 1.16
 require (
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/go-playground/validator/v10 v10.3.0
-	github.com/gobenpark/proto v0.0.0-20210331014240-68af6e075181
+	github.com/gobenpark/proto v0.0.0-20210401002341-468916a0ba12
 	github.com/golang/mock v1.4.4
 	github.com/gorilla/websocket v1.4.2
 	github.com/rs/zerolog v1.20.0

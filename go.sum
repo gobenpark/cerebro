@@ -64,6 +64,10 @@ github.com/go-playground/validator/v10 v10.3.0 h1:nZU+7q+yJoFmwvNgv/LnPUkwPal62+
 github.com/go-playground/validator/v10 v10.3.0/go.mod h1:uOYAAleCW8F/7oMFd6aG0GOhaH6EGOAJShg8Id5JGkI=
 github.com/gobenpark/proto v0.0.0-20210331014240-68af6e075181 h1:iAiqi2B3nnPRn7fAH9DC580NIZ4eB09VDtODCFAK6wU=
 github.com/gobenpark/proto v0.0.0-20210331014240-68af6e075181/go.mod h1:GJwnGYbkX4A0mGJ4IftXz6jEqCu84gIsVmzUWpNgLKg=
+github.com/gobenpark/proto v0.0.0-20210331134017-1bb54eaf810a h1:F0aUjQv/KZD8MaWxmXL1mBpm0eLTNMowDyC7kTeAlhg=
+github.com/gobenpark/proto v0.0.0-20210331134017-1bb54eaf810a/go.mod h1:GJwnGYbkX4A0mGJ4IftXz6jEqCu84gIsVmzUWpNgLKg=
+github.com/gobenpark/proto v0.0.0-20210401002341-468916a0ba12 h1:IGoD42tWslobSB+yqiqiXa7cDgZSRlXdYpuyq0r9cc4=
+github.com/gobenpark/proto v0.0.0-20210401002341-468916a0ba12/go.mod h1:GJwnGYbkX4A0mGJ4IftXz6jEqCu84gIsVmzUWpNgLKg=
 github.com/gogo/protobuf v1.3.2/go.mod h1:P1XiOD3dCwIKUDQYPy72D8LYyHL2YPYrpS2s69NZV8Q=
 github.com/golang/glog v0.0.0-20160126235308-23def4e6c14b/go.mod h1:SBH7ygxi8pfUlaOkMMuAQtPIUF8ecWP5IEl/CR7VP2Q=
 github.com/golang/groupcache v0.0.0-20190702054246-869f871628b6/go.mod h1:cIg4eruTrX1D+g88fzRXU5OdNfaM+9IcxsU14FzY7Hc=

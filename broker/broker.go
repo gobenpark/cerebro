@@ -3,6 +3,7 @@ package broker
 //go:generate mockgen -source=./broker.go -destination=./mock/mock_broker.go
 
 import (
+	"fmt"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -13,18 +14,6 @@ import (
 	"github.com/gobenpark/trader/store"
 	"github.com/satori/go.uuid"
 )
-
-//type Broker interface {
-//	Buy(code string, size int64, price float64, exec order.ExecType) string
-//	Sell(code string, size int64, price float64, exec order.ExecType) string
-//	Cancel(uuid string)
-//	Submit(uid string)
-//	GetPosition(code string) ([]position.Position, error)
-//	AddOrderHistory()
-//	SetCash(cash int64)
-//	SetEventBroadCaster(e event.Broadcaster)
-//	GetCash() int64
-//}
 
 type Broker struct {
 	sync.RWMutex
@@ -58,7 +47,7 @@ func (b *Broker) Buy(code string, size int64, price float64, exec order.ExecType
 		CreatedAt: time.Now(),
 	}
 	b.orders[o.UUID] = o
-	b.Submit(o.UUID)
+	b.Submit(o)
 	return uid
 }
 
@@ -73,7 +62,7 @@ func (b *Broker) Sell(code string, size int64, price float64, exec order.ExecTyp
 		ExecType: exec,
 	}
 	b.orders[o.UUID] = o
-	b.Submit(o.UUID)
+	b.Submit(o)
 	return uid
 }
 
@@ -85,42 +74,31 @@ func (b *Broker) Cancel(uid string) {
 	}
 }
 
-func (b *Broker) Submit(uid string) {
-	if o, ok := b.orders[uid]; ok {
-		o.Submit()
+func (b *Broker) Submit(o *order.Order) {
+	o.Submit()
+	b.eventEngine.BroadCast(o)
+
+	if err := b.Store.Order(o); err != nil {
+		o.Reject(err)
 		b.eventEngine.BroadCast(o)
+		return
+	}
 
-		if err := b.Store.Order(o); err != nil {
-			o.Reject(err)
-			b.eventEngine.BroadCast(o)
-			return
-		}
+	return
+}
 
+func (b *Broker) Accept(oid string) {
+	if o, ok := b.orders[oid]; ok {
 		b.positions[o.Code] = append(b.positions[o.Code], position.Position{
 			Size:      o.Size,
 			Price:     o.Price,
 			CreatedAt: o.CreatedAt,
 		})
-
+		o.Complete()
+		b.eventEngine.BroadCast(o)
 		return
 	}
 }
-
-//
-//func (b *Broker) OrderStateCheck() {
-//	go func() {
-//		for {
-//			for k,v := range b.orders {
-//				od, err := b.Store.OrderState(k)
-//				if err != nil {
-//					fmt.Println(err)
-//				}
-//				switch od.Status(){
-//				}
-//			}
-//		}
-//	}()
-//}
 
 func (b *Broker) GetPosition(code string) []position.Position {
 	b.Do(func() {
@@ -155,4 +133,18 @@ func (b *Broker) SetFundHistory() {
 
 func (b *Broker) SetEventBroadCaster(e event.Broadcaster) {
 	b.eventEngine = e
+}
+
+func (b *Broker) Listen(e interface{}) {
+	if evt, ok := e.(event.OrderEvent); ok {
+		switch evt.State {
+		case "cancel":
+			b.Cancel(evt.Oid)
+		case "done":
+			b.Accept(evt.Oid)
+		case "wait":
+			fmt.Println(b.positions)
+			fmt.Println("wait")
+		}
+	}
 }

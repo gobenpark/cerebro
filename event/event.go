@@ -17,3 +17,14 @@ type Listener interface {
 type Broadcaster interface {
 	BroadCast(e interface{})
 }
+
+type Event struct {
+	EventType string
+	Message   string
+}
+
+type OrderEvent struct {
+	Event
+	State string
+	Oid   string
+}

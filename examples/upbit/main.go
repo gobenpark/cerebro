@@ -4,7 +4,6 @@ import (
 	"time"
 
 	"github.com/gobenpark/trader/cerebro"
-	"github.com/gobenpark/trader/strategy"
 )
 
 func main() {
@@ -17,10 +16,10 @@ func main() {
 
 	upbit := NewStore("upbit")
 
-	smart := &strategy.Bighands{}
+	smart := &Bighands{}
 
 	cb := cerebro.NewCerebro(
-		cerebro.WithStore(upbit, "KRW-NPXS", "KRW-LBC", "KRW-MLK"),
+		cerebro.WithStore(upbit, "KRW-MLK"),
 		cerebro.WithStrategy(smart),
 		cerebro.WithResample("KRW-MFT", time.Minute*3, true),
 		cerebro.WithResample("KRW-LBC", time.Minute*3, true),

@@ -2,11 +2,13 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"sort"
 	"time"
 
 	"github.com/gobenpark/proto/stock"
 	"github.com/gobenpark/trader/container"
+	"github.com/gobenpark/trader/event"
 	"github.com/gobenpark/trader/order"
 	"github.com/gobenpark/trader/position"
 	"github.com/rs/zerolog/log"
@@ -17,9 +19,10 @@ import (
 )
 
 type store struct {
-	name string
-	uid  string
-	cli  stock.StockClient
+	name      string
+	uid       string
+	cli       stock.StockClient
+	orderList map[string]bool
 }
 
 func NewStore(name string) *store {
@@ -28,7 +31,7 @@ func NewStore(name string) *store {
 		panic(err)
 	}
 
-	return &store{name, uuid.NewV4().String(), cli}
+	return &store{name, uuid.NewV4().String(), cli, map[string]bool{}}
 }
 
 func (s *store) LoadHistory(ctx context.Context, code string, du time.Duration) ([]container.Candle, error) {
@@ -103,7 +106,7 @@ func (s *store) Order(o *order.Order) error {
 			Otype:      stock.OrderType_LimitOrder,
 			Volume:     float64(o.Size),
 			Price:      o.Price,
-			Identifier: uuid.NewV4().String(),
+			Identifier: o.UUID,
 		})
 		if err != nil {
 			return err
@@ -114,12 +117,14 @@ func (s *store) Order(o *order.Order) error {
 			Otype:      stock.OrderType_LimitOrder,
 			Volume:     float64(o.Size),
 			Price:      o.Price,
-			Identifier: uuid.NewV4().String(),
+			Identifier: o.UUID,
 		})
 		if err != nil {
 			return err
 		}
 	}
+
+	s.orderList[o.UUID] = true
 	return nil
 }
 
@@ -127,6 +132,8 @@ func (s *store) Cancel(id string) error {
 	if _, err := s.cli.CancelOrder(context.Background(), &stock.CancelOrderRequest{Id: id}); err != nil {
 		return err
 	}
+	s.orderList[id] = false
+
 	return nil
 }
 
@@ -182,38 +189,64 @@ func (s *store) AllCodes() (map[string]string, error) {
 	return codes, nil
 }
 
-func (s *store) OrderState(oid string) (*order.Order, error) {
-	re, err := s.cli.Order(context.Background(), &stock.OrderRequest{
-		Uuid:       "",
-		Identifier: oid,
-	})
+func (s *store) OrderState(ctx context.Context) (<-chan event.OrderEvent, error) {
+	ch := make(chan event.OrderEvent)
+	ticker := time.NewTicker(time.Second * 3)
+
+	go func() {
+		defer close(ch)
+	Done:
+		for {
+			select {
+			case <-ticker.C:
+				for i := range s.orderList {
+					resp, err := s.cli.OrderInfo(ctx, &stock.OrderInfoRequest{Id: i})
+					if err != nil {
+						fmt.Println(err)
+						continue
+					}
+					ch <- event.OrderEvent{
+						Event: event.Event{
+							EventType: "order",
+							Message:   "order event rise",
+						},
+						State: resp.GetOrder().GetState(),
+						Oid:   i,
+					}
+				}
+			case <-ctx.Done():
+				break Done
+
+			}
+		}
+	}()
+
+	return ch, nil
+}
+
+func (s *store) OrderInfo(id string) (*order.Order, error) {
+	re, err := s.cli.OrderInfo(context.Background(), &stock.OrderInfoRequest{Id: id})
 	if err != nil {
 		return nil, err
 	}
 
+	o := &order.Order{
+		Code:       re.GetOrder().GetCode(),
+		UUID:       id,
+		Size:       int64(re.GetOrder().GetVolume()),
+		Price:      re.GetOrder().GetPrice(),
+		CreatedAt:  re.GetOrder().GetCreatedAt().AsTime(),
+		ExecutedAt: time.Time{},
+	}
+
 	switch re.GetOrder().GetState() {
 	case "wait":
-		o := &order.Order{
-			Code:       re.GetOrder().GetCode(),
-			UUID:       "",
-			Size:       int64(re.GetOrder().GetVolume()),
-			Price:      re.GetOrder().GetPrice(),
-			CreatedAt:  re.GetOrder().GetCreatedAt().AsTime(),
-			ExecutedAt: time.Time{},
-			StoreUID:   "",
-		}
-		o.
+		o.Submit()
 	case "cancel":
+		o.Cancel()
 	case "done":
-
+		o.Complete()
 	}
 
-	o := &order.Order{
-		Code:      re.GetOrder().GetCode(),
-		Size:      int64(re.GetOrder().GetVolume()),
-		Price:     re.GetOrder().GetPrice(),
-		CreatedAt: re.GetOrder().GetCreatedAt().AsTime(),
-	}
 	return o, nil
-
 }

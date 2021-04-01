@@ -99,6 +99,21 @@ func (c *Cerebro) getContainer(code string, level time.Duration) container.Conta
 	return nil
 }
 
+// orderEventRoutine is stream of order state
+// if rise order event then event hub send to subscriber
+func (c *Cerebro) orderEventRoutine() {
+	ch, err := c.store.OrderState(c.Ctx)
+	if err != nil {
+		panic(err)
+	}
+
+	go func() {
+		for i := range ch {
+			c.eventEngine.BroadCast(i)
+		}
+	}()
+}
+
 //load initializing data from injected store interface
 func (c *Cerebro) load() error {
 	//gocyclo:ignore
@@ -160,6 +175,7 @@ func (c *Cerebro) load() error {
 
 func (c *Cerebro) registerEvent() {
 	c.eventEngine.Register <- c.strategyEngine
+	c.eventEngine.Register <- c.broker
 }
 
 func (c *Cerebro) createContainer() {
@@ -197,6 +213,8 @@ func (c *Cerebro) Start() error {
 	c.strategyEngine.Start(c.Ctx, c.dataCh)
 
 	c.broker.SetEventBroadCaster(c.eventEngine)
+
+	c.orderEventRoutine()
 
 	c.Logger.Info("loading...")
 	if err := c.load(); err != nil {

@@ -134,6 +134,12 @@ ex) Binance , upbit , etc
 
 
 
+## TODO
+
+1. new feature Observer is observing price and volume for find big hands 
+2. new feature Signal
+3. support news, etc information base trading 
+4. multi store one cerebro 
 
 
 

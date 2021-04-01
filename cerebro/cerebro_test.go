@@ -5,7 +5,6 @@ import (
 	"time"
 
 	mock_store "github.com/gobenpark/trader/store/mock"
-	"github.com/gobenpark/trader/strategy"
 	"github.com/golang/mock/gomock"
 	uuid "github.com/satori/go.uuid"
 	"github.com/stretchr/testify/assert"
@@ -18,10 +17,10 @@ func TestNewCerebro(t *testing.T) {
 		checker func(c *Cerebro, t *testing.T)
 	}{
 		{
-			"not insert broker",
+			"default broker",
 			NewCerebro(),
 			func(c *Cerebro, t *testing.T) {
-				assert.Nil(t, c.broker)
+				assert.NotNil(t, c.broker)
 			},
 		},
 		{
@@ -81,14 +80,6 @@ func TestNewCerebro(t *testing.T) {
 				assert.NotNil(t, c.strategyEngine)
 			},
 		},
-		{
-			"add user strategy",
-			NewCerebro(),
-			func(c *Cerebro, t *testing.T) {
-				WithStrategy(&strategy.Bighands{})(c)
-				assert.NotNil(t, c.strategies)
-			},
-		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -129,14 +120,4 @@ func TestCerebro_Stop(t *testing.T) {
 	err := c.Stop()
 	assert.NoError(t, err)
 	assert.Equal(t, "context canceled", c.Ctx.Err().Error())
-}
-
-func TestCerebro_Start(t *testing.T) {
-	c := NewCerebro()
-	go func() {
-		<-time.After(1 * time.Second)
-		c.Stop()
-	}()
-	err := c.Start()
-	assert.NoError(t, err)
 }

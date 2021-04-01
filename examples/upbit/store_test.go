@@ -24,7 +24,7 @@ func TestStore_Order(t *testing.T) {
 		Code:       "KRW-MLK",
 		Size:       10,
 		Price:      2500,
-		UUID: uuid.NewV4().String(),
+		UUID:       uuid.NewV4().String(),
 		CreatedAt:  time.Time{},
 		ExecutedAt: time.Time{},
 	}
@@ -39,10 +39,3 @@ func TestStore_OrderState(t *testing.T) {
 	require.NoError(t, err)
 	fmt.Println(o.Status())
 }
-
-func TestStore_OrderInfo(t *testing.T) {
-	s := NewStore("")
-	s.
-}
-
-//func Test

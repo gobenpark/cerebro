@@ -140,7 +140,7 @@ ex) Binance , upbit , etc
 2. new feature Signal
 3. support news, etc information base trading 
 4. multi store one cerebro 
-
+5. feature broker slippage
 
 
 

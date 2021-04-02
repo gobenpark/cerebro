@@ -19,6 +19,7 @@ import (
 
 type Tick struct {
 	Code   string    `json:"code"`
+	AskBid string    `json:"askBid"`
 	Date   time.Time `json:"date"`
 	Price  float64   `json:"price"`
 	Volume float64   `json:"volume"`
@@ -37,6 +38,7 @@ func (t *Tick) UnmarshalJSON(bytes []byte) error {
 	}
 
 	t.Date = ti
+	t.AskBid = data["askBid"].(string)
 	t.Price = data["price"].(float64)
 	t.Volume = data["volume"].(float64)
 	return nil

@@ -28,3 +28,6 @@ download:
 
 build: clean download
 	$(GOBUILD) -o server -gcflags='-N -l' -ldflags "-X main.ServiceVersion=$(VERSIONS)" ./cmd
+
+cov:
+	$(GOCMD) test -race -coverprofile=coverage.txt -covermode=atomic ./...

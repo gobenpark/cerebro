@@ -3,6 +3,7 @@
 golang live trading framework
 ---
 [![made-with-Go](https://img.shields.io/badge/Made%20with-Go-1f425f.svg)](http://golang.org)
+[![codecov](https://codecov.io/gh/gobenpark/trader/branch/master/graph/badge.svg?token=4UWNV7BMZ3)](https://codecov.io/gh/gobenpark/trader)
 [![GitHub go.mod Go version of a Go module](https://img.shields.io/github/go-mod/go-version/gobenpark/trader.svg)](https://github.com/gobenpark/trader)
 [![GitHub release](https://img.shields.io/github/release/gobenpark/trader.js.svg)](https://github.com/gobenpark/trader/releases/)
 [![Go Report Card](https://goreportcard.com/badge/github.com/gobenpark/trader?style=flat-square)](https://goreportcard.com/report/github.com/gobenpark/trader)

@@ -10,22 +10,7 @@
  *   The GNU General Public License is a free, copyleft license for
  * software and other kinds of works.
  */
-package strategy
+package analysis
 
-//go:generate mockgen -source=./strategy.go -destination=./mock/mock_strategy.go
-
-import (
-	"github.com/gobenpark/trader/broker"
-	"github.com/gobenpark/trader/container"
-	"github.com/gobenpark/trader/order"
-)
-
-type Strategy interface {
-	Next(broker *broker.Broker, container container.Container)
-
-	//NotifyOrder is when event rise order then called
-	NotifyOrder(o *order.Order)
-	NotifyTrade()
-	NotifyCashValue()
-	NotifyFund()
+type Analyzer interface {
 }

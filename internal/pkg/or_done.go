@@ -1,4 +1,5 @@
-/*                     GNU GENERAL PUBLIC LICENSE
+/*
+ *                     GNU GENERAL PUBLIC LICENSE
  *                        Version 3, 29 June 2007
  *
  *  Copyright (C) 2007 Free Software Foundation, Inc. <https://fsf.org/>
@@ -10,22 +11,33 @@
  *   The GNU General Public License is a free, copyleft license for
  * software and other kinds of works.
  */
-package strategy
 
-//go:generate mockgen -source=./strategy.go -destination=./mock/mock_strategy.go
+package pkg
 
 import (
-	"github.com/gobenpark/trader/broker"
+	"context"
+
 	"github.com/gobenpark/trader/container"
-	"github.com/gobenpark/trader/order"
 )
 
-type Strategy interface {
-	Next(broker *broker.Broker, container container.Container)
-
-	//NotifyOrder is when event rise order then called
-	NotifyOrder(o *order.Order)
-	NotifyTrade()
-	NotifyCashValue()
-	NotifyFund()
+func OrDone(ctx context.Context, c <-chan container.Tick) <-chan container.Tick {
+	valStream := make(chan container.Tick)
+	go func() {
+		defer close(valStream)
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case v, ok := <-c:
+				if ok == false {
+					return
+				}
+				select {
+				case valStream <- v:
+				case <-ctx.Done():
+				}
+			}
+		}
+	}()
+	return valStream
 }

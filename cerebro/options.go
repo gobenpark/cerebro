@@ -15,6 +15,7 @@ package cerebro
 import (
 	"time"
 
+	"github.com/gobenpark/trader/observer"
 	"github.com/gobenpark/trader/store"
 	"github.com/gobenpark/trader/strategy"
 )
@@ -30,6 +31,12 @@ func WithCash(cash int64) Option {
 func WithCommission(commission float64) Option {
 	return func(c *Cerebro) {
 		c.broker.Commission = commission
+	}
+}
+
+func WithObserver(o observer.Observer) Option {
+	return func(c *Cerebro) {
+		c.o = o
 	}
 }
 

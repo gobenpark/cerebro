@@ -1,4 +1,5 @@
-/*                     GNU GENERAL PUBLIC LICENSE
+/*
+ *                     GNU GENERAL PUBLIC LICENSE
  *                        Version 3, 29 June 2007
  *
  *  Copyright (C) 2007 Free Software Foundation, Inc. <https://fsf.org/>
@@ -10,22 +11,11 @@
  *   The GNU General Public License is a free, copyleft license for
  * software and other kinds of works.
  */
-package retry
 
-import "time"
+package observer
 
-func Retry(max int, f func() error) error {
-	retries := 0
-	for {
-		if err := f(); err != nil {
-			<-time.After((1 << retries) * time.Second)
-			retries++
+import "github.com/gobenpark/trader/container"
 
-			if retries >= max {
-				return err
-			}
-			continue
-		}
-		return nil
-	}
+type Observer interface {
+	Next(tick container.Tick)
 }

@@ -24,7 +24,8 @@ import (
 	"github.com/gobenpark/trader/container"
 	error2 "github.com/gobenpark/trader/error"
 	"github.com/gobenpark/trader/event"
-	"github.com/gobenpark/trader/internal/pkg/retry"
+	"github.com/gobenpark/trader/internal/pkg"
+	"github.com/gobenpark/trader/observer"
 	"github.com/gobenpark/trader/order"
 	"github.com/gobenpark/trader/store"
 	"github.com/gobenpark/trader/strategy"
@@ -75,6 +76,8 @@ type Cerebro struct {
 
 	// dataCh all data container channel
 	dataCh chan container.Container
+
+	o observer.Observer
 }
 
 //NewCerebro generate new cerebro with cerebro option
@@ -132,7 +135,7 @@ func (c *Cerebro) load() error {
 	if c.preload {
 		for _, code := range c.codes {
 			for _, comp := range c.compress[code] {
-				if err := retry.Retry(10, func() error {
+				if err := pkg.Retry(10, func() error {
 					candles, err := c.store.LoadHistory(c.Ctx, code, comp.level)
 					if err != nil {
 						c.Logger.Error(err)
@@ -158,7 +161,7 @@ func (c *Cerebro) load() error {
 
 		for _, i := range c.codes {
 			var tick <-chan container.Tick
-			if err := retry.Retry(10, func() error {
+			if err := pkg.Retry(10, func() error {
 				var err error
 				tick, err = c.store.LoadTick(c.Ctx, i)
 				if err != nil {
@@ -172,7 +175,17 @@ func (c *Cerebro) load() error {
 			for _, com := range c.compress[i] {
 				if con := c.getContainer(i, com.level); con != nil {
 					go func(t <-chan container.Tick, con container.Container, level time.Duration, isLeftEdge bool) {
-						for j := range Compression(t, level, isLeftEdge) {
+						com, oth := pkg.Tee(c.Ctx, t)
+
+						go func(ch <-chan container.Tick) {
+							for o := range ch {
+								if c.o != nil {
+									c.o.Next(o)
+								}
+							}
+						}(oth)
+
+						for j := range Compression(com, level, isLeftEdge) {
 							con.Add(j)
 							c.dataCh <- con
 						}

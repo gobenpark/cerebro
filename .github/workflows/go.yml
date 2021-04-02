@@ -23,12 +23,9 @@ jobs:
 
     - name: Test
       run: go test -v ./...
-    
-    - name: Codecov
-  # You may pin to the exact commit or the version.
-  # uses: codecov/codecov-action@fcebab03f26c7530a22baa63f06b3e0515f0c7cd
-      uses: codecov/codecov-action@v1.3.1
-      with:
-        # Specify whether the Codecov output should be verbose
-        verbose: false
+
+    - name: Run coverage
+      run: go test -race -coverprofile=coverage.txt -covermode=atomic
+    - name: Upload coverage to Codecov
+      run: bash <(curl -s https://codecov.io/bash)
 

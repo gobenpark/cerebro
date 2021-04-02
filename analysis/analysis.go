@@ -5,16 +5,9 @@
  * Proin dapibus sapien vel ante. Aliquam erat volutpat. Pellentesque sagittis ligula eget metus.
  * Vestibulum commodo. Ut rhoncus gravida arcu.
  */
-package container
+package analysis
 
-import (
-	"fmt"
-	"testing"
-)
+import "github.com/dgraph-io/badger/v3"
 
-func TestLeftInsert(t *testing.T) {
-	data := []int{1, 2, 3, 4, 5}
-
-	data = append([]int{7}, data...)
-	fmt.Println(data)
+type Analyzer struct {
 }

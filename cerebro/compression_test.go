@@ -90,12 +90,6 @@ func TestCompression(t *testing.T) {
 		}
 	}()
 
-	//leftedge := []domain.Candle{}
-	//for d := range Compression2(ch, time.Minute*3,true) {
-	//	leftedge = append(leftedge, d)
-	//}
-	//assert.Len(t, leftedge,2)
-
 	rightedge := []container.Candle{}
 	for d := range Compression(ch, time.Minute*3, false) {
 		rightedge = append(rightedge, d)

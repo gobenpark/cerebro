@@ -4,9 +4,6 @@ import (
 	"testing"
 	"time"
 
-	mock_store "github.com/gobenpark/trader/store/mock"
-	"github.com/golang/mock/gomock"
-	uuid "github.com/satori/go.uuid"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -86,33 +83,6 @@ func TestNewCerebro(t *testing.T) {
 			test.checker(test.cerebro, t)
 		})
 	}
-}
-
-func TestCerebro_load(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	store := mock_store.NewMockStore(ctrl)
-	store.EXPECT().Uid().Return(uuid.NewV4().String()).AnyTimes()
-	store.EXPECT().LoadHistory(gomock.Any(), "KRW", 0*time.Second)
-	store.EXPECT().LoadTick(gomock.Any(), "KRW")
-	c := NewCerebro(WithLive(true), WithPreload(true))
-	go func() {
-		<-time.After(time.Second)
-		if err := c.Stop(); err != nil {
-			c.Logger.Error(err)
-		}
-	}()
-	err := c.load()
-	assert.NoError(t, err)
-
-	t.Run("store not exist", func(t *testing.T) {
-		c := NewCerebro(WithLive(true))
-		go func() {
-			<-time.After(time.Second)
-			c.Stop()
-		}()
-		err := c.load()
-		assert.Error(t, err)
-	})
 }
 
 func TestCerebro_Stop(t *testing.T) {

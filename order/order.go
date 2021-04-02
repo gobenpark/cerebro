@@ -1,9 +1,14 @@
-/*
- * Copyright (c) 2021. Lorem ipsum dolor sit amet, consectetur adipiscing elit.
- * Morbi non lorem porttitor neque feugiat blandit. Ut vitae ipsum eget quam lacinia accumsan.
- * Etiam sed turpis ac ipsum condimentum fringilla. Maecenas magna.
- * Proin dapibus sapien vel ante. Aliquam erat volutpat. Pellentesque sagittis ligula eget metus.
- * Vestibulum commodo. Ut rhoncus gravida arcu.
+/*                     GNU GENERAL PUBLIC LICENSE
+ *                        Version 3, 29 June 2007
+ *
+ *  Copyright (C) 2007 Free Software Foundation, Inc. <https://fsf.org/>
+ *  Everyone is permitted to copy and distribute verbatim copies
+ *  of this license document, but changing it is not allowed.
+ *
+ *                             Preamble
+ *
+ *   The GNU General Public License is a free, copyleft license for
+ * software and other kinds of works.
  */
 package order
 

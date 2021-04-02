@@ -7,7 +7,9 @@ package mock_store
 import (
 	context "context"
 	container "github.com/gobenpark/trader/container"
+	event "github.com/gobenpark/trader/event"
 	order "github.com/gobenpark/trader/order"
+	position "github.com/gobenpark/trader/position"
 	gomock "github.com/golang/mock/gomock"
 	reflect "reflect"
 	time "time"
@@ -37,17 +39,17 @@ func (m *MockStore) EXPECT() *MockStoreMockRecorder {
 }
 
 // Order mocks base method
-func (m *MockStore) Order(code string, ot order.OType, exec order.ExecType, size int64, price float64) error {
+func (m *MockStore) Order(o *order.Order) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Order", code, ot, exec, size, price)
+	ret := m.ctrl.Call(m, "Order", o)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // Order indicates an expected call of Order
-func (mr *MockStoreMockRecorder) Order(code, ot, exec, size, price interface{}) *gomock.Call {
+func (mr *MockStoreMockRecorder) Order(o interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Order", reflect.TypeOf((*MockStore)(nil).Order), code, ot, exec, size, price)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Order", reflect.TypeOf((*MockStore)(nil).Order), o)
 }
 
 // Cancel mocks base method
@@ -106,4 +108,76 @@ func (m *MockStore) Uid() string {
 func (mr *MockStoreMockRecorder) Uid() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Uid", reflect.TypeOf((*MockStore)(nil).Uid))
+}
+
+// Cash mocks base method
+func (m *MockStore) Cash() int64 {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Cash")
+	ret0, _ := ret[0].(int64)
+	return ret0
+}
+
+// Cash indicates an expected call of Cash
+func (mr *MockStoreMockRecorder) Cash() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Cash", reflect.TypeOf((*MockStore)(nil).Cash))
+}
+
+// Commission mocks base method
+func (m *MockStore) Commission() float64 {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Commission")
+	ret0, _ := ret[0].(float64)
+	return ret0
+}
+
+// Commission indicates an expected call of Commission
+func (mr *MockStoreMockRecorder) Commission() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Commission", reflect.TypeOf((*MockStore)(nil).Commission))
+}
+
+// Positions mocks base method
+func (m *MockStore) Positions() []position.Position {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Positions")
+	ret0, _ := ret[0].([]position.Position)
+	return ret0
+}
+
+// Positions indicates an expected call of Positions
+func (mr *MockStoreMockRecorder) Positions() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Positions", reflect.TypeOf((*MockStore)(nil).Positions))
+}
+
+// OrderState mocks base method
+func (m *MockStore) OrderState(ctx context.Context) (<-chan event.OrderEvent, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "OrderState", ctx)
+	ret0, _ := ret[0].(<-chan event.OrderEvent)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// OrderState indicates an expected call of OrderState
+func (mr *MockStoreMockRecorder) OrderState(ctx interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "OrderState", reflect.TypeOf((*MockStore)(nil).OrderState), ctx)
+}
+
+// OrderInfo mocks base method
+func (m *MockStore) OrderInfo(id string) (*order.Order, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "OrderInfo", id)
+	ret0, _ := ret[0].(*order.Order)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// OrderInfo indicates an expected call of OrderInfo
+func (mr *MockStoreMockRecorder) OrderInfo(id interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "OrderInfo", reflect.TypeOf((*MockStore)(nil).OrderInfo), id)
 }

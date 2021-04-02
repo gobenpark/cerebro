@@ -19,6 +19,7 @@ func (s *Bighands) Next(broker *broker.Broker, container container.Container) {
 	rsi.Calculate(container)
 	fmt.Println(rsi.Get()[0])
 
+	fmt.Println(broker.GetCash())
 	//sma := indicators.NewSma(20)
 	//sma.Calculate(container)
 	////fmt.Println(sma.Get()[0])
@@ -34,7 +35,7 @@ func (s *Bighands) Next(broker *broker.Broker, container container.Container) {
 	//	fmt.Printf("mid: %f\n", b.Mid[0].Data)
 	//	fmt.Printf("bottom: %f\n", b.Bottom[0].Data)
 	//}
-	broker.Buy(container.Code(), 10000, 1, order.Limit)
+	//broker.Buy(container.Code(), 10000, 1, order.Limit)
 
 	//if len(broker.GetPosition(container.Code())) == 0 {
 	//	if rsi.Get()[0].Data <= 30 {

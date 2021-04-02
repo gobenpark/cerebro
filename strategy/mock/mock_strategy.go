@@ -36,7 +36,7 @@ func (m *MockStrategy) EXPECT() *MockStrategyMockRecorder {
 }
 
 // Next mocks base method
-func (m *MockStrategy) Next(broker broker.Broker, container container.Container) {
+func (m *MockStrategy) Next(broker *broker.Broker, container container.Container) {
 	m.ctrl.T.Helper()
 	m.ctrl.Call(m, "Next", broker, container)
 }

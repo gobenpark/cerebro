@@ -102,7 +102,7 @@ func NewCerebro(opts ...Option) *Cerebro {
 		opt(c)
 	}
 	if c.Logger == nil {
-		c.Logger = getLogger()
+		c.Logger = GetLogger()
 	}
 
 	return c

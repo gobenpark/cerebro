@@ -59,7 +59,7 @@ const (
 	calldepth = 2
 )
 
-func getLogger() Logger {
+func GetLogger() Logger {
 	cerebroLoggerMu.Lock()
 	defer cerebroLoggerMu.Unlock()
 	return cerebroLogger

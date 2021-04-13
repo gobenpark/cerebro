@@ -25,13 +25,12 @@ func main() {
 	//}()
 
 	upbit := NewStore("upbit")
-
 	smart := &Bighands{}
 
 	cb := cerebro.NewCerebro(
 		cerebro.WithStore(upbit, "KRW-MLK"),
 		cerebro.WithStrategy(smart),
-		cerebro.WithObserver(&sample{}),
+		//cerebro.WithObserver(&sample{}),
 		cerebro.WithResample("KRW-MFT", time.Minute*3, true),
 		cerebro.WithResample("KRW-LBC", time.Minute*3, true),
 		cerebro.WithResample("KRW-MLK", time.Minute*3, true),

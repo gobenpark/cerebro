@@ -24,6 +24,7 @@ import (
 
 	"github.com/go-playground/validator/v10"
 	"github.com/gobenpark/trader/broker"
+	"github.com/gobenpark/trader/chart"
 	"github.com/gobenpark/trader/container"
 	error2 "github.com/gobenpark/trader/error"
 	"github.com/gobenpark/trader/event"
@@ -81,6 +82,8 @@ type Cerebro struct {
 	dataCh chan container.Container
 
 	o observer.Observer
+
+	chart *chart.TraderChart
 }
 
 //NewCerebro generate new cerebro with cerebro option
@@ -96,6 +99,7 @@ func NewCerebro(opts ...Option) *Cerebro {
 		dataCh:         make(chan container.Container, 1),
 		eventEngine:    event.NewEventEngine(),
 		broker:         broker.NewBroker(),
+		chart:          chart.NewTraderChart(),
 	}
 
 	for _, opt := range opts {
@@ -148,6 +152,11 @@ func (c *Cerebro) load() error {
 					for _, candle := range candles {
 						con.Add(candle)
 					}
+					select {
+					case c.chart.Input <- con:
+					case <-c.Ctx.Done():
+					}
+					c.chart.Input <- con
 					return nil
 				}); err != nil {
 					return err
@@ -190,7 +199,13 @@ func (c *Cerebro) load() error {
 
 						for j := range Compression(com, level, isLeftEdge) {
 							con.Add(j)
-							c.dataCh <- con
+							select {
+							case c.chart.Input <- con:
+							case c.dataCh <- con:
+							case <-c.Ctx.Done():
+								break
+
+							}
 						}
 					}(tick, con, com.level, com.LeftEdge)
 				}
@@ -232,6 +247,7 @@ func (c *Cerebro) Start() error {
 	}
 
 	c.createContainer()
+	c.chart.Start()
 
 	c.eventEngine.Start(c.Ctx)
 	c.registerEvent()

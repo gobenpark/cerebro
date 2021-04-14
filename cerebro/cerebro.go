@@ -17,7 +17,6 @@ package cerebro
 
 import (
 	"context"
-	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
@@ -25,7 +24,6 @@ import (
 
 	"github.com/go-playground/validator/v10"
 	"github.com/gobenpark/trader/broker"
-	"github.com/gobenpark/trader/chart"
 	"github.com/gobenpark/trader/container"
 	error2 "github.com/gobenpark/trader/error"
 	"github.com/gobenpark/trader/event"
@@ -245,13 +243,6 @@ func (c *Cerebro) Start() error {
 	c.broker.SetEventBroadCaster(c.eventEngine)
 
 	c.orderEventRoutine()
-
-	go func() {
-		h := chart.TraderChart{}
-		http.HandleFunc("/", h.Handler)
-		http.ListenAndServe(":8081", nil)
-	}()
-
 	c.Logger.Info("loading...")
 	if err := c.load(); err != nil {
 		return err

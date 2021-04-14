@@ -15,15 +15,13 @@
 package chart
 
 import (
-	"net/http"
 	"testing"
 
-	"github.com/stretchr/testify/require"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestTraderChart_Start(t *testing.T) {
 	chart := NewTraderChart()
-	http.HandleFunc("/", chart.handler)
-	err := http.ListenAndServe(":8081", nil)
-	require.NoError(t, err)
+	assert.NotNil(t, chart.Input)
+	assert.Nil(t, chart.container)
 }

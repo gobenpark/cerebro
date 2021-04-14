@@ -133,7 +133,13 @@ ex) Binance , upbit , etc
    
 3. **Strategy** is user base own strategy
 
-
+## Feature
+1. Indicator
+    - bollinger band
+    - RSI
+    - Simple Moving Average
+    - On Balance Bolume
+    
 
 ## TODO
 
@@ -142,6 +148,8 @@ ex) Binance , upbit , etc
 3. support news, etc information base trading 
 4. multi store one cerebro 
 5. feature broker slippage
+6. Chart 
+
 
 
 

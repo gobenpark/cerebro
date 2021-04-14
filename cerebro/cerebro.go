@@ -138,6 +138,7 @@ func (c *Cerebro) orderEventRoutine() {
 
 //load initializing data from injected store interface
 func (c *Cerebro) load() error {
+	//preload is load history data
 	//gocyclo:ignore
 	if c.preload {
 		for _, code := range c.codes {
@@ -165,6 +166,7 @@ func (c *Cerebro) load() error {
 		}
 	}
 
+	// getting live trading data like tick data
 	if c.isLive {
 		c.Logger.Info("start load live data")
 		if c.store == nil {
@@ -216,6 +218,7 @@ func (c *Cerebro) load() error {
 	return nil
 }
 
+// registerEvent is resiter event listener
 func (c *Cerebro) registerEvent() {
 	c.eventEngine.Register <- c.strategyEngine
 	c.eventEngine.Register <- c.broker

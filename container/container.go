@@ -13,6 +13,8 @@
  *  See the License for the specific language governing permissions and
  *  limitations under the License.
  */
+
+//container package is store of tick data or candle stick data
 package container
 
 import (

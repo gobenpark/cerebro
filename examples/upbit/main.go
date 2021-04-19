@@ -17,23 +17,13 @@ func (s *sample) Next(tick container.Tick) {
 }
 
 func main() {
-	//go func() {
-	//	for {
-	//		time.Sleep(1 * time.Second)
-	//		fmt.Println(runtime.NumGoroutine())
-	//	}
-	//}()
-
 	upbit := NewStore("upbit")
 	smart := &Bighands{}
 
 	cb := cerebro.NewCerebro(
-		cerebro.WithStore(upbit, "KRW-MLK"),
+		cerebro.WithStore(upbit, "KRW-XRP", "KRW-BTC"),
 		cerebro.WithStrategy(smart),
-		//cerebro.WithObserver(&sample{}),
-		cerebro.WithResample("KRW-MFT", time.Minute*3, true),
-		cerebro.WithResample("KRW-LBC", time.Minute*3, true),
-		cerebro.WithResample("KRW-MLK", time.Minute*3, true),
+		cerebro.WithResample("KRW-XRP", time.Minute*3, true),
 		cerebro.WithResample("KRW-BTC", time.Minute*3, true),
 		cerebro.WithLive(true),
 		cerebro.WithPreload(true),

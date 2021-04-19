@@ -126,7 +126,6 @@ func (b *Broker) GetPosition(code string) []position.Position {
 	if p, ok := b.positions[code]; ok {
 		return p
 	}
-
 	return nil
 }
 

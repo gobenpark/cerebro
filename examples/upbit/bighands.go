@@ -15,52 +15,22 @@ type Bighands struct {
 }
 
 func (s *Bighands) Next(broker *broker.Broker, container container.Container) {
-	//rsi := indicators.NewRsi(14)
-	//rsi.Calculate(container)
-	//fmt.Println(rsi.Get()[0])
+	rsi := indicators.NewRsi(14)
+	rsi.Calculate(container)
+	fmt.Println(rsi.Get()[0])
 
-	//fmt.Println(broker.GetCash())
+	fmt.Println(broker.GetCash())
 
 	obv := indicators.NewObv()
 
 	obv.Calculate(container)
 	fmt.Println(obv.Get()[0])
-	fmt.Println()
-	//sma := indicators.NewSma(20)
-	//sma.Calculate(container)
-	////fmt.Println(sma.Get()[0])
-	//
-	//if len(rsi.Get()) != 0 && rsi.Get()[0].Data < 30 {
-	//	fmt.Printf("%s is upper 30 rsi\n", container.Code())
-	//}
-	//
-	//b := indicators.NewBollingerBand(20)
-	//b.Calculate(container)
-	//if len(b.Top) != 0 {
-	//	fmt.Printf("top: %f\n", b.Top[0].Data)
-	//	fmt.Printf("mid: %f\n", b.Mid[0].Data)
-	//	fmt.Printf("bottom: %f\n", b.Bottom[0].Data)
-	//}
-	//broker.Buy(container.Code(), 10000, 1, order.Limit)
+	fmt.Println(container.Code())
 
-	//if len(broker.GetPosition(container.Code())) == 0 {
-	//	if rsi.Get()[0].Data <= 30 {
-	//		broker.Buy(container.Code(), int64(float64(broker.GetCash()/3)/container.Values()[0].Close), container.Values()[0].Close, order.Limit)
-	//	}
-	//} else {
-	//	if rsi.Get()[0].Data > 70 {
-	//		po := broker.GetPosition(container.Code())
-	//		for _, i := range po {
-	//			broker.Sell(container.Code(), i.Size, i.Price, order.Limit)
-	//		}
-	//	}
-	//}
-	//
-	//if container.Values()[0].Close > container.Values()[1].Close {
-	//	fmt.Println("value change more upper ")
-	//}
-
-	//broker.Buy("KRW-BTC", 10, 1)
+	sma := indicators.NewSma(20)
+	sma.Calculate(container)
+	fmt.Println(sma.Get()[0])
+	fmt.Println(container.Code())
 }
 
 func (s *Bighands) NotifyOrder(o *order.Order) {

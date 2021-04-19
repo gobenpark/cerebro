@@ -30,9 +30,15 @@ type Engine struct {
 
 func (s *Engine) Start(ctx context.Context, data chan container.Container) {
 	go func() {
-		for i := range data {
-			for _, strategy := range s.Sts {
-				strategy.Next(s.Broker, i)
+	Done:
+		for {
+			select {
+			case i := <-data:
+				for _, st := range s.Sts {
+					st.Next(s.Broker, i)
+				}
+			case <-ctx.Done():
+				break Done
 			}
 		}
 	}()

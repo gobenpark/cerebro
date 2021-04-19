@@ -153,11 +153,11 @@ func (c *Cerebro) load() error {
 					for _, candle := range candles {
 						con.Add(candle)
 					}
+
 					select {
 					case c.chart.Input <- con:
 					case <-c.Ctx.Done():
 					}
-					c.chart.Input <- con
 					return nil
 				}); err != nil {
 					return err
@@ -202,11 +202,11 @@ func (c *Cerebro) load() error {
 						for j := range Compression(com, level, isLeftEdge) {
 							con.Add(j)
 							select {
-							case c.chart.Input <- con:
-							case c.dataCh <- con:
 							case <-c.Ctx.Done():
 								break
-
+							default:
+								c.dataCh <- con
+								c.chart.Input <- con
 							}
 						}
 					}(tick, con, com.level, com.LeftEdge)

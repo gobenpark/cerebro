@@ -79,7 +79,11 @@ func (s *store) Uid() string {
 }
 ```
 
-### 2. implement your own strategy
+### 2. implement your own strategy 
+
+`Next(broker,container)` is incomming tick or candle data 
+in this part you can every using indicator and buy, sell using broker 
+
 ```go
 
 import (

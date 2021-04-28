@@ -17,12 +17,14 @@
 package container
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 
 	"github.com/dgraph-io/badger/v3"
+	jsoniter "github.com/json-iterator/go"
 )
+
+var json = jsoniter.ConfigCompatibleWithStandardLibrary
 
 type bgContainer struct {
 	*badger.DB

@@ -18,6 +18,10 @@ package container
 import (
 	"fmt"
 	"testing"
+	"time"
+
+	"github.com/dgraph-io/badger/v3"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestLeftInsert(t *testing.T) {
@@ -25,4 +29,46 @@ func TestLeftInsert(t *testing.T) {
 
 	data = append([]int{7}, data...)
 	fmt.Println(data)
+}
+
+func BenchmarkContainer(b *testing.B) {
+	db, err := badger.Open(badger.DefaultOptions("").WithInMemory(true))
+	defer db.Close()
+	assert.NoError(b, err)
+	benchmarks := []struct {
+		name      string
+		container Container
+	}{
+		{
+			"default",
+			NewDataContainer(Info{
+				Code:             "default",
+				CompressionLevel: 0,
+			}),
+		},
+		{
+			"badger",
+			NewBadgerContainer(db, Info{
+				Code:             "badger",
+				CompressionLevel: 0,
+			}),
+		},
+	}
+	for _, bm := range benchmarks {
+		b.Run(bm.name, func(b *testing.B) {
+			for i := 0; i < b.N; i++ {
+				bm.container.Add(Candle{
+					Code:   "default",
+					Open:   1,
+					High:   2,
+					Low:    1000,
+					Close:  3000,
+					Volume: 1000000,
+					Date:   time.Now(),
+				})
+
+				bm.container.Values()
+			}
+		})
+	}
 }

@@ -32,6 +32,7 @@ func TestBgContainer_Value(t *testing.T) {
 		Code:             "KRW-BTC",
 		CompressionLevel: 0,
 	})
+
 	c.Add(Candle{
 		Code:   "KRW-BTC",
 		Open:   1,

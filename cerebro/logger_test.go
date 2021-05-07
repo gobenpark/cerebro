@@ -20,3 +20,19 @@ import "testing"
 func TestDefaultLogger_Info(t *testing.T) {
 	cerebroLogger.Info("test")
 }
+
+func TestDefaultLogger_Infof(t *testing.T) {
+	cerebroLogger.Infof("%s test", "info")
+}
+
+func TestDefaultLogger_Debug(t *testing.T) {
+	cerebroLogger.Debug("debug test")
+}
+
+func TestDefaultLogger_Debugf(t *testing.T) {
+	cerebroLogger.Debugf("%s test", "debug")
+}
+
+func TestDefaultLogger_Error(t *testing.T) {
+	cerebroLogger.Error("error test")
+}

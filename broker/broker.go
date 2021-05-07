@@ -137,14 +137,6 @@ func (b *Broker) SetCash(cash int64) {
 	atomic.StoreInt64(&b.Cash, cash)
 }
 
-func (b *Broker) AddOrderHistory() {
-	panic("implement me")
-}
-
-func (b *Broker) SetFundHistory() {
-	panic("implement me")
-}
-
 func (b *Broker) SetEventBroadCaster(e event.Broadcaster) {
 	b.eventEngine = e
 }

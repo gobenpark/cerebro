@@ -226,6 +226,7 @@ func (c *Cerebro) registerEvent() {
 
 func (c *Cerebro) createContainer() {
 	for _, i := range c.codes {
+		c.containers = append(c.containers, container.NewDataContainer(container.Info{Code: i, CompressionLevel: time.Second * 0}))
 		for _, j := range c.compress[i] {
 			c.containers = append(c.containers, container.NewDataContainer(container.Info{
 				Code:             i,

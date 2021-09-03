@@ -21,13 +21,13 @@ import (
 )
 
 type (
-	OType    int
+	Action   int
 	Status   int32
 	ExecType int
 )
 
 const (
-	Buy OType = iota + 1
+	Buy Action = iota + 1
 	Sell
 
 	Created Status = iota + 1
@@ -52,7 +52,7 @@ const (
 
 type Order struct {
 	status Status
-	OType
+	Action
 	ExecType
 	Code       string    `json:"code"`
 	UUID       string    `json:"uuid"`

@@ -38,9 +38,6 @@ import (
 // Cerebro head of trading system
 // make all dependency manage
 type Cerebro struct {
-	//isLive flog of live trading
-	isLive bool
-
 	//Broker buy, sell and manage order
 	broker *broker.Broker `validate:"required"`
 
@@ -98,7 +95,6 @@ func NewCerebro(opts ...Option) *Cerebro {
 		order:          make(chan order.Order, 1),
 		dataCh:         make(chan container.Container, 1),
 		eventEngine:    event.NewEventEngine(),
-		broker:         broker.NewBroker(),
 		chart:          chart.NewTraderChart(),
 	}
 
@@ -167,61 +163,58 @@ func (c *Cerebro) load() error {
 	}
 
 	// getting live trading data like tick data
-	if c.isLive {
-		c.Logger.Info("start load live data")
-		if c.store == nil {
-			return error2.ErrStoreNotExists
-		}
+	c.Logger.Info("start load live data")
+	if c.store == nil {
+		return error2.ErrStoreNotExists
+	}
 
-		for _, i := range c.codes {
-			var tick <-chan container.Tick
-			if err := pkg.Retry(10, func() error {
-				var err error
-				tick, err = c.store.LoadTick(c.Ctx, i)
-				if err != nil {
-					return err
-				}
-				return nil
-			}); err != nil {
+	for _, i := range c.codes {
+		var tick <-chan container.Tick
+		if err := pkg.Retry(10, func() error {
+			var err error
+			tick, err = c.store.LoadTick(c.Ctx, i)
+			if err != nil {
 				return err
 			}
+			return nil
+		}); err != nil {
+			return err
+		}
 
-			for _, com := range c.compress[i] {
-				if con := c.getContainer(i, com.level); con != nil {
-					go func(t <-chan container.Tick, con container.Container, level time.Duration, isLeftEdge bool) {
-						com, oth := pkg.Tee(c.Ctx, t)
+		for _, com := range c.compress[i] {
+			if con := c.getContainer(i, com.level); con != nil {
+				go func(t <-chan container.Tick, con container.Container, level time.Duration, isLeftEdge bool) {
+					com, oth := pkg.Tee(c.Ctx, t)
 
-						go func(ch <-chan container.Tick) {
-							for o := range ch {
-								if c.o != nil {
-									c.o.Next(o)
-								}
-							}
-						}(oth)
-
-						for j := range Compression(com, level, isLeftEdge) {
-							con.Add(j)
-							select {
-							case <-c.Ctx.Done():
-								break
-							default:
-								c.dataCh <- con
-								c.chart.Input <- con
+					go func(ch <-chan container.Tick) {
+						for o := range ch {
+							if c.o != nil {
+								c.o.Next(o)
 							}
 						}
-					}(tick, con, com.level, com.LeftEdge)
-				}
+					}(oth)
+
+					for j := range Compression(com, level, isLeftEdge) {
+						con.Add(j)
+						select {
+						case <-c.Ctx.Done():
+							break
+						default:
+							c.dataCh <- con
+							c.chart.Input <- con
+						}
+					}
+				}(tick, con, com.level, com.LeftEdge)
 			}
 		}
 	}
-
 	return nil
 }
 
 // registerEvent is resiter event listener
 func (c *Cerebro) registerEvent() {
 	c.eventEngine.Register <- c.strategyEngine
-	c.eventEngine.Register <- c.broker
+	//c.eventEngine.Register <- c.broker
 }
 
 func (c *Cerebro) createContainer() {
@@ -256,11 +249,11 @@ func (c *Cerebro) Start() error {
 	c.eventEngine.Start(c.Ctx)
 	c.registerEvent()
 	c.Logger.Info("Cerebro start ...")
-	c.broker.Store = c.store
+	//c.broker.Store = c.store
 	c.strategyEngine.Broker = c.broker
 	c.strategyEngine.Start(c.Ctx, c.dataCh)
 
-	c.broker.SetEventBroadCaster(c.eventEngine)
+	//c.broker.SetEventBroadCaster(c.eventEngine)
 
 	c.orderEventRoutine()
 	c.Logger.Info("loading...")

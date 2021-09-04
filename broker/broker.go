@@ -27,10 +27,12 @@ import (
 	"github.com/satori/go.uuid"
 )
 
+// Broker it is instead of human for buy , sell and etc
 type Broker interface {
 	Order(code string, size int64, price float64, action order.Action, exec order.ExecType) error
 	GetCash() int64
-	GetPosition()
+	GetPosition() []position.Position
+	SetStore(store store.Store)
 }
 
 type broker struct {
@@ -40,12 +42,12 @@ type broker struct {
 	mu          sync.Mutex
 	eventEngine event.Broadcaster
 	positions   map[string][]position.Position
-	Store       store.Store
+	store       store.Store
 }
 
 // NewBroker Init new broker with cash,commission
-func NewBroker() Broker {
-	return &broker{}
+func NewBroker(store store.Store) Broker {
+	return &broker{store: store}
 }
 
 func (b *broker) Order(code string, size int64, price float64, action order.Action, exec order.ExecType) error {
@@ -60,18 +62,21 @@ func (b *broker) Order(code string, size int64, price float64, action order.Acti
 		Price:     price,
 		CreatedAt: time.Now(),
 	}
-
 	_ = o
 
 	return nil
 }
 
 func (b *broker) GetCash() int64 {
-	panic("implement me")
+	return b.store.Cash()
 }
 
-func (b *broker) GetPosition() {
-	panic("implement me")
+func (b *broker) GetPosition() []position.Position {
+	return b.store.Positions()
+}
+
+func (b *broker) SetStore(store store.Store) {
+	b.store = store
 }
 
 func (b *broker) Listen(e interface{}) {

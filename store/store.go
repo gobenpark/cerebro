@@ -13,6 +13,7 @@ import (
 )
 
 type Store interface {
+	GetStockCodes()
 	Order(o *order.Order) error
 	Cancel(id string) error
 	LoadHistory(ctx context.Context, code string, d time.Duration) ([]container.Candle, error)

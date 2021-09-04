@@ -38,6 +38,18 @@ func (m *MockStore) EXPECT() *MockStoreMockRecorder {
 	return m.recorder
 }
 
+// GetStockCodes mocks base method
+func (m *MockStore) GetStockCodes() {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "GetStockCodes")
+}
+
+// GetStockCodes indicates an expected call of GetStockCodes
+func (mr *MockStoreMockRecorder) GetStockCodes() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetStockCodes", reflect.TypeOf((*MockStore)(nil).GetStockCodes))
+}
+
 // Order mocks base method
 func (m *MockStore) Order(o *order.Order) error {
 	m.ctrl.T.Helper()

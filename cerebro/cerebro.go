@@ -38,12 +38,10 @@ import (
 // Cerebro head of trading system
 // make all dependency manage
 type Cerebro struct {
-	//Broker buy, sell and manage order
-	broker *broker.Broker `validate:"required"`
+	// broker buy, sell and manage order
+	broker broker.Broker `validate:"required"`
 
 	store store.Store
-
-	codes []string
 
 	//Ctx cerebro global context
 	Ctx context.Context `json:"ctx" validate:"required"`

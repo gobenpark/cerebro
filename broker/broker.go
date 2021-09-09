@@ -16,6 +16,7 @@
 package broker
 
 import (
+	"context"
 	"fmt"
 	"sync"
 	"time"
@@ -29,7 +30,7 @@ import (
 
 // Broker it is instead of human for buy , sell and etc
 type Broker interface {
-	Order(code string, size int64, price float64, action order.Action, exec order.ExecType) error
+	Order(ctx context.Context, code string, size int64, price float64, action order.Action, exec order.ExecType) error
 	GetCash() int64
 	GetPosition() []position.Position
 	SetStore(store store.Store)
@@ -50,7 +51,7 @@ func NewBroker(store store.Store) Broker {
 	return &broker{store: store}
 }
 
-func (b *broker) Order(code string, size int64, price float64, action order.Action, exec order.ExecType) error {
+func (b *broker) Order(ctx context.Context, code string, size int64, price float64, action order.Action, exec order.ExecType) error {
 	uid := uuid.NewV4().String()
 
 	o := order.Order{
@@ -62,7 +63,10 @@ func (b *broker) Order(code string, size int64, price float64, action order.Acti
 		Price:     price,
 		CreatedAt: time.Now(),
 	}
-	_ = o
+
+	if err := b.store.Order(ctx, &o); err != nil {
+		return err
+	}
 
 	return nil
 }

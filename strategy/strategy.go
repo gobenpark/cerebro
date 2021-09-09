@@ -24,7 +24,7 @@ import (
 )
 
 type Strategy interface {
-	Next(broker *broker.Broker, container container.Container)
+	Next(broker broker.Broker, container container.Container)
 
 	//NotifyOrder is when event rise order then called
 	NotifyOrder(o *order.Order)

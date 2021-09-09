@@ -51,17 +51,17 @@ func (mr *MockStoreMockRecorder) GetStockCodes() *gomock.Call {
 }
 
 // Order mocks base method
-func (m *MockStore) Order(o *order.Order) error {
+func (m *MockStore) Order(ctx context.Context, o *order.Order) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Order", o)
+	ret := m.ctrl.Call(m, "Order", ctx, o)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // Order indicates an expected call of Order
-func (mr *MockStoreMockRecorder) Order(o interface{}) *gomock.Call {
+func (mr *MockStoreMockRecorder) Order(ctx, o interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Order", reflect.TypeOf((*MockStore)(nil).Order), o)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Order", reflect.TypeOf((*MockStore)(nil).Order), ctx, o)
 }
 
 // Cancel mocks base method

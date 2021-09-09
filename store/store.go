@@ -8,13 +8,16 @@ import (
 
 	"github.com/gobenpark/trader/container"
 	"github.com/gobenpark/trader/event"
+	"github.com/gobenpark/trader/item"
 	"github.com/gobenpark/trader/order"
 	"github.com/gobenpark/trader/position"
 )
 
 type Store interface {
-	GetStockCodes()
-	Order(o *order.Order) error
+	//GetMarketItems get all market item
+	GetMarketItems() []item.Item
+
+	Order(ctx context.Context, o *order.Order) error
 	Cancel(id string) error
 	LoadHistory(ctx context.Context, code string, d time.Duration) ([]container.Candle, error)
 	LoadTick(ctx context.Context, code string) (<-chan container.Tick, error)

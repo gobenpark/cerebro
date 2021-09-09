@@ -43,16 +43,9 @@ func WithObserver(o observer.Observer) Option {
 	}
 }
 
-func WithStrategy(s ...strategy.Strategy) Option {
-	return func(c *Cerebro) {
-		c.strategyEngine.Sts = s
-	}
-}
-
 func WithStore(s store.Store, initCodes ...string) Option {
 	return func(c *Cerebro) {
 		c.store = s
-		c.codes = initCodes
 	}
 }
 

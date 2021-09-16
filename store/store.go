@@ -4,7 +4,6 @@ package store
 
 import (
 	"context"
-	"time"
 
 	"github.com/gobenpark/trader/container"
 	"github.com/gobenpark/trader/event"
@@ -13,14 +12,26 @@ import (
 	"github.com/gobenpark/trader/position"
 )
 
+type CandleType int
+
+const (
+	MIN CandleType = iota
+	DAY
+	WEEK
+)
+
 type Store interface {
 	//GetMarketItems get all market item
 	GetMarketItems() []item.Item
 
+	Candles(ctx context.Context, code string, c CandleType, value int) ([]container.Candle, error)
+
+	TradeCommits(ctx context.Context, code string) ([]container.TradeHistory, error)
+
+	Tick(ctx context.Context, code string) (<-chan container.Tick, error)
+
 	Order(ctx context.Context, o *order.Order) error
 	Cancel(id string) error
-	LoadHistory(ctx context.Context, code string, d time.Duration) ([]container.Candle, error)
-	LoadTick(ctx context.Context, code string) (<-chan container.Tick, error)
 	Uid() string
 	Cash() int64
 	Commission() float64

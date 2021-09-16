@@ -26,3 +26,14 @@ type Candle struct {
 	Volume float64   `json:"volume"`
 	Date   time.Time `json:"date"`
 }
+
+type TradeHistory struct {
+	Code        string    `json:"code"`
+	Price       float64   `json:"price"`
+	Volume      float64   `json:"volume"`
+	PrevPrice   float64   `json:"prevPrice"`
+	ChangePrice float64   `json:"changePrice"`
+	ASKBID      string    `json:"askbid"`
+	Date        time.Time `json:"date"`
+	ID          int64     `json:"id"`
+}

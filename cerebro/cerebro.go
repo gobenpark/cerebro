@@ -25,13 +25,14 @@ import (
 	"github.com/gobenpark/trader/chart"
 	"github.com/gobenpark/trader/container"
 	"github.com/gobenpark/trader/event"
+	"github.com/gobenpark/trader/item"
 	"github.com/gobenpark/trader/observer"
 	"github.com/gobenpark/trader/order"
 	"github.com/gobenpark/trader/store"
 	"github.com/gobenpark/trader/strategy"
 )
 
-type Filter func() string
+type Filter func(item item.Item) string
 
 // Cerebro head of trading system
 // make all dependency manage
@@ -78,6 +79,8 @@ type Cerebro struct {
 	o observer.Observer
 
 	chart *chart.TraderChart
+
+	targetCodes []string
 }
 
 //NewCerebro generate new cerebro with cerebro option
@@ -120,27 +123,19 @@ func (c *Cerebro) SetStrategy(s strategy.Strategy) {
 	c.strategies = append(c.strategies, s)
 }
 
-func (c *Cerebro) load() {
-	items := c.store.GetMarketItems()
-	_ = items
-}
-
 //Start run cerebro
 func (c *Cerebro) Start() error {
 	done := make(chan os.Signal)
 	signal.Notify(done, syscall.SIGTERM)
 
-	//c.createContainer()
-	//c.chart.Start()
-
-	//c.eventEngine.Start(c.Ctx)
-	//c.registerEvent()
 	c.Logger.Info("Cerebro start ...")
-	//c.broker.Store = c.store
-	//c.strategyEngine.Broker = c.broker
 	c.strategyEngine.Start(c.Ctx, c.dataCh)
 
-	//c.broker.SetEventBroadCaster(c.eventEngine)
+	for _, i := range c.filters {
+		for _, j := range c.store.GetMarketItems() {
+			c.targetCodes = append(c.targetCodes, i(j))
+		}
+	}
 
 	c.Logger.Info("loading...")
 

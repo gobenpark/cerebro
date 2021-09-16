@@ -7,6 +7,7 @@ require (
 	github.com/go-echarts/go-echarts/v2 v2.2.4
 	github.com/go-resty/resty/v2 v2.6.0
 	github.com/golang/mock v1.4.4
+	github.com/gorilla/websocket v1.4.2
 	github.com/json-iterator/go v1.1.11
 	github.com/satori/go.uuid v1.2.0
 	github.com/stretchr/testify v1.6.1

@@ -20,22 +20,9 @@ import (
 
 	"github.com/gobenpark/trader/observer"
 	"github.com/gobenpark/trader/store"
-	"github.com/gobenpark/trader/strategy"
 )
 
 type Option func(*Cerebro)
-
-func WithCash(cash int64) Option {
-	return func(c *Cerebro) {
-		c.broker.Cash = cash
-	}
-}
-
-func WithCommission(commission float64) Option {
-	return func(c *Cerebro) {
-		c.broker.Commission = commission
-	}
-}
 
 func WithObserver(o observer.Observer) Option {
 	return func(c *Cerebro) {
@@ -46,12 +33,6 @@ func WithObserver(o observer.Observer) Option {
 func WithStore(s store.Store, initCodes ...string) Option {
 	return func(c *Cerebro) {
 		c.store = s
-	}
-}
-
-func WithLive(isLive bool) Option {
-	return func(c *Cerebro) {
-		c.isLive = isLive
 	}
 }
 

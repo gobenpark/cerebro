@@ -22,6 +22,7 @@ import (
 
 	"github.com/gobenpark/trader/container"
 	"github.com/gobenpark/trader/event"
+	"github.com/gobenpark/trader/item"
 	"github.com/gobenpark/trader/order"
 	"github.com/gobenpark/trader/position"
 	"github.com/stretchr/testify/assert"
@@ -89,4 +90,17 @@ func TestNewCerebro(t *testing.T) {
 		WithPreload(true),
 	)
 	assert.True(t, c.preload)
+}
+
+func TestCerebro_SetFilter(t *testing.T) {
+	c := NewCerebro()
+	c.SetFilter(func(item item.Item) string {
+		return "code"
+	})
+
+	c.SetFilter(func(item item.Item) string {
+		return "code2"
+	})
+
+	assert.Len(t, c.filters, 2)
 }

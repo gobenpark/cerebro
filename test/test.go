@@ -78,8 +78,9 @@ func (s st) Tick(ctx context.Context, code string) (<-chan container.Tick, error
 }
 
 func (s st) Order(ctx context.Context, o *order.Order) error {
-	//TODO implement me
-	panic("implement me")
+
+	fmt.Println(o)
+	return nil
 }
 
 func (s st) Cancel(id string) error {
@@ -125,13 +126,22 @@ func (s strate) CandleType() strategy.CandleType {
 	panic("implement me")
 }
 
-func (s strate) Next(broker broker.Broker, container container.Container) {
+func (s strate) Next(broker broker.Broker, container container.Container) error {
 	if container.Values()[0].Close > container.Values()[1].Close {
 		fmt.Println(container.Values()[0])
 		bd := indicators.NewRsi(15)
 		bd.Calculate(container)
-		fmt.Println(bd.Get())
+		lo, err := time.LoadLocation("Asia/Seoul")
+		if err != nil {
+			return err
+		}
+		for _, i := range bd.Get() {
+			if i.Date.Equal(time.Date(2022, time.January, 20, 9, 0, 0, 0, lo)) {
+				return broker.Order(context.Background(), container.Code(), 10, 10, order.Buy, order.Close)
+			}
+		}
 	}
+	return nil
 }
 
 func (s strate) NotifyOrder(o *order.Order) {

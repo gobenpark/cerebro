@@ -36,7 +36,7 @@ const (
 
 type Strategy interface {
 	CandleType() CandleType
-	Next(broker broker.Broker, container container.Container)
+	Next(broker broker.Broker, container container.Container) error
 
 	//NotifyOrder is when event rise order then called
 	NotifyOrder(o *order.Order)

@@ -184,7 +184,9 @@ func (c *Cerebro) startPastStrategy() {
 		}
 
 		for _, st := range c.strategies {
-			st.Next(c.broker, c.containers[info])
+			if err := st.Next(c.broker, c.containers[info]); err != nil {
+				c.Logger.Error(err)
+			}
 		}
 
 		cancel()

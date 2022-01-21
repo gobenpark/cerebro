@@ -18,6 +18,7 @@
 package container
 
 import (
+	"sort"
 	"sync"
 	"time"
 )
@@ -51,9 +52,9 @@ type DataContainer struct {
 	Info
 }
 
-func NewDataContainer(info Info) *DataContainer {
+func NewDataContainer(info Info, candles ...Candle) *DataContainer {
 	return &DataContainer{
-		CandleData: []Candle{},
+		CandleData: candles,
 		Info:       info,
 	}
 }
@@ -78,6 +79,11 @@ func (t *DataContainer) Values() []Candle {
 	t.mu.Lock()
 	d := make([]Candle, len(t.CandleData))
 	copy(d, t.CandleData)
+
+	sort.SliceStable(d, func(i, j int) bool {
+		return d[i].Date.After(d[j].Date)
+	})
+
 	t.mu.Unlock()
 	return d
 }

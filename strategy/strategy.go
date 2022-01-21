@@ -23,7 +23,19 @@ import (
 	"github.com/gobenpark/trader/order"
 )
 
+type CandleType int
+
+const (
+	Min1 CandleType = iota + 1
+	Min3
+	Min5
+	Min15
+	Min60
+	Day
+)
+
 type Strategy interface {
+	CandleType() CandleType
 	Next(broker broker.Broker, container container.Container)
 
 	//NotifyOrder is when event rise order then called

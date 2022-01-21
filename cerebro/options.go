@@ -30,6 +30,12 @@ func WithObserver(o observer.Observer) Option {
 	}
 }
 
+func WithLive() Option {
+	return func(c *Cerebro) {
+		c.isLive = true
+	}
+}
+
 func WithStore(s store.Store, initCodes ...string) Option {
 	return func(c *Cerebro) {
 		c.store = s

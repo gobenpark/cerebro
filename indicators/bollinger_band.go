@@ -50,30 +50,30 @@ func (b *BollingerBand) standardDeviation(mean float64, data []container.Candle)
 	return math.Sqrt(total / float64(len(data)))
 }
 
-func (b *BollingerBand) Calculate(c container.Container) {
-	con := c.Values()
-	if len(con) < b.period {
+func (b *BollingerBand) Calculate(candles []container.Candle) {
+
+	if len(candles) < b.period {
 		return
 	}
 
-	slice := len(con) - b.period
+	slice := len(candles) - b.period
 	for i := slice - 1; i >= 0; i-- {
-		mean := b.mean(con[i : i+b.period])
-		sd := b.standardDeviation(mean, con[i:i+b.period])
+		mean := b.mean(candles[i : i+b.period])
+		sd := b.standardDeviation(mean, candles[i:i+b.period])
 
 		b.Mid = append([]Indicate{{
 			Data: mean,
-			Date: con[i].Date,
+			Date: candles[i].Date,
 		}}, b.Mid...)
 
 		b.Top = append([]Indicate{{
 			Data: mean + (sd * 2),
-			Date: con[i].Date,
+			Date: candles[i].Date,
 		}}, b.Top...)
 
 		b.Bottom = append([]Indicate{{
 			Data: mean - (sd * 2),
-			Date: con[i].Date,
+			Date: candles[i].Date,
 		}}, b.Bottom...)
 	}
 

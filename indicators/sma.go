@@ -28,17 +28,16 @@ func NewSma(period int) Indicator {
 	return &sma{period: period}
 }
 
-func (s *sma) Calculate(container container.Container) {
-	size := container.Size()
+func (s *sma) Calculate(candles []container.Candle) {
+	size := len(candles)
 	var indicates []Indicate
 	if size >= s.period {
 		slide := (size - s.period)
-		candle := container.Values()
 
 		for i := 0; i <= slide; i++ {
 			id := Indicate{
-				Data: average(candle[i : s.period+i]),
-				Date: candle[i].Date,
+				Data: average(candles[i : s.period+i]),
+				Date: candles[i].Date,
 			}
 
 			if len(s.indicates) != 0 {

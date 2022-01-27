@@ -21,8 +21,15 @@ import (
 	"github.com/gobenpark/trader/container"
 )
 
+type IndicatorType string
+
+const (
+	BollingerBandType IndicatorType = "bollinger_band"
+	RsiType           IndicatorType = "rsi"
+)
+
 type Indicator interface {
-	Calculate(container container.Container)
+	Calculate(candles []container.Candle)
 	Get() []Indicate
 }
 

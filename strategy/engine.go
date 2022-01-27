@@ -16,39 +16,51 @@
 package strategy
 
 import (
+	"bytes"
 	"context"
 
 	"github.com/gobenpark/trader/broker"
 	"github.com/gobenpark/trader/container"
+	"github.com/gobenpark/trader/indicators"
 	"github.com/gobenpark/trader/order"
 )
 
 type Engine struct {
 	broker.Broker
-	Sts []Strategy
+	st  Strategy
+	buf <-chan container.Candle
+
+	candles    []container.Candle
+	indicators map[indicators.IndicatorType][]indicators.Indicate
 }
 
-func (s *Engine) Start(ctx context.Context, data chan container.Container) {
+func NewEngine(bk broker.Broker, st Strategy, buf <-chan container.Candle) Engine {
+
+	return Engine{
+		Broker: bk,
+		st:     st,
+		buf:    buf,
+	}
+}
+
+func (s Engine) Start(ctx context.Context) {
 	go func() {
 	Done:
 		for {
 			select {
-			case i := <-data:
-				for _, st := range s.Sts {
-					st.Next(s.Broker, i)
-				}
+
 			case <-ctx.Done():
 				break Done
 			}
 		}
 	}()
+
+	bytes.Buffer{}
 }
 
-func (s *Engine) Listen(e interface{}) {
+func (s Engine) Listen(e interface{}) {
 	switch et := e.(type) {
 	case *order.Order:
-		for _, strategy := range s.Sts {
-			strategy.NotifyOrder(et)
-		}
+		s.st.NotifyOrder(et)
 	}
 }

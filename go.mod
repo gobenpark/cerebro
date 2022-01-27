@@ -16,6 +16,7 @@ require (
 require (
 	github.com/json-iterator/go v1.1.12
 	go.uber.org/zap v1.20.0
+	golang.org/x/exp v0.0.0-20190121172915-509febef88a4
 )
 
 require (

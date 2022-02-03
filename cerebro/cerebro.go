@@ -125,7 +125,6 @@ func (c *Cerebro) SetStrategy(s strategy.Strategy) {
 }
 
 func (c *Cerebro) liveStrategyStart() {
-
 	for _, i := range c.store.GetMarketItems() {
 		tk, err := c.store.Tick(c.Ctx, i.Code)
 		if err != nil {
@@ -133,77 +132,26 @@ func (c *Cerebro) liveStrategyStart() {
 			continue
 		}
 
-		go func() {
-			for _, st := range c.strategies {
-				switch st.CandleType() {
-				case strategy.Min3:
-					go func() {
-						con := container.NewDataContainer(container.Info{
-							Code:             i.Code,
-							CompressionLevel: 3 * time.Minute,
-						})
-						for candle := range Compression(tk, 3*time.Minute, true) {
-							con.Add(candle)
-							st.Next(c.broker, con)
-						}
-					}()
-
-				case strategy.Day:
-					go func() {
-						con := container.NewDataContainer(container.Info{
-							Code:             i.Code,
-							CompressionLevel: 24 * time.Hour,
-						})
-						for candle := range Compression(tk, 24*time.Hour, true) {
-							con.Add(candle)
-							st.Next(c.broker, con)
-						}
-					}()
-				}
-			}
-		}()
-	}
-}
-
-func (c *Cerebro) startPastStrategy() {
-	for _, i := range c.store.GetMarketItems() {
-		ctx, cancel := context.WithTimeout(c.Ctx, 5*time.Second)
-
-		candle, err := c.store.Candles(ctx, i.Code, store.DAY, 1)
-		if err != nil {
-			c.Logger.Error(err)
-			continue
-		}
-
-		info := container.Info{
-			Code:             i.Code,
-			CompressionLevel: 24 * time.Hour,
-		}
-		if _, ok := c.containers[info]; !ok {
-			c.containers[info] = container.NewDataContainer(info, candle...)
-		}
-
 		for _, st := range c.strategies {
-			if err := st.Next(c.broker, c.containers[info]); err != nil {
-				c.Logger.Error(err)
-			}
+			comp := container.NewCompress(time.Now(), time.Now())
+			candle, ttk := comp.CompressTick(tk, true)
+			go strategy.NewEngine(c.Logger, c.broker, st).Spawn(c.Ctx, candle, ttk)
 		}
-
-		cancel()
 	}
 }
 
 //Start run cerebro
 func (c *Cerebro) Start() error {
-	c.Logger.Info("Cerebro start ...")
-
-	c.strategyEngine.Start(c.Ctx, c.dataCh)
+	c.Logger.Info("Cerebro starting ...")
 
 	for _, i := range c.filters {
 		for _, j := range c.store.GetMarketItems() {
 			c.targetCodes = append(c.targetCodes, i(j))
 		}
 	}
+
+	go c.eventEngine.Start(c.Ctx)
+	c.eventEngine.Register <- c.strategyEngine
 
 	c.Logger.Info("loading...")
 
@@ -214,10 +162,8 @@ func (c *Cerebro) Start() error {
 			break
 		}
 		return nil
-	} else {
-		c.startPastStrategy()
-		return nil
 	}
+	return nil
 }
 
 //Stop all cerebro goroutine and finish

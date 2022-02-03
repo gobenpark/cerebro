@@ -22,6 +22,7 @@ import (
 )
 
 type readOp int8
+type CandleType int
 
 const (
 	opRead      readOp = -1 // Any other read operation.
@@ -32,9 +33,19 @@ const (
 	opReadRune4 readOp = 4  // Read rune of size 4.
 )
 
+const (
+	Min CandleType = iota + 1
+	Min3
+	Min5
+	Min15
+	Min60
+	Day
+)
+
 const maxInt = int(^uint(0) >> 1)
 
 type Candle struct {
+	Type   CandleType
 	Code   string    `json:"code"`
 	Open   float64   `json:"open"`
 	High   float64   `json:"high"`

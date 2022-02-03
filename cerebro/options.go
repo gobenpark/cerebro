@@ -36,7 +36,7 @@ func WithLive() Option {
 	}
 }
 
-func WithStore(s store.Store, initCodes ...string) Option {
+func WithStore(s store.Store) Option {
 	return func(c *Cerebro) {
 		c.store = s
 	}

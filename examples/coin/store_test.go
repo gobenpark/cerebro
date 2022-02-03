@@ -7,11 +7,14 @@ import (
 
 	"time"
 
+	"github.com/gobenpark/trader/broker"
+	"github.com/gobenpark/trader/cerebro"
 	"github.com/gobenpark/trader/container"
 	"github.com/gobenpark/trader/event"
 	"github.com/gobenpark/trader/order"
 	"github.com/gobenpark/trader/position"
 	"github.com/gobenpark/trader/store"
+	"github.com/gobenpark/trader/strategy"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -73,11 +76,46 @@ func TestUpbit_TradeCommits(t *testing.T) {
 	}
 }
 
+type st struct {
+}
+
+func (s st) CandleType() strategy.CandleType {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (s st) Next(broker broker.Broker, container container.Container) error {
+	fmt.Println("start")
+	fmt.Println(container.Code())
+	fmt.Println(container.Values())
+	return nil
+}
+
+func (s st) NotifyOrder(o *order.Order) {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (s st) NotifyTrade() {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (s st) NotifyCashValue() {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (s st) NotifyFund() {
+	//TODO implement me
+	panic("implement me")
+}
+
 func TestUpbit_Tick(t *testing.T) {
-	s := NewStore()
-	ch, err := s.Tick(context.TODO(), "KRW-BTC")
-	assert.NoError(t, err)
-	for i := range ch {
-		fmt.Println(i)
-	}
+	c := cerebro.NewCerebro(
+		cerebro.WithLive(),
+		cerebro.WithStore(NewStore()),
+	)
+	c.SetStrategy(st{})
+	c.Start()
 }

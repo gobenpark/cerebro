@@ -28,7 +28,7 @@ type Store interface {
 
 	TradeCommits(ctx context.Context, code string) ([]container.TradeHistory, error)
 
-	Tick(ctx context.Context, code string) (<-chan container.Tick, error)
+	Tick(ctx context.Context, codes ...string) (<-chan container.Tick, error)
 
 	Order(ctx context.Context, o *order.Order) error
 	Cancel(id string) error

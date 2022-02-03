@@ -30,29 +30,28 @@ type Engine struct {
 func NewEventEngine() *Engine {
 	return &Engine{
 		broadcast:  make(chan interface{}, 10),
-		Register:   make(chan Listener),
-		Unregister: make(chan Listener),
+		Register:   make(chan Listener, 1),
+		Unregister: make(chan Listener, 1),
 		childEvent: make(map[Listener]bool),
 	}
 }
 
+//Start event engine start function need goroutine
 func (e *Engine) Start(ctx context.Context) {
-	go func() {
-		for {
-			select {
-			case <-ctx.Done():
-				break
-			case evt := <-e.broadcast:
-				for c := range e.childEvent {
-					go c.Listen(evt)
-				}
-			case cli := <-e.Register:
-				e.childEvent[cli] = true
-			case cli := <-e.Unregister:
-				delete(e.childEvent, cli)
+	for {
+		select {
+		case <-ctx.Done():
+			break
+		case evt := <-e.broadcast:
+			for c := range e.childEvent {
+				go c.Listen(evt)
 			}
+		case cli := <-e.Register:
+			e.childEvent[cli] = true
+		case cli := <-e.Unregister:
+			delete(e.childEvent, cli)
 		}
-	}()
+	}
 }
 
 func (e *Engine) BroadCast(evt interface{}) {

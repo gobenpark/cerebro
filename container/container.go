@@ -20,7 +20,6 @@ package container
 import (
 	"sort"
 	"sync"
-	"time"
 )
 
 type Container interface {
@@ -30,7 +29,6 @@ type Container interface {
 	Values() []Candle
 	Add(candle Candle)
 	Code() string
-	Level() time.Duration
 }
 
 type SaveMode int
@@ -41,8 +39,8 @@ const (
 )
 
 type Info struct {
-	Code             string
-	CompressionLevel time.Duration
+	Code       string
+	BufferSize int
 }
 
 //TODO: inmemory or external storage
@@ -105,8 +103,4 @@ func (t *DataContainer) Add(candle Candle) {
 
 func (t *DataContainer) Code() string {
 	return t.Info.Code
-}
-
-func (t *DataContainer) Level() time.Duration {
-	return t.Info.CompressionLevel
 }

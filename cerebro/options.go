@@ -42,6 +42,12 @@ func WithStore(s store.Store) Option {
 	}
 }
 
+func WithTargetItem(codes ...string) Option {
+	return func(c *Cerebro) {
+		c.targetCodes = codes
+	}
+}
+
 func WithResample(code string, level time.Duration, leftEdge bool) Option {
 	return func(c *Cerebro) {
 		c.compress[code] = append(c.compress[code], CompressInfo{level: level, LeftEdge: leftEdge})

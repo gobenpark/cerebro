@@ -17,6 +17,7 @@ package cerebro
 
 import (
 	"context"
+	"fmt"
 	"os/signal"
 	"syscall"
 	"time"
@@ -25,6 +26,7 @@ import (
 	"github.com/gobenpark/trader/chart"
 	"github.com/gobenpark/trader/container"
 	"github.com/gobenpark/trader/event"
+	"github.com/gobenpark/trader/internal/pkg"
 	"github.com/gobenpark/trader/item"
 	"github.com/gobenpark/trader/log"
 	"github.com/gobenpark/trader/observer"
@@ -38,6 +40,7 @@ type Filter func(item item.Item) string
 // Cerebro head of trading system
 // make all dependency manage
 type Cerebro struct {
+	targetCodes []string
 	//Ctx cerebro global context
 	Ctx context.Context `json:"ctx" validate:"required"`
 
@@ -81,7 +84,7 @@ type Cerebro struct {
 
 	chart *chart.TraderChart
 
-	targetCodes []string
+	tickCh map[string]chan container.Tick
 }
 
 //NewCerebro generate new cerebro with cerebro option
@@ -97,6 +100,7 @@ func NewCerebro(opts ...Option) *Cerebro {
 		dataCh:         make(chan container.Container, 1),
 		eventEngine:    event.NewEventEngine(),
 		chart:          chart.NewTraderChart(),
+		tickCh:         make(map[string]chan container.Tick),
 	}
 
 	for _, opt := range opts {
@@ -124,45 +128,58 @@ func (c *Cerebro) SetStrategy(s strategy.Strategy) {
 	c.strategies = append(c.strategies, s)
 }
 
-func (c *Cerebro) liveStrategyStart() {
-	for _, i := range c.store.GetMarketItems() {
-		tk, err := c.store.Tick(c.Ctx, i.Code)
-		if err != nil {
-			c.Logger.Error(err)
-			continue
-		}
-
-		for _, st := range c.strategies {
-			comp := container.NewCompress(time.Now(), time.Now())
-			candle, ttk := comp.CompressTick(tk, true)
-			go strategy.NewEngine(c.Logger, c.broker, st).Spawn(c.Ctx, candle, ttk)
-		}
-	}
-}
-
 //Start run cerebro
 func (c *Cerebro) Start() error {
 	c.Logger.Info("Cerebro starting ...")
 
-	for _, i := range c.filters {
-		for _, j := range c.store.GetMarketItems() {
-			c.targetCodes = append(c.targetCodes, i(j))
+	go pkg.Retry(3, func() error {
+
+		for _, i := range c.targetCodes {
+			c.tickCh[i] = make(chan container.Tick, 1)
 		}
-	}
 
-	go c.eventEngine.Start(c.Ctx)
-	c.eventEngine.Register <- c.strategyEngine
-
-	c.Logger.Info("loading...")
-
-	if c.isLive {
-		c.liveStrategyStart()
-		select {
-		case <-c.Ctx.Done():
-			break
+		tk, err := c.store.Tick(c.Ctx, c.targetCodes...)
+		if err != nil {
+			c.Logger.Error(err)
+			return err
 		}
+
+		go func() {
+			for i := range tk {
+				c.tickCh[i.Code] <- i
+			}
+		}()
+
+		for _, v := range c.tickCh {
+			go func(ch <-chan container.Tick) {
+				for i := range Compression(ch, time.Minute, true) {
+					if i.Code == "KRW-SSX" {
+						fmt.Println(i.Open)
+						fmt.Println(i.High)
+						fmt.Println(i.Low)
+						fmt.Println(i.Close)
+						fmt.Println(i.Volume)
+						fmt.Println(i.Date)
+					}
+				}
+			}(v)
+		}
+
 		return nil
-	}
+	})
+
+	//for _, i := range c.filters {
+	//	for _, j := range c.store.GetMarketItems() {
+	//		c.targetCodes = append(c.targetCodes, i(j))
+	//	}
+	//}
+	//
+	//go c.eventEngine.Start(c.Ctx)
+	//c.eventEngine.Register <- c.strategyEngine
+	//
+	//c.Logger.Info("loading...")
+	<-c.Ctx.Done()
+
 	return nil
 }
 

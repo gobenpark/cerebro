@@ -116,7 +116,7 @@ func (c *Compress) CompressTick(tickch <-chan Tick, leftEdge bool) (<-chan Candl
 		}
 	}()
 
-	_, err := c.AddFunc("0/3 9-16 * * MON-FRI", func() {
+	_, err := c.AddFunc("0/3 * * * *", func() {
 		c.mu.Lock()
 		defer c.mu.Unlock()
 		candlech <- *registCandle[Min3]
@@ -129,7 +129,7 @@ func (c *Compress) CompressTick(tickch <-chan Tick, leftEdge bool) (<-chan Candl
 		return nil, nil
 	}
 
-	_, err = c.AddFunc("* * * * MON-FRI", func() {
+	_, err = c.AddFunc("* * * * *", func() {
 		c.mu.Lock()
 		defer c.mu.Unlock()
 		candlech <- *registCandle[Min]
@@ -142,7 +142,7 @@ func (c *Compress) CompressTick(tickch <-chan Tick, leftEdge bool) (<-chan Candl
 		return nil, nil
 	}
 
-	_, err = c.AddFunc("0/5 * * * MON-FRI", func() {
+	_, err = c.AddFunc("0/5 * * * *", func() {
 		c.mu.Lock()
 		defer c.mu.Unlock()
 		candlech <- *registCandle[Min5]
@@ -155,7 +155,7 @@ func (c *Compress) CompressTick(tickch <-chan Tick, leftEdge bool) (<-chan Candl
 		return nil, nil
 	}
 
-	_, err = c.AddFunc("0/15 * * * MON-FRI", func() {
+	_, err = c.AddFunc("0/15 * * * *", func() {
 		c.mu.Lock()
 		defer c.mu.Unlock()
 		candlech <- *registCandle[Min15]
@@ -168,7 +168,7 @@ func (c *Compress) CompressTick(tickch <-chan Tick, leftEdge bool) (<-chan Candl
 		return nil, nil
 	}
 
-	_, err = c.AddFunc("0 * * * MON-FRI", func() {
+	_, err = c.AddFunc("0 * * * *", func() {
 		c.mu.Lock()
 		defer c.mu.Unlock()
 		candlech <- *registCandle[Min60]
@@ -180,7 +180,7 @@ func (c *Compress) CompressTick(tickch <-chan Tick, leftEdge bool) (<-chan Candl
 		fmt.Println(err)
 		return nil, nil
 	}
-	_, err = c.AddFunc("0 0 * * MON-FRI", func() {
+	_, err = c.AddFunc("0 0 * * *", func() {
 		c.mu.Lock()
 		defer c.mu.Unlock()
 		candlech <- *registCandle[Day]

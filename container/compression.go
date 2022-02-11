@@ -13,20 +13,18 @@
  *  See the License for the specific language governing permissions and
  *  limitations under the License.
  */
-package cerebro
+package container
 
 import (
 	"time"
-
-	"github.com/gobenpark/trader/container"
 )
 
 type CompressInfo struct {
-	level    time.Duration
+	Level    time.Duration
 	LeftEdge bool
 }
 
-func Compression(tick <-chan container.Tick, level time.Duration, leftEdge bool) <-chan container.Candle {
+func Compression(tick <-chan Tick, level time.Duration, leftEdge bool) <-chan Candle {
 	compressionDate := func(date time.Time) time.Time {
 		rd := date.Round(level)
 		if leftEdge {
@@ -40,10 +38,10 @@ func Compression(tick <-chan container.Tick, level time.Duration, leftEdge bool)
 		}
 		return rd
 	}
-	ch := make(chan container.Candle, 1)
+	ch := make(chan Candle, 1)
 	go func() {
 		defer close(ch)
-		c := container.Candle{}
+		c := Candle{}
 		for t := range tick {
 			if c.Date.Equal(time.Time{}) {
 				c.Date = compressionDate(t.Date)
@@ -66,7 +64,7 @@ func Compression(tick <-chan container.Tick, level time.Duration, leftEdge bool)
 				}
 			} else {
 				ch <- c
-				c = container.Candle{}
+				c = Candle{}
 			}
 		}
 	}()

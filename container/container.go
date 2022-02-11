@@ -47,6 +47,7 @@ type Info struct {
 type DataContainer struct {
 	mu         sync.RWMutex
 	CandleData []Candle
+	Tick       Tick
 	Info
 }
 

@@ -17,10 +17,9 @@ package cerebro
 
 import (
 	"context"
-	"fmt"
 	"os/signal"
+	"sync"
 	"syscall"
-	"time"
 
 	"github.com/gobenpark/trader/broker"
 	"github.com/gobenpark/trader/chart"
@@ -60,7 +59,7 @@ type Cerebro struct {
 	store store.Store
 
 	//compress compress info map for codes
-	compress map[string][]CompressInfo
+	compress map[string][]container.CompressInfo
 
 	// containers list of all container
 	containers map[container.Info]container.Container
@@ -93,7 +92,7 @@ func NewCerebro(opts ...Option) *Cerebro {
 	c := &Cerebro{
 		Ctx:            ctx,
 		Cancel:         cancel,
-		compress:       make(map[string][]CompressInfo),
+		compress:       make(map[string][]container.CompressInfo),
 		containers:     make(map[container.Info]container.Container),
 		strategyEngine: &strategy.Engine{},
 		order:          make(chan order.Order, 1),
@@ -130,13 +129,12 @@ func (c *Cerebro) SetStrategy(s strategy.Strategy) {
 
 //Start run cerebro
 func (c *Cerebro) Start() error {
+	var mu sync.Mutex
 	c.Logger.Info("Cerebro starting ...")
-
+	for _, i := range c.targetCodes {
+		c.tickCh[i] = make(chan container.Tick, 1)
+	}
 	go pkg.Retry(3, func() error {
-
-		for _, i := range c.targetCodes {
-			c.tickCh[i] = make(chan container.Tick, 1)
-		}
 
 		tk, err := c.store.Tick(c.Ctx, c.targetCodes...)
 		if err != nil {
@@ -146,38 +144,20 @@ func (c *Cerebro) Start() error {
 
 		go func() {
 			for i := range tk {
+				mu.Lock()
 				c.tickCh[i.Code] <- i
+				mu.Unlock()
 			}
 		}()
-
-		for _, v := range c.tickCh {
-			go func(ch <-chan container.Tick) {
-				for i := range Compression(ch, time.Minute, true) {
-					if i.Code == "KRW-SSX" {
-						fmt.Println(i.Open)
-						fmt.Println(i.High)
-						fmt.Println(i.Low)
-						fmt.Println(i.Close)
-						fmt.Println(i.Volume)
-						fmt.Println(i.Date)
-					}
-				}
-			}(v)
-		}
-
 		return nil
 	})
 
-	//for _, i := range c.filters {
-	//	for _, j := range c.store.GetMarketItems() {
-	//		c.targetCodes = append(c.targetCodes, i(j))
-	//	}
-	//}
-	//
-	//go c.eventEngine.Start(c.Ctx)
-	//c.eventEngine.Register <- c.strategyEngine
-	//
-	//c.Logger.Info("loading...")
+	mu.Lock()
+	for code, ch := range c.tickCh {
+		go c.strategyEngine.Spawn(c.Ctx, code, ch)
+	}
+	mu.Unlock()
+
 	<-c.Ctx.Done()
 
 	return nil

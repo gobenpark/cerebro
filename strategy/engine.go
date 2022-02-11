@@ -17,10 +17,10 @@ package strategy
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/gobenpark/trader/broker"
 	"github.com/gobenpark/trader/container"
-	"github.com/gobenpark/trader/indicators"
 	"github.com/gobenpark/trader/log"
 	"github.com/gobenpark/trader/order"
 )
@@ -29,50 +29,34 @@ type Engine struct {
 	broker.Broker
 	st  Strategy
 	log log.Logger
-
-	indicators map[indicators.IndicatorType][]indicators.Indicate
-	containers map[container.CandleType]container.Container
 }
 
 func NewEngine(log log.Logger, bk broker.Broker, st Strategy) *Engine {
 
 	return &Engine{
-		Broker:     bk,
-		st:         st,
-		containers: map[container.CandleType]container.Container{},
-		log:        log,
+		Broker: bk,
+		st:     st,
+		log:    log,
 	}
 }
 
-func (s *Engine) Spawn(ctx context.Context, candle <-chan container.Candle, tick <-chan container.Tick) {
+func (s *Engine) Spawn(ctx context.Context, code string, tick <-chan container.Tick) {
 
-Done:
-	for {
-		select {
-		case <-ctx.Done():
-			break Done
-		case cd := <-candle:
-			if _, ok := s.containers[cd.Type]; !ok {
-				s.containers[cd.Type] = container.NewDataContainer(container.Info{
-					Code: cd.Code,
-				})
-			}
-
-			s.containers[cd.Type].Add(cd)
-			err := s.st.Next(s.Broker, s.containers[cd.Type])
-			if err != nil {
-				s.log.Error(err)
-				return
-			}
-		case tk := <-tick:
-			_ = tk
-			//con := container.NewDataContainer(container.Info{
-			//	tk.Code,
-			//	time.Second,
-			//}, container.Candle{Code: tk.Code})
-			//s.st.Next(s.Broker, con)
-		}
+	for i := range tick {
+		fmt.Println(i)
 	}
+	//for i := range container.Compression(tick, 3*time.Minute, true) {
+	//	fmt.Println(i)
+	//}
+	//Done:
+	//	for {
+	//		select {
+	//		case <-ctx.Done():
+	//			break Done
+	//		case ti := <-tick:
+	//
+	//		}
+	//	}
 }
 
 func (s *Engine) Listen(e interface{}) {

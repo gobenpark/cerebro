@@ -85,9 +85,6 @@ func (s st) CandleType() strategy.CandleType {
 }
 
 func (s st) Next(broker broker.Broker, container container.Container) error {
-	fmt.Println("start")
-	fmt.Println(container.Code())
-	fmt.Println(container.Values())
 	return nil
 }
 

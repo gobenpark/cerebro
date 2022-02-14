@@ -15,3 +15,31 @@
  */
 
 package container
+
+import (
+	"testing"
+	"time"
+
+	"github.com/stretchr/testify/require"
+)
+
+func TestTick(t *testing.T) {
+	tk := Tick{
+		Code:   "1",
+		AskBid: "ask",
+		Date:   time.Now(),
+		Price:  20,
+		Volume: 1000,
+	}
+	time.Sleep(1 * time.Second)
+
+	tk2 := Tick{
+		Code:   "2",
+		AskBid: "bid",
+		Date:   time.Now(),
+		Price:  10,
+		Volume: 2000,
+	}
+	require.Len(t, ReSample([]Tick{tk, tk2}, time.Second, true), 2)
+	require.Len(t, ReSample([]Tick{tk, tk2}, time.Minute, true), 1)
+}

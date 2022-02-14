@@ -59,10 +59,10 @@ type Cerebro struct {
 	store store.Store
 
 	//compress compress info map for codes
-	compress map[string][]container.CompressInfo
+	//compress map[string][]container.CompressInfo
 
 	// containers list of all container
-	containers map[container.Info]container.Container
+	//containers map[container.Info]container.Container
 
 	//strategy.StrategyEngine embedding property for managing user strategy
 	strategyEngine *strategy.Engine
@@ -90,16 +90,15 @@ type Cerebro struct {
 func NewCerebro(opts ...Option) *Cerebro {
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGTERM, syscall.SIGINT, syscall.SIGHUP)
 	c := &Cerebro{
-		Ctx:            ctx,
-		Cancel:         cancel,
-		compress:       make(map[string][]container.CompressInfo),
-		containers:     make(map[container.Info]container.Container),
-		strategyEngine: &strategy.Engine{},
-		order:          make(chan order.Order, 1),
-		dataCh:         make(chan container.Container, 1),
-		eventEngine:    event.NewEventEngine(),
-		chart:          chart.NewTraderChart(),
-		tickCh:         make(map[string]chan container.Tick),
+		Ctx:    ctx,
+		Cancel: cancel,
+		//compress:       make(map[string][]container.CompressInfo),
+		//containers:     make(map[container.Info]container.Container),
+		order:       make(chan order.Order, 1),
+		dataCh:      make(chan container.Container, 1),
+		eventEngine: event.NewEventEngine(),
+		chart:       chart.NewTraderChart(),
+		tickCh:      make(map[string]chan container.Tick),
 	}
 
 	for _, opt := range opts {
@@ -112,6 +111,10 @@ func NewCerebro(opts ...Option) *Cerebro {
 
 	if c.Logger == nil {
 		c.Logger = log.NewZapLogger()
+	}
+
+	if c.strategyEngine == nil {
+		c.strategyEngine = strategy.NewEngine(c.Logger, c.broker)
 	}
 
 	return c
@@ -152,11 +155,14 @@ func (c *Cerebro) Start() error {
 		return nil
 	})
 
+	c.strategyEngine.AddStrategy(c.strategies...)
+
 	mu.Lock()
 	for code, ch := range c.tickCh {
 		go c.strategyEngine.Spawn(c.Ctx, code, ch)
 	}
 	mu.Unlock()
+	c.eventEngine.Register <- c.strategyEngine
 
 	<-c.Ctx.Done()
 

@@ -22,6 +22,11 @@ import (
 	"sync"
 )
 
+//type Container interface {
+//	AddTicks(ticks ...Tick)
+//	Candles(level time.Duration) []Candle
+//}
+
 type Container interface {
 	Empty() bool
 	Size() int

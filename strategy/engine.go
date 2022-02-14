@@ -27,41 +27,38 @@ import (
 
 type Engine struct {
 	broker.Broker
-	st  Strategy
+	sts []Strategy
 	log log.Logger
 }
 
-func NewEngine(log log.Logger, bk broker.Broker, st Strategy) *Engine {
+func NewEngine(log log.Logger, bk broker.Broker) *Engine {
 
 	return &Engine{
 		Broker: bk,
-		st:     st,
 		log:    log,
 	}
+}
+
+func (s *Engine) AddStrategy(sts ...Strategy) {
+	s.sts = append(s.sts, sts...)
 }
 
 func (s *Engine) Spawn(ctx context.Context, code string, tick <-chan container.Tick) {
 
 	for i := range tick {
-		fmt.Println(i)
+		ct.AddTicks(i)
+		for _, st := range s.sts {
+			if err := st.Next(s.Broker, ct); err != nil {
+				s.log.Error(err)
+			}
+		}
 	}
-	//for i := range container.Compression(tick, 3*time.Minute, true) {
-	//	fmt.Println(i)
-	//}
-	//Done:
-	//	for {
-	//		select {
-	//		case <-ctx.Done():
-	//			break Done
-	//		case ti := <-tick:
-	//
-	//		}
-	//	}
 }
 
 func (s *Engine) Listen(e interface{}) {
 	switch et := e.(type) {
 	case *order.Order:
-		s.st.NotifyOrder(et)
+		fmt.Println(et)
+		//s.st.NotifyOrder(et)
 	}
 }

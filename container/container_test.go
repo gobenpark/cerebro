@@ -42,15 +42,13 @@ func BenchmarkContainer(b *testing.B) {
 		{
 			"default",
 			NewDataContainer(Info{
-				Code:             "default",
-				CompressionLevel: 0,
+				Code: "default",
 			}),
 		},
 		{
 			"badger",
 			NewBadgerContainer(db, Info{
-				Code:             "badger",
-				CompressionLevel: 0,
+				Code: "badger",
 			}),
 		},
 	}

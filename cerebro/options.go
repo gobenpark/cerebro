@@ -16,9 +16,6 @@
 package cerebro
 
 import (
-	"time"
-
-	"github.com/gobenpark/trader/container"
 	"github.com/gobenpark/trader/observer"
 	"github.com/gobenpark/trader/store"
 )
@@ -46,12 +43,6 @@ func WithStore(s store.Store) Option {
 func WithTargetItem(codes ...string) Option {
 	return func(c *Cerebro) {
 		c.targetCodes = codes
-	}
-}
-
-func WithResample(code string, level time.Duration, leftEdge bool) Option {
-	return func(c *Cerebro) {
-		c.compress[code] = append(c.compress[code], container.CompressInfo{Level: level, LeftEdge: leftEdge})
 	}
 }
 

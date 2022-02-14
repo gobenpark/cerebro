@@ -19,6 +19,7 @@ import (
 	"net/http"
 	"sort"
 	"sync"
+	"time"
 
 	"github.com/go-echarts/go-echarts/v2/charts"
 	"github.com/go-echarts/go-echarts/v2/components"
@@ -58,7 +59,7 @@ func (c *TraderChart) klineStyle() *charts.Kline {
 		return nil
 	}
 	c.Lock()
-	data := c.container.Values()
+	data := c.container.Candles(time.Minute)
 	c.Unlock()
 
 	sort.SliceStable(data, func(i, j int) bool {

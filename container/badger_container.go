@@ -17,7 +17,6 @@
 package container
 
 import (
-	"errors"
 	"fmt"
 
 	"github.com/dgraph-io/badger/v3"

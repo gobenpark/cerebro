@@ -29,8 +29,7 @@ func TestBgContainer_Value(t *testing.T) {
 	defer db.Close()
 	assert.NoError(t, err)
 	c := NewBadgerContainer(db, Info{
-		Code:             "KRW-BTC",
-		CompressionLevel: 0,
+		Code: "KRW-BTC",
 	})
 
 	c.Add(Candle{

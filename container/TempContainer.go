@@ -13,36 +13,37 @@
  *  See the License for the specific language governing permissions and
  *  limitations under the License.
  */
+
 package container
 
 import (
-	"encoding/json"
+	"sort"
+	"sync"
 	"time"
 )
 
-type Tick struct {
-	Code   string    `json:"code"`
-	AskBid string    `json:"askBid"`
-	Date   time.Time `json:"date"`
-	Price  float64   `json:"price"`
-	Volume float64   `json:"volume"`
+//TODO: 기존 히스토리 데이터 추가
+type TempContainer struct {
+	mu    sync.Mutex
+	ticks []Tick
+	code  string
 }
 
-func (t *Tick) UnmarshalJSON(bytes []byte) error {
-	var data map[string]interface{}
-	err := json.Unmarshal(bytes, &data)
-	if err != nil {
-		return err
-	}
-	t.Code = data["code"].(string)
-	ti, err := time.Parse("2006-01-02T15:04:05", data["dt"].(string))
-	if err != nil {
-		return err
-	}
+func NewTempContainer(code string) *TempContainer {
+	return &TempContainer{ticks: []Tick{}, code: code}
+}
 
-	t.Date = ti
-	t.AskBid = data["askBid"].(string)
-	t.Price = data["price"].(float64)
-	t.Volume = data["volume"].(float64)
-	return nil
+func (t *TempContainer) AddTicks(ticks ...Tick) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	t.ticks = append(t.ticks, ticks...)
+	sort.Slice(t.ticks, func(i, j int) bool {
+		return t.ticks[i].Date.Before(t.ticks[j].Date)
+	})
+}
+
+func (t *TempContainer) Candles(level time.Duration) []Candle {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	return ReSample(t.ticks, level, true)
 }

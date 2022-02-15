@@ -45,6 +45,8 @@ func (s *Engine) AddStrategy(sts ...Strategy) {
 
 func (s *Engine) Spawn(ctx context.Context, code string, tick <-chan container.Tick) {
 
+	ct := container.NewTempContainer(code)
+
 	for i := range tick {
 		ct.AddTicks(i)
 		for _, st := range s.sts {

@@ -18,7 +18,8 @@ import (
 )
 
 func (Upbit) Order(ctx context.Context, o *order.Order) error {
-	panic("implement me")
+	//fmt.Println(o)
+	return nil
 }
 
 func (Upbit) Cancel(id string) error {
@@ -63,15 +64,19 @@ func (s st) CandleType() strategy.CandleType {
 
 func (s st) Next(broker broker.Broker, container container.Container2) error {
 
-	sma := indicators.NewSma(15, 0)
-	candles := container.Candles(3 * time.Minute)
+	sma := indicators.NewSma(3, 0)
+	candles := container.Candles(3 * time.Second)
 	sma.Calculate(candles)
 	if sma.PeriodSatisfaction() {
 		datas := sma.Get()
 		if len(datas) > 2 && (datas[len(datas)-1].Data > datas[len(datas)-2].Data) {
-			fmt.Println(container.Code())
-			fmt.Println(datas[len(datas)-1].Data, datas[len(datas)-1].Date)
-			fmt.Println(datas[len(datas)-2].Data, datas[len(datas)-2].Date)
+			//fmt.Println(container.Code())
+			//fmt.Println(datas[len(datas)-1].Data, datas[len(datas)-1].Date)
+			//fmt.Println(datas[len(datas)-2].Data, datas[len(datas)-2].Date)
+
+			if err := broker.Order(context.Background(), container.Code(), 10, candles[len(candles)-1].Close, order.Buy, order.Limit); err != nil {
+				fmt.Println(err)
+			}
 		}
 	}
 
@@ -87,9 +92,8 @@ func (s st) Next(broker broker.Broker, container container.Container2) error {
 	return nil
 }
 
-func (s st) NotifyOrder(o *order.Order) {
-	//TODO implement me
-	panic("implement me")
+func (s st) NotifyOrder(o order.Order) {
+	fmt.Println("order success")
 }
 
 func (s st) NotifyTrade() {

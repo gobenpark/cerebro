@@ -18,6 +18,13 @@
 
 package event
 
+type EventType int
+
+const (
+	Buy EventType = iota + 1
+	Sell
+)
+
 type Listener interface {
 	Listen(e interface{})
 }
@@ -27,7 +34,7 @@ type Broadcaster interface {
 }
 
 type Event struct {
-	EventType string
+	EventType EventType
 	Message   string
 }
 

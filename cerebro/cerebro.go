@@ -106,7 +106,7 @@ func NewCerebro(opts ...Option) *Cerebro {
 	}
 
 	if c.broker == nil {
-		c.broker = broker.NewBroker(c.store)
+		c.broker = broker.NewBroker(c.store, c.eventEngine)
 	}
 
 	if c.Logger == nil {
@@ -162,8 +162,12 @@ func (c *Cerebro) Start() error {
 		go c.strategyEngine.Spawn(c.Ctx, code, ch)
 	}
 	mu.Unlock()
-	c.eventEngine.Register <- c.strategyEngine
 
+	//event engine settings
+	{
+		c.eventEngine.Register <- c.strategyEngine
+		c.eventEngine.Start(c.Ctx)
+	}
 	<-c.Ctx.Done()
 
 	return nil

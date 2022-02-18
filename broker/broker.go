@@ -47,8 +47,8 @@ type broker struct {
 }
 
 // NewBroker Init new broker with cash,commission
-func NewBroker(store store.Store) Broker {
-	return &broker{store: store}
+func NewBroker(store store.Store, evt event.Broadcaster) Broker {
+	return &broker{store: store, eventEngine: evt}
 }
 
 func (b *broker) Order(ctx context.Context, code string, size int64, price float64, action order.Action, exec order.ExecType) error {
@@ -67,6 +67,8 @@ func (b *broker) Order(ctx context.Context, code string, size int64, price float
 	if err := b.store.Order(ctx, &o); err != nil {
 		return err
 	}
+
+	b.eventEngine.BroadCast(o)
 
 	return nil
 }

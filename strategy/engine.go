@@ -45,10 +45,10 @@ func (s *Engine) AddStrategy(sts ...Strategy) {
 
 func (s *Engine) Spawn(ctx context.Context, code string, tick <-chan container.Tick) {
 
-	ct := container.NewTempContainer(code)
+	ct := container.NewTradeContainer(code)
 
 	for i := range tick {
-		ct.AddTicks(i)
+		ct.AddTick(i)
 		for _, st := range s.sts {
 			if err := st.Next(s.Broker, ct); err != nil {
 				s.log.Error(err)

@@ -31,6 +31,7 @@ const (
 type Indicator interface {
 	Calculate(candles []container.Candle)
 	Get() []Indicate
+	PeriodSatisfaction() bool
 }
 
 type Indicate struct {

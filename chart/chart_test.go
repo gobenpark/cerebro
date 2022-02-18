@@ -15,13 +15,17 @@
 package chart
 
 import (
+	"context"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 )
 
 func TestTraderChart_Start(t *testing.T) {
+	ctx := context.TODO()
 	chart := NewTraderChart()
+	chart.Start()
 	assert.NotNil(t, chart.Input)
 	assert.Nil(t, chart.container)
+	<-ctx.Done()
 }

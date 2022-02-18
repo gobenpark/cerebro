@@ -22,10 +22,11 @@ import (
 type sma struct {
 	period    int
 	indicates []Indicate
+	limit     int
 }
 
-func NewSma(period int) Indicator {
-	return &sma{period: period}
+func NewSma(period int, limit int) Indicator {
+	return &sma{period: period, limit: limit}
 }
 
 func (s *sma) Calculate(candles []container.Candle) {

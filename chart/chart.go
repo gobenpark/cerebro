@@ -29,8 +29,8 @@ import (
 
 type TraderChart struct {
 	sync.Mutex
-	container container.Container
-	Input     chan container.Container
+	container container.Container2
+	Input     chan container.Container2
 	page      *components.Page
 }
 
@@ -38,7 +38,7 @@ func NewTraderChart() *TraderChart {
 	page := components.NewPage()
 	chart := &TraderChart{
 		container: nil,
-		Input:     make(chan container.Container, 1),
+		Input:     make(chan container.Container2, 1),
 		page:      page,
 	}
 	return chart

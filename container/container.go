@@ -20,6 +20,7 @@ package container
 import (
 	"sort"
 	"sync"
+	"time"
 )
 
 //type Container interface {
@@ -109,4 +110,11 @@ func (t *DataContainer) Add(candle Candle) {
 
 func (t *DataContainer) Code() string {
 	return t.Info.Code
+}
+
+type Container2 interface {
+	AddCandle(candle Candle, tick Tick) Candle
+	AddTick(tick Tick)
+	Candles(level time.Duration) []Candle
+	Code() string
 }

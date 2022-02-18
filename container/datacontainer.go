@@ -25,12 +25,14 @@ type TradeContainer struct {
 	mu      sync.Mutex
 	ticks   []Tick
 	candles map[time.Duration][]Candle
+	code    string
 }
 
-func NewTradeContainer() *TradeContainer {
+func NewTradeContainer(code string) *TradeContainer {
 	return &TradeContainer{
 		ticks:   nil,
 		candles: make(map[time.Duration][]Candle),
+		code:    code,
 	}
 }
 
@@ -116,4 +118,8 @@ func (t *TradeContainer) Candles(level time.Duration) []Candle {
 	copy(tCandles, candles)
 	t.candles[level] = candles
 	return tCandles
+}
+
+func (t *TradeContainer) Code() string {
+	return t.code
 }

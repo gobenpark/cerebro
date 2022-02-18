@@ -33,7 +33,6 @@ type Broker interface {
 	Order(ctx context.Context, code string, size int64, price float64, action order.Action, exec order.ExecType) error
 	GetCash() int64
 	GetPosition() []position.Position
-	SetStore(store store.Store)
 }
 
 type broker struct {
@@ -79,10 +78,6 @@ func (b *broker) GetCash() int64 {
 
 func (b *broker) GetPosition() []position.Position {
 	return b.store.Positions()
-}
-
-func (b *broker) SetStore(store store.Store) {
-	b.store = store
 }
 
 func (b *broker) Listen(e interface{}) {

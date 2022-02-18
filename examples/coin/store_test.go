@@ -79,16 +79,6 @@ func (s st) Next(broker broker.Broker, container container.Container2) error {
 			}
 		}
 	}
-
-	//length := len(container.Candles(3 * time.Minute))
-	//if length > 2 {
-	//	if container.Candles(3 * time.Minute)[length-1].Close > container.Candles(3 * time.Minute)[length-2].Close {
-	//		fmt.Println(container.Code())
-	//		fmt.Println(container.Candles(3 * time.Minute)[length-1].Close, container.Candles(3 * time.Minute)[length-1].Date)
-	//		fmt.Println(container.Candles(3 * time.Minute)[length-2].Close, container.Candles(3 * time.Minute)[length-2].Date)
-	//		fmt.Println("---------------------------------------------")
-	//	}
-	//}
 	return nil
 }
 

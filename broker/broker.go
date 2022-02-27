@@ -30,9 +30,10 @@ import (
 
 // Broker it is instead of human for buy , sell and etc
 type Broker interface {
-	Order(ctx context.Context, code string, size int64, price float64, action order.Action, exec order.ExecType) error
+	Order(ctx context.Context, code string, size int64, price float64, action order.Action, exec order.ExecType)
 	GetCash() int64
-	GetPosition() []position.Position
+	GetPosition(code string) []position.Position
+	SetStore(store store.Store)
 }
 
 type broker struct {
@@ -47,10 +48,17 @@ type broker struct {
 
 // NewBroker Init new broker with cash,commission
 func NewBroker(store store.Store, evt event.Broadcaster) Broker {
-	return &broker{store: store, eventEngine: evt}
+
+	bk := &broker{store: store, eventEngine: evt}
+
+	for _, p := range store.Positions() {
+		bk.positions[p.Code] = append(bk.positions[p.Code], p)
+	}
+
+	return bk
 }
 
-func (b *broker) Order(ctx context.Context, code string, size int64, price float64, action order.Action, exec order.ExecType) error {
+func (b *broker) Order(ctx context.Context, code string, size int64, price float64, action order.Action, exec order.ExecType) {
 	uid := uuid.NewV4().String()
 
 	o := order.Order{
@@ -63,21 +71,36 @@ func (b *broker) Order(ctx context.Context, code string, size int64, price float
 		CreatedAt: time.Now(),
 	}
 
-	if err := b.store.Order(ctx, &o); err != nil {
-		return err
+	go b.submit(&o)
+	b.notify(&o)
+
+}
+
+func (b *broker) submit(o *order.Order) {
+	o.Submit()
+	//TODO: context
+	if err := b.store.Order(context.Background(), o); err != nil {
+		o.Reject(err)
+		b.notify(o)
 	}
 
-	b.eventEngine.BroadCast(o)
+	o.Complete()
+}
 
-	return nil
+func (b *broker) notify(o *order.Order) {
+	b.eventEngine.BroadCast(o)
 }
 
 func (b *broker) GetCash() int64 {
 	return b.store.Cash()
 }
 
-func (b *broker) GetPosition() []position.Position {
-	return b.store.Positions()
+func (b *broker) GetPosition(code string) []position.Position {
+	return b.positions[code]
+}
+
+func (b *broker) SetStore(store store.Store) {
+	b.store = store
 }
 
 func (b *broker) Listen(e interface{}) {

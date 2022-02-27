@@ -10,7 +10,10 @@ import (
 
 	"github.com/go-resty/resty/v2"
 	"github.com/gobenpark/trader/container"
+	"github.com/gobenpark/trader/event"
 	"github.com/gobenpark/trader/item"
+	"github.com/gobenpark/trader/order"
+	"github.com/gobenpark/trader/position"
 	"github.com/gobenpark/trader/store"
 	"github.com/gorilla/websocket"
 	uuid "github.com/satori/go.uuid"
@@ -258,4 +261,42 @@ func (u Upbit) Tick(ctx context.Context, codes ...string) (<-chan container.Tick
 	}()
 	return ch, nil
 
+}
+
+func (Upbit) Order(ctx context.Context, o *order.Order) error {
+	//fmt.Println("order in store", o)
+
+	return nil
+}
+
+func (Upbit) Cancel(id string) error {
+	panic("implement me")
+}
+
+func (Upbit) LoadHistory(ctx context.Context, code string, d time.Duration) ([]container.Candle, error) {
+	panic("implement me")
+}
+
+func (Upbit) Uid() string {
+	panic("implement me")
+}
+
+func (Upbit) Cash() int64 {
+	panic("implement me")
+}
+
+func (Upbit) Commission() float64 {
+	panic("implement me")
+}
+
+func (Upbit) Positions() []position.Position {
+	return nil
+}
+
+func (Upbit) OrderState(ctx context.Context) (<-chan event.OrderEvent, error) {
+	panic("implement me")
+}
+
+func (Upbit) OrderInfo(id string) (*order.Order, error) {
+	panic("implement me")
 }

@@ -30,34 +30,31 @@ import (
 
 // Broker it is instead of human for buy , sell and etc
 type Broker interface {
-	Order(ctx context.Context, code string, size int64, price float64, action order.Action, exec order.ExecType)
-	GetCash() int64
-	GetPosition(code string) []position.Position
+	Order(ctx context.Context, code string, size int64, price float64, action order.Action, exec order.ExecType) error
+	Cash() int64
+	Position(code string) *position.Position
 }
 
 type broker struct {
-	Cash        int64
-	Commission  float64
-	orders      map[string]*order.Order
-	mu          sync.Mutex
-	eventEngine event.Broadcaster
-	positions   map[string][]position.Position
-	store       store.Store
+	cash             int64
+	Commission       float64
+	orders           map[string]*order.Order
+	mu               sync.Mutex
+	eventEngine      event.Broadcaster
+	positions        map[string]position.Position
+	store            store.Store
+	cashValueChanged bool
 }
 
 // NewBroker Init new broker with cash,commission
 func NewBroker(store store.Store, evt event.Broadcaster) Broker {
 
-	bk := &broker{store: store, eventEngine: evt}
-
-	for _, p := range store.Positions() {
-		bk.positions[p.Code] = append(bk.positions[p.Code], p)
-	}
-
+	bk := &broker{store: store, eventEngine: evt, orders: make(map[string]*order.Order)}
+	bk.cash = store.Cash()
 	return bk
 }
 
-func (b *broker) Order(ctx context.Context, code string, size int64, price float64, action order.Action, exec order.ExecType) {
+func (b *broker) Order(ctx context.Context, code string, size int64, price float64, action order.Action, exec order.ExecType) error {
 	uid := uuid.NewV4().String()
 
 	o := order.Order{
@@ -70,32 +67,53 @@ func (b *broker) Order(ctx context.Context, code string, size int64, price float
 		CreatedAt: time.Now(),
 	}
 
-	go b.submit(&o)
-	b.notify(&o)
-
+	if err := b.submit(&o); err != nil {
+		return err
+	}
+	b.notifyOrder(&o)
+	return nil
 }
 
-func (b *broker) submit(o *order.Order) {
+func (b *broker) submit(o *order.Order) error {
 	o.Submit()
 	//TODO: context
 	if err := b.store.Order(context.Background(), o); err != nil {
 		o.Reject(err)
-		b.notify(o)
+		b.notifyOrder(o)
+
+		return err
 	}
 
 	o.Complete()
+	b.orders[o.UUID] = o
+	b.positions = b.store.Positions()
+
+	b.cashValueChanged = true
+	b.notifyCash()
+	return nil
 }
 
-func (b *broker) notify(o *order.Order) {
+func (b *broker) notifyOrder(o *order.Order) {
 	b.eventEngine.BroadCast(o)
 }
 
-func (b *broker) GetCash() int64 {
-	return b.store.Cash()
+func (b *broker) notifyCash() {
+	changedCash := b.store.Cash()
+	b.eventEngine.BroadCast(event.CashEvent{Before: b.cash, After: changedCash})
+	b.cash = changedCash
 }
 
-func (b *broker) GetPosition(code string) []position.Position {
-	return b.positions[code]
+func (b *broker) Cash() int64 {
+	return b.cash
+}
+
+func (b *broker) Position(code string) *position.Position {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	if p, ok := b.positions[code]; ok {
+		return &p
+	}
+	return nil
 }
 
 func (b *broker) Listen(e interface{}) {

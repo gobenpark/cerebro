@@ -23,6 +23,7 @@ type EventType int
 const (
 	Buy EventType = iota + 1
 	Sell
+	Cash
 )
 
 type Listener interface {
@@ -36,6 +37,7 @@ type Broadcaster interface {
 type Event struct {
 	EventType EventType
 	Message   string
+	Value     interface{}
 }
 
 type OrderEvent struct {

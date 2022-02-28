@@ -35,7 +35,7 @@ type Store interface {
 	Uid() string
 	Cash() int64
 	Commission() float64
-	Positions() []position.Position
+	Positions() map[string]position.Position
 	OrderState(ctx context.Context) (<-chan event.OrderEvent, error)
 	OrderInfo(id string) (*order.Order, error)
 }

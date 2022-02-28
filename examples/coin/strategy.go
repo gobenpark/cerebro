@@ -27,12 +27,14 @@ func (s st) Next(broker broker.Broker, container container.Container2) error {
 	if sma.PeriodSatisfaction() {
 		datas := sma.Get()
 		if len(datas) > 2 && (datas[len(datas)-1].Data > datas[len(datas)-2].Data) {
-			//fmt.Println(container.Code())
-			//fmt.Println(datas[len(datas)-1].Data, datas[len(datas)-1].Date)
-			//fmt.Println(datas[len(datas)-2].Data, datas[len(datas)-2].Date)
-
-			if len(broker.GetPosition(container.Code())) == 0 {
-				broker.Order(context.Background(), container.Code(), 10, candles[len(candles)-1].Close, order.Buy, order.Limit)
+			if broker.Position(container.Code()) != nil {
+				fmt.Println("exist position")
+				fmt.Println(broker.Position(container.Code()))
+			} else {
+				if err := broker.Order(context.Background(), container.Code(), 10, candles[len(candles)-1].Close, order.Buy, order.Limit); err != nil {
+					return err
+				}
+				fmt.Println("not exist so buy ")
 			}
 		}
 	}
@@ -40,11 +42,8 @@ func (s st) Next(broker broker.Broker, container container.Container2) error {
 	return nil
 }
 
-func (s st) NotifyOrder(o *order.Order) {
-
-	fmt.Println(o.Code)
-	fmt.Println(o.Status())
-	fmt.Println("order success")
+func (s st) NotifyOrder(o order.Order) {
+	fmt.Println("notify order", o)
 }
 
 func (s st) NotifyTrade() {
@@ -52,9 +51,8 @@ func (s st) NotifyTrade() {
 	panic("implement me")
 }
 
-func (s st) NotifyCashValue() {
-	//TODO implement me
-	panic("implement me")
+func (s st) NotifyCashValue(before, after int64) {
+	fmt.Printf("notify cash before %d, after %d\n", before, after)
 }
 
 func (s st) NotifyFund() {

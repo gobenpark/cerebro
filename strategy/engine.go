@@ -21,6 +21,7 @@ import (
 
 	"github.com/gobenpark/trader/broker"
 	"github.com/gobenpark/trader/container"
+	"github.com/gobenpark/trader/event"
 	"github.com/gobenpark/trader/log"
 	"github.com/gobenpark/trader/order"
 )
@@ -62,12 +63,14 @@ func (s *Engine) Spawn(ctx context.Context, code string, tick <-chan container.T
 }
 
 func (s *Engine) Listen(e interface{}) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
 	switch et := e.(type) {
-	case *order.Order:
+	case order.Order:
 		for _, st := range s.sts {
 			st.NotifyOrder(et)
+		}
+	case event.CashEvent:
+		for _, st := range s.sts {
+			st.NotifyCashValue(et.Before, et.After)
 		}
 	}
 }

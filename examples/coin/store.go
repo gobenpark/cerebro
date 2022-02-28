@@ -8,6 +8,8 @@ import (
 	"regexp"
 	"time"
 
+	. "github.com/gobenpark/trader/error"
+
 	"github.com/go-resty/resty/v2"
 	"github.com/gobenpark/trader/container"
 	"github.com/gobenpark/trader/event"
@@ -21,6 +23,8 @@ import (
 
 type Upbit struct {
 	*resty.Client
+	position  map[string]position.Position
+	FirstCash int64
 }
 
 func NewStore() *Upbit {
@@ -28,7 +32,7 @@ func NewStore() *Upbit {
 
 	client.SetHostURL("https://api.upbit.com/v1")
 
-	return &Upbit{client}
+	return &Upbit{client, make(map[string]position.Position), 90000}
 }
 
 func (u Upbit) GetMarketItems() []item.Item {
@@ -263,8 +267,28 @@ func (u Upbit) Tick(ctx context.Context, codes ...string) (<-chan container.Tick
 
 }
 
-func (Upbit) Order(ctx context.Context, o *order.Order) error {
-	//fmt.Println("order in store", o)
+func (u *Upbit) Order(ctx context.Context, o *order.Order) error {
+	switch o.Action {
+	case order.Buy:
+		if u.FirstCash > (o.Size * int64(o.Price)) {
+			u.FirstCash -= (o.Size * int64(o.Price))
+		} else {
+			return ErrNotEnoughMoney
+		}
+	case order.Sell:
+		if p, ok := u.position[o.Code]; ok && p.Size == o.Size {
+			u.FirstCash += (o.Size * int64(o.Price))
+		} else {
+			return ErrNotEnoughMoney
+		}
+	}
+
+	u.position[o.Code] = position.Position{
+		Code:      o.Code,
+		Size:      o.Size,
+		Price:     o.Price,
+		CreatedAt: o.CreatedAt,
+	}
 
 	return nil
 }
@@ -281,16 +305,16 @@ func (Upbit) Uid() string {
 	panic("implement me")
 }
 
-func (Upbit) Cash() int64 {
-	panic("implement me")
+func (u *Upbit) Cash() int64 {
+	return u.FirstCash
 }
 
 func (Upbit) Commission() float64 {
 	panic("implement me")
 }
 
-func (Upbit) Positions() []position.Position {
-	return nil
+func (u *Upbit) Positions() map[string]position.Position {
+	return u.position
 }
 
 func (Upbit) OrderState(ctx context.Context) (<-chan event.OrderEvent, error) {

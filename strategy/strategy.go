@@ -39,7 +39,7 @@ type Strategy interface {
 	Next(broker broker.Broker, container container.Container2) error
 
 	//NotifyOrder is when event rise order then called
-	NotifyOrder(o order.Order)
+	NotifyOrder(o *order.Order)
 	NotifyTrade()
 	NotifyCashValue()
 	NotifyFund()

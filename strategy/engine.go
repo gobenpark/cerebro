@@ -52,6 +52,7 @@ func (s *Engine) Spawn(ctx context.Context, code string, tick <-chan container.T
 		ct.AddTick(i)
 		s.mu.Lock()
 		for _, st := range s.sts {
+
 			if err := st.Next(s.Broker, ct); err != nil {
 				s.log.Error(err)
 			}
@@ -64,7 +65,7 @@ func (s *Engine) Listen(e interface{}) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	switch et := e.(type) {
-	case order.Order:
+	case *order.Order:
 		for _, st := range s.sts {
 			st.NotifyOrder(et)
 		}

@@ -3,9 +3,11 @@ package broker
 import (
 	"context"
 	"fmt"
+	"reflect"
 	"testing"
 	"time"
 
+	"github.com/gobenpark/trader/event"
 	mock_event "github.com/gobenpark/trader/event/mock"
 	"github.com/gobenpark/trader/order"
 	"github.com/gobenpark/trader/position"
@@ -27,10 +29,28 @@ func HelperNewBroker(t *testing.T) (Broker, *mock_store.MockStore, *mock_event.M
 
 func TestBroker_GetCash(t *testing.T) {
 	b, st, _ := HelperNewBroker(t)
+
 	st.EXPECT().Cash().Return(int64(10))
 
-	cash := b.GetCash()
+	cash := b.Cash()
 	assert.Equal(t, int64(10), cash)
+}
+
+func TestBroker_GetPosition(t *testing.T) {
+	b, st, _ := HelperNewBroker(t)
+
+	input := position.Position{
+		Code:      "50912",
+		Size:      10,
+		Price:     1000,
+		CreatedAt: time.Now(),
+	}
+
+	st.EXPECT().Positions().Return(map[string]position.Position{
+		"50912": input,
+	})
+	position := b.Positions()
+	require.True(t, reflect.DeepEqual(position["50912"], input))
 }
 
 func TestBroker_Order(t *testing.T) {
@@ -53,8 +73,20 @@ func TestBroker_Order(t *testing.T) {
 			}
 			return nil
 		})
+
+	st.EXPECT().Positions().Return(map[string]position.Position{code: {
+		Code:      code,
+		Size:      size,
+		Price:     price,
+		CreatedAt: time.Now(),
+	}})
+
+	st.EXPECT().Cash().Return(int64(10))
+
 	evt.EXPECT().BroadCast(gomock.Any()).Do(func(e interface{}) {
-		if o, ok := e.(order.Order); ok {
+		switch o := e.(type) {
+		case *order.Order:
+			require.Equal(t, order.Submitted, o.Status())
 			if o.Code != code ||
 				o.Price != price ||
 				o.Size != size ||
@@ -62,26 +94,57 @@ func TestBroker_Order(t *testing.T) {
 				o.ExecType != order.Close {
 				require.Fail(t, "error broadCast")
 			}
-		} else {
-			require.Fail(t, "fail convert")
+		case event.CashEvent:
+			require.Equal(t, o.After, int64(10))
+		default:
+			require.Failf(t, "invalid type of order pointer", "%#v", e)
 		}
 	})
 
-	err := b.Order(ctx, code, size, price, order.Buy, order.Close)
-	require.NoError(t, err)
+	b.Order(ctx, code, size, price, order.Buy, order.Close)
+	<-time.After(time.Second)
 }
 
-func TestBroker_GetPosition(t *testing.T) {
-	b, st, _ := HelperNewBroker(t)
+func TestBroker_Order_Reject(t *testing.T) {
+	b, st, evt := HelperNewBroker(t)
 
-	st.EXPECT().Positions().Return([]position.Position{
-		{
-			Code:      "50912",
-			Size:      10,
-			Price:     1000,
-			CreatedAt: time.Now(),
-		},
-	})
-	positions := b.GetPosition()
-	assert.Len(t, positions, 1)
+	ctx := context.TODO()
+	code := "code"
+	size := int64(10)
+	price := float64(1230)
+
+	st.EXPECT().
+		Order(gomock.Any(), gomock.Any()).
+		Return(fmt.Errorf("error"))
+
+	st.EXPECT().Positions().Return(map[string]position.Position{code: {
+		Code:      code,
+		Size:      size,
+		Price:     price,
+		CreatedAt: time.Now(),
+	}})
+
+	st.EXPECT().Cash().Return(int64(10))
+
+	evt.EXPECT().BroadCast(gomock.Any()).Do(func(e interface{}) {
+		switch o := e.(type) {
+		case *order.Order:
+			require.Equal(t, order.Rejected, o.Status())
+
+			if o.Code != code ||
+				o.Price != price ||
+				o.Size != size ||
+				o.Action != order.Buy ||
+				o.ExecType != order.Close {
+				require.Fail(t, "error broadCast")
+			}
+		case event.CashEvent:
+			require.Equal(t, o.After, int64(10))
+		default:
+			require.Failf(t, "invalid type of order pointer", "%#v", e)
+		}
+	}).AnyTimes()
+
+	b.Order(ctx, code, size, price, order.Buy, order.Close)
+	<-time.After(time.Second)
 }

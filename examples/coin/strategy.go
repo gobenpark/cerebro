@@ -2,13 +2,11 @@ package coin
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"time"
 
 	"github.com/gobenpark/trader/broker"
 	"github.com/gobenpark/trader/container"
-	error2 "github.com/gobenpark/trader/error"
 	"github.com/gobenpark/trader/indicators"
 	"github.com/gobenpark/trader/order"
 	"github.com/gobenpark/trader/strategy"
@@ -32,12 +30,12 @@ func (s st) Next(broker broker.Broker, container container.Container2) error {
 			if broker.Position(container.Code()) != nil {
 				//fmt.Println(broker.Position(container.Code()))
 			} else {
-				err := broker.Order(context.Background(), container.Code(), 10, candles[len(candles)-1].Close, order.Buy, order.Limit)
-				if errors.Is(err, error2.ErrNotEnoughMoney) {
-					return nil
-				} else if err != nil {
-					return err
-				}
+				broker.Order(context.Background(), container.Code(), 10, candles[len(candles)-1].Close, order.Buy, order.Limit)
+				//if errors.Is(err, error2.ErrNotEnoughMoney) {
+				//	return nil
+				//} else if err != nil {
+				//	return err
+				//}
 				fmt.Println("position", broker.Position(container.Code()))
 			}
 		}

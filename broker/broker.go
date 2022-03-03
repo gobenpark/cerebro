@@ -18,6 +18,7 @@ package broker
 import (
 	"context"
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/gobenpark/trader/event"
@@ -29,16 +30,16 @@ import (
 
 // Broker it is instead of human for buy , sell and etc
 type Broker interface {
-	Order(ctx context.Context, code string, size int64, price float64, action order.Action, exec order.ExecType) error
+	Order(ctx context.Context, code string, size int64, price float64, action order.Action, exec order.ExecType)
 	Cash() int64
-	Position(code string) *position.Position
+	Positions() map[string]position.Position
 }
 
 type broker struct {
-	cash       int64
-	Commission float64
-	orders     map[string]order.Order
-	//mu               sync.Mutex
+	cash             int64
+	Commission       float64
+	orders           map[string]order.Order
+	mu               sync.Mutex
 	eventEngine      event.Broadcaster
 	positions        map[string]position.Position
 	store            store.Store
@@ -47,13 +48,11 @@ type broker struct {
 
 // NewBroker Init new broker with cash,commission
 func NewBroker(store store.Store, evt event.Broadcaster) Broker {
-
 	bk := &broker{store: store, eventEngine: evt, orders: make(map[string]order.Order)}
-	bk.cash = store.Cash()
 	return bk
 }
 
-func (b *broker) Order(ctx context.Context, code string, size int64, price float64, action order.Action, exec order.ExecType) error {
+func (b *broker) Order(ctx context.Context, code string, size int64, price float64, action order.Action, exec order.ExecType) {
 	uid := uuid.NewV4().String()
 
 	o := order.Order{
@@ -66,34 +65,33 @@ func (b *broker) Order(ctx context.Context, code string, size int64, price float
 		CreatedAt: time.Now(),
 	}
 
-	if err := b.submit(&o); err != nil {
-		return err
-	}
+	go b.submit(&o)
 	b.notifyOrder(&o)
-	return nil
 }
 
-func (b *broker) submit(o *order.Order) error {
+func (b *broker) submit(o *order.Order) {
 	o.Submit()
 	//TODO: context
+
 	if err := b.store.Order(context.Background(), o); err != nil {
 		o.Reject(err)
 		b.notifyOrder(o)
-		return err
+		return
 	}
 
 	o.Complete()
+	b.mu.Lock()
+	defer b.mu.Unlock()
 	b.orders[o.UUID] = *o
 	b.positions = b.store.Positions()
-
 	b.cashValueChanged = true
 	b.notifyCash()
-	return nil
 }
 
 func (b *broker) notifyOrder(o *order.Order) {
-
-	b.eventEngine.BroadCast(*o)
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	b.eventEngine.BroadCast(o)
 }
 
 func (b *broker) notifyCash() {
@@ -103,16 +101,17 @@ func (b *broker) notifyCash() {
 }
 
 func (b *broker) Cash() int64 {
+	if b.cash == 0 {
+		return b.store.Cash()
+	}
 	return b.cash
 }
 
-func (b *broker) Position(code string) *position.Position {
-	//b.mu.Lock()
-	//defer b.mu.Unlock()
-	if p, ok := b.positions[code]; ok {
-		return &p
+func (b *broker) Positions() map[string]position.Position {
+	if b.positions == nil {
+		return b.store.Positions()
 	}
-	return nil
+	return b.positions
 }
 
 func (b *broker) Listen(e interface{}) {

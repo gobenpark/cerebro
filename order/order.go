@@ -29,7 +29,9 @@ type (
 const (
 	Buy Action = iota + 1
 	Sell
+)
 
+const (
 	Created Status = iota + 1
 	Submitted
 	Accepted
@@ -39,7 +41,9 @@ const (
 	Expired
 	Margin
 	Rejected
+)
 
+const (
 	Market ExecType = iota + 1
 	Close
 	Limit

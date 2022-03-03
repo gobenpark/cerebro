@@ -9,6 +9,7 @@ import (
 
 	"github.com/gobenpark/trader/event"
 	mock_event "github.com/gobenpark/trader/event/mock"
+	"github.com/gobenpark/trader/log"
 	"github.com/gobenpark/trader/order"
 	"github.com/gobenpark/trader/position"
 	mock_store "github.com/gobenpark/trader/store/mock"
@@ -23,7 +24,8 @@ func HelperNewBroker(t *testing.T) (Broker, *mock_store.MockStore, *mock_event.M
 	ctrl := gomock.NewController(t)
 	st := mock_store.NewMockStore(ctrl)
 	evt := mock_event.NewMockBroadcaster(ctrl)
-	broker := NewBroker(st, evt)
+	log := log.NewZapLogger()
+	broker := NewBroker(log, st, evt)
 	return broker, st, evt
 }
 
@@ -86,6 +88,22 @@ func TestBroker_Order(t *testing.T) {
 	evt.EXPECT().BroadCast(gomock.Any()).Do(func(e interface{}) {
 		switch o := e.(type) {
 		case *order.Order:
+			require.Equal(t, order.Completed, o.Status())
+			if o.Code != code ||
+				o.Price != price ||
+				o.Size != size ||
+				o.Action != order.Buy ||
+				o.ExecType != order.Close {
+				require.Fail(t, "error broadCast")
+			}
+		case event.CashEvent:
+			require.Equal(t, o.After, int64(10))
+		default:
+			require.Failf(t, "invalid type of order pointer", "%#v", e)
+		}
+	}).After(evt.EXPECT().BroadCast(gomock.Any()).Do(func(e interface{}) {
+		switch o := e.(type) {
+		case *order.Order:
 			require.Equal(t, order.Submitted, o.Status())
 			if o.Code != code ||
 				o.Price != price ||
@@ -99,7 +117,7 @@ func TestBroker_Order(t *testing.T) {
 		default:
 			require.Failf(t, "invalid type of order pointer", "%#v", e)
 		}
-	})
+	}))
 
 	b.Order(ctx, code, size, price, order.Buy, order.Close)
 	<-time.After(time.Second)
@@ -143,7 +161,24 @@ func TestBroker_Order_Reject(t *testing.T) {
 		default:
 			require.Failf(t, "invalid type of order pointer", "%#v", e)
 		}
-	}).AnyTimes()
+	}).After(evt.EXPECT().BroadCast(gomock.Any()).Do(func(e interface{}) {
+		switch o := e.(type) {
+		case *order.Order:
+			require.Equal(t, order.Submitted, o.Status())
+
+			if o.Code != code ||
+				o.Price != price ||
+				o.Size != size ||
+				o.Action != order.Buy ||
+				o.ExecType != order.Close {
+				require.Fail(t, "error broadCast")
+			}
+		case event.CashEvent:
+			require.Equal(t, o.After, int64(10))
+		default:
+			require.Failf(t, "invalid type of order pointer", "%#v", e)
+		}
+	}))
 
 	b.Order(ctx, code, size, price, order.Buy, order.Close)
 	<-time.After(time.Second)

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"regexp"
+	"sync"
 	"time"
 
 	. "github.com/gobenpark/trader/error"
@@ -22,6 +23,7 @@ import (
 )
 
 type Upbit struct {
+	mu sync.Mutex
 	*resty.Client
 	position  map[string]position.Position
 	FirstCash int64
@@ -32,7 +34,7 @@ func NewStore() *Upbit {
 
 	client.SetHostURL("https://api.upbit.com/v1")
 
-	return &Upbit{client, make(map[string]position.Position), 90000}
+	return &Upbit{Client: client, position: make(map[string]position.Position), FirstCash: 90000}
 }
 
 func (u Upbit) GetMarketItems() []item.Item {
@@ -283,6 +285,8 @@ func (u *Upbit) Order(ctx context.Context, o *order.Order) error {
 		}
 	}
 
+	u.mu.Lock()
+	defer u.mu.Unlock()
 	u.position[o.Code] = position.Position{
 		Code:      o.Code,
 		Size:      o.Size,
@@ -314,7 +318,11 @@ func (Upbit) Commission() float64 {
 }
 
 func (u *Upbit) Positions() map[string]position.Position {
-	return u.position
+	tmap := map[string]position.Position{}
+	for k, v := range u.position {
+		tmap[k] = v
+	}
+	return tmap
 }
 
 func (Upbit) OrderState(ctx context.Context) (<-chan event.OrderEvent, error) {

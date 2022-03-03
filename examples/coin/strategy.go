@@ -27,8 +27,8 @@ func (s st) Next(broker broker.Broker, container container.Container2) error {
 	if sma.PeriodSatisfaction() {
 		datas := sma.Get()
 		if len(datas) > 2 && (datas[len(datas)-1].Data > datas[len(datas)-2].Data) {
-			if broker.Position(container.Code()) != nil {
-				//fmt.Println(broker.Position(container.Code()))
+			if _, ok := broker.Positions()[container.Code()]; ok {
+
 			} else {
 				broker.Order(context.Background(), container.Code(), 10, candles[len(candles)-1].Close, order.Buy, order.Limit)
 				//if errors.Is(err, error2.ErrNotEnoughMoney) {
@@ -36,7 +36,7 @@ func (s st) Next(broker broker.Broker, container container.Container2) error {
 				//} else if err != nil {
 				//	return err
 				//}
-				fmt.Println("position", broker.Position(container.Code()))
+				fmt.Println("position", broker.Positions())
 			}
 		}
 	}

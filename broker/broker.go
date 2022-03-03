@@ -22,6 +22,7 @@ import (
 	"time"
 
 	"github.com/gobenpark/trader/event"
+	"github.com/gobenpark/trader/log"
 	"github.com/gobenpark/trader/order"
 	"github.com/gobenpark/trader/position"
 	"github.com/gobenpark/trader/store"
@@ -33,23 +34,29 @@ type Broker interface {
 	Order(ctx context.Context, code string, size int64, price float64, action order.Action, exec order.ExecType)
 	Cash() int64
 	Positions() map[string]position.Position
+	SetCash(amount int64)
 }
 
 type broker struct {
 	cash             int64
 	Commission       float64
 	orders           map[string]order.Order
-	mu               sync.Mutex
+	mu               sync.RWMutex
 	eventEngine      event.Broadcaster
 	positions        map[string]position.Position
 	store            store.Store
 	cashValueChanged bool
+	log              log.Logger
 }
 
 // NewBroker Init new broker with cash,commission
-func NewBroker(store store.Store, evt event.Broadcaster) Broker {
-	bk := &broker{store: store, eventEngine: evt, orders: make(map[string]order.Order)}
+func NewBroker(log log.Logger, store store.Store, evt event.Broadcaster) Broker {
+	bk := &broker{log: log, store: store, eventEngine: evt, orders: make(map[string]order.Order)}
 	return bk
+}
+
+func (b *broker) SetCash(amount int64) {
+	b.cash = amount
 }
 
 func (b *broker) Order(ctx context.Context, code string, size int64, price float64, action order.Action, exec order.ExecType) {
@@ -64,6 +71,7 @@ func (b *broker) Order(ctx context.Context, code string, size int64, price float
 		Price:     price,
 		CreatedAt: time.Now(),
 	}
+	b.log.Debugf("order created: #@v", o)
 
 	go b.submit(&o)
 	b.notifyOrder(&o)
@@ -78,6 +86,7 @@ func (b *broker) submit(o *order.Order) {
 		b.notifyOrder(o)
 		return
 	}
+	b.log.Debug("store order success")
 
 	o.Complete()
 	b.mu.Lock()
@@ -85,6 +94,7 @@ func (b *broker) submit(o *order.Order) {
 	b.orders[o.UUID] = *o
 	b.positions = b.store.Positions()
 	b.cashValueChanged = true
+
 	b.notifyCash()
 }
 
@@ -108,13 +118,23 @@ func (b *broker) Cash() int64 {
 }
 
 func (b *broker) Positions() map[string]position.Position {
+	b.mu.RLock()
+	defer b.mu.RUnlock()
+
+	tmap := map[string]position.Position{}
 	if b.positions == nil {
-		return b.store.Positions()
+		b.positions = b.store.Positions()
 	}
-	return b.positions
+
+	for k, v := range b.positions {
+		tmap[k] = v
+	}
+	return tmap
 }
 
+//TODO: test
 func (b *broker) Listen(e interface{}) {
+
 	if evt, ok := e.(event.OrderEvent); ok {
 		switch evt.State {
 		case "cancel":

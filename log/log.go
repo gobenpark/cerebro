@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 )
 
 type zapLogger struct {
@@ -37,7 +38,9 @@ func NewZapLogger() Logger {
 	//	ErrorOutputPaths: []string{"stderr"},
 	//	InitialFields:    nil,
 	//}.Build(zap.AddCallerSkip(1))
-	logger, err := zap.NewProductionConfig().Build(zap.AddCallerSkip(1))
+	config := zap.NewProductionConfig()
+	config.Level = zap.NewAtomicLevelAt(zapcore.WarnLevel)
+	logger, err := config.Build(zap.AddCallerSkip(1))
 	if err != nil {
 		panic(err)
 	}
@@ -59,7 +62,6 @@ func (z zapLogger) Debug(v ...interface{}) {
 func (z zapLogger) Debugf(format string, v ...interface{}) {
 	defer z.Logger.Sync()
 	z.Logger.Debug(fmt.Sprintf(format, v...))
-	panic("implement me")
 }
 
 func (z zapLogger) Error(v ...interface{}) {
@@ -74,7 +76,6 @@ func (z zapLogger) Errorf(format string, v ...interface{}) {
 
 func (z zapLogger) Info(v ...interface{}) {
 	defer z.Logger.Sync()
-
 	z.Logger.Info(fmt.Sprint(v...))
 }
 

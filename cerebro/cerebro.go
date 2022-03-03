@@ -105,12 +105,12 @@ func NewCerebro(opts ...Option) *Cerebro {
 		opt(c)
 	}
 
-	if c.broker == nil {
-		c.broker = broker.NewBroker(c.store, c.eventEngine)
-	}
-
 	if c.Logger == nil {
 		c.Logger = log.NewZapLogger()
+	}
+
+	if c.broker == nil {
+		c.broker = broker.NewBroker(c.Logger, c.store, c.eventEngine)
 	}
 
 	if c.strategyEngine == nil {

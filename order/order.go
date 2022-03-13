@@ -58,12 +58,12 @@ type Order struct {
 	status Status
 	Action
 	ExecType
-	Code       string    `json:"code"`
-	UUID       string    `json:"uuid"`
-	Size       int64     `json:"size"`
-	Price      float64   `json:"price"`
-	CreatedAt  time.Time `json:"createdAt"`
-	ExecutedAt time.Time `json:"executedAt"`
+	Code       string    `json:"code" form:"code"`
+	UUID       string    `json:"uuid" form:"uuid"`
+	Size       int64     `json:"size" form:"size"`
+	Price      float64   `json:"price" form:"price"`
+	CreatedAt  time.Time `json:"createdAt" form:"created_at"`
+	ExecutedAt time.Time `json:"executedAt" form:"updated_at"`
 	mu         sync.RWMutex
 	StoreUID   string `json:"-"`
 }

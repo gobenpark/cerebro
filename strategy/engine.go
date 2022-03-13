@@ -49,16 +49,22 @@ func (s *Engine) Spawn(ctx context.Context, code string, tick <-chan container.T
 
 	ct := container.NewTradeContainer(code)
 
-	for i := range tick {
-		ct.AddTick(i)
-		s.mu.Lock()
-		for _, st := range s.sts {
-
-			if err := st.Next(s.Broker, ct); err != nil {
-				s.log.Error(err)
+Done:
+	for {
+		select {
+		case i := <-tick:
+			ct.AddTick(i)
+			s.mu.Lock()
+			for _, st := range s.sts {
+				if err := st.Next(s.Broker, ct); err != nil {
+					s.log.Error(err)
+				}
 			}
+			s.mu.Unlock()
+		case <-ctx.Done():
+			s.log.Info("finish")
+			break Done
 		}
-		s.mu.Unlock()
 	}
 }
 

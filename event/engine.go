@@ -38,10 +38,11 @@ func NewEventEngine() *Engine {
 
 //Start event engine start function need goroutine
 func (e *Engine) Start(ctx context.Context) {
+Done:
 	for {
 		select {
 		case <-ctx.Done():
-			break
+			break Done
 		case evt := <-e.broadcast:
 			for c := range e.childEvent {
 				go c.Listen(evt)

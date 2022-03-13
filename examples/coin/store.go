@@ -1,16 +1,20 @@
-package coin
+package main
 
 import (
 	"context"
+	"crypto/sha512"
+	_ "embed"
 	"encoding/json"
 	"fmt"
 	"log"
+	"net/url"
 	"regexp"
+	"strconv"
 	"sync"
 	"time"
 
-	. "github.com/gobenpark/trader/error"
-
+	"github.com/dgrijalva/jwt-go"
+	"github.com/go-playground/form"
 	"github.com/go-resty/resty/v2"
 	"github.com/gobenpark/trader/container"
 	"github.com/gobenpark/trader/event"
@@ -22,6 +26,42 @@ import (
 	uuid "github.com/satori/go.uuid"
 )
 
+type Account struct {
+	Currency            string `json:"currency"`
+	Balance             string `json:"balance"`
+	Locked              string `json:"locked"`
+	AvgBuyPrice         string `json:"avg_buy_price"`
+	AvgBuyPriceModified bool   `json:"avg_buy_price_modified"`
+	UnitCurrency        string `json:"unit_currency"`
+}
+
+type Order struct {
+	Market     string `json:"market" form:"market"`
+	Side       string `json:"side" form:"side"`
+	Volume     string `json:"volume" form:"volume"`
+	Price      string `json:"price" form:"price"`
+	OrdType    string `json:"ordType" form:"ord_type"`
+	Identifier string `json:"identifier" form:"identifier"`
+}
+
+type UpbitOrder struct {
+	Uuid            string        `json:"uuid"`
+	Side            string        `json:"side"`
+	OrdType         string        `json:"ord_type"`
+	Price           string        `json:"price"`
+	State           string        `json:"state"`
+	Market          string        `json:"market"`
+	CreatedAt       time.Time     `json:"created_at"`
+	Volume          string        `json:"volume"`
+	RemainingVolume string        `json:"remaining_volume"`
+	ReservedFee     string        `json:"reserved_fee"`
+	RemainingFee    string        `json:"remaining_fee"`
+	PaidFee         string        `json:"paid_fee"`
+	Locked          string        `json:"locked"`
+	ExecutedVolume  string        `json:"executed_volume"`
+	TradesCount     int           `json:"trades_count"`
+	Trades          []interface{} `json:"trades"`
+}
 type Upbit struct {
 	mu sync.Mutex
 	*resty.Client
@@ -31,10 +71,40 @@ type Upbit struct {
 
 func NewStore() *Upbit {
 	client := resty.New()
-
 	client.SetHostURL("https://api.upbit.com/v1")
 
 	return &Upbit{Client: client, position: make(map[string]position.Position), FirstCash: 90000}
+}
+
+//go:embed secretkey
+var secretkey []byte
+
+//go:embed accesskey
+var accesskey []byte
+
+func (u Upbit) CreateToken() (string, error) {
+
+	tk := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
+		"access_key": string(accesskey),
+		"nonce":      uuid.NewV4().String(),
+	})
+
+	return tk.SignedString(secretkey)
+}
+
+func (u Upbit) OrderToken(values url.Values) (string, error) {
+	sha := sha512.New()
+	sha.Write([]byte(values.Encode()))
+	h2 := sha.Sum(nil)
+
+	tk := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
+		"access_key":     string(accesskey),
+		"query_hash":     fmt.Sprintf("%x", h2),
+		"query_hash_alg": "SHA512",
+		"nonce":          uuid.NewV4().String(),
+	})
+
+	return tk.SignedString(secretkey)
 }
 
 func (u Upbit) GetMarketItems() []item.Item {
@@ -162,7 +232,7 @@ func (u Upbit) TradeCommits(ctx context.Context, code string) ([]container.Trade
 }
 
 func (u Upbit) Tick(ctx context.Context, codes ...string) (<-chan container.Tick, error) {
-	c, _, err := websocket.DefaultDialer.Dial("wss://api.upbit.com/websocket/v1", nil)
+	c, _, err := websocket.DefaultDialer.DialContext(ctx, "wss://api.upbit.com/websocket/v1", nil)
 	if err != nil {
 		return nil, err
 	}
@@ -270,19 +340,84 @@ func (u Upbit) Tick(ctx context.Context, codes ...string) (<-chan container.Tick
 }
 
 func (u *Upbit) Order(ctx context.Context, o *order.Order) error {
+
 	switch o.Action {
 	case order.Buy:
-		if u.FirstCash > (o.Size * int64(o.Price)) {
-			u.FirstCash -= (o.Size * int64(o.Price))
-		} else {
-			return ErrNotEnoughMoney
+		od := Order{
+			Market: o.Code,
+			Side:   "bid",
+			Volume: "",
+			Price:  fmt.Sprintf("%f", o.Price*float64(o.Size)),
+			OrdType: func() string {
+				switch o.ExecType {
+				case order.Limit:
+					return "limit"
+				case order.Market:
+					return "price"
+				default:
+					return ""
+				}
+			}(),
+			Identifier: o.UUID,
 		}
+
+		values, err := form.NewEncoder().Encode(od)
+		if err != nil {
+			return err
+		}
+
+		token, err := u.OrderToken(values)
+		if err != nil {
+			return err
+		}
+		res, err := u.Client.SetDebug(true).R().
+			SetQueryString(values.Encode()).
+			SetHeader("Authorization", fmt.Sprintf("Bearer %s", token)).
+			SetBody(od).
+			Post("/orders")
+		if err != nil {
+			return err
+		}
+
+		fmt.Println(string(res.Body()))
+
 	case order.Sell:
-		if p, ok := u.position[o.Code]; ok && p.Size == o.Size {
-			u.FirstCash += (o.Size * int64(o.Price))
-		} else {
-			return ErrNotEnoughMoney
+		od := Order{
+			Market: o.Code,
+			Side:   "ask",
+			Volume: fmt.Sprintf("%d", o.Size),
+			Price:  fmt.Sprintf("%f", o.Price),
+			OrdType: func() string {
+				switch o.ExecType {
+				case order.Limit:
+					return "limit"
+				case order.Market:
+					return "market"
+				default:
+					return ""
+				}
+			}(),
+			Identifier: o.UUID,
 		}
+
+		values, err := form.NewEncoder().Encode(od)
+		if err != nil {
+			return err
+		}
+
+		token, err := u.OrderToken(values)
+		if err != nil {
+			return err
+		}
+		res, err := u.Client.R().
+			SetQueryString(values.Encode()).
+			SetHeader("Authorization", fmt.Sprintf("Bearer %s", token)).
+			Post("/orders")
+		if err != nil {
+			return err
+		}
+
+		fmt.Println(string(res.Body()))
 	}
 
 	u.mu.Lock()
@@ -297,8 +432,23 @@ func (u *Upbit) Order(ctx context.Context, o *order.Order) error {
 	return nil
 }
 
-func (Upbit) Cancel(id string) error {
-	panic("implement me")
+func (u *Upbit) Cancel(id string) error {
+	values := url.Values{}
+	values.Add("identifier", id)
+	token, err := u.OrderToken(values)
+	if err != nil {
+		return err
+	}
+
+	res, err := u.Client.R().
+		SetHeader("Authorization", fmt.Sprintf("Bearer %s", token)).
+		SetQueryString(values.Encode()).
+		Delete("/order")
+	if err != nil {
+		return err
+	}
+	fmt.Println(string(res.Body()))
+	return nil
 }
 
 func (Upbit) LoadHistory(ctx context.Context, code string, d time.Duration) ([]container.Candle, error) {
@@ -309,26 +459,147 @@ func (Upbit) Uid() string {
 	panic("implement me")
 }
 
+func (u *Upbit) accounts() ([]Account, error) {
+	tk, err := u.CreateToken()
+	if err != nil {
+		fmt.Println(err)
+	}
+
+	res, err := u.Client.R().SetHeader("Authorization", fmt.Sprintf("Bearer %s", tk)).Get("/accounts")
+	if err != nil {
+		return nil, err
+	}
+	var data []Account
+
+	if err := json.Unmarshal(res.Body(), &data); err != nil {
+		panic(err)
+	}
+
+	return data, nil
+}
+
 func (u *Upbit) Cash() int64 {
-	return u.FirstCash
+
+	data, err := u.accounts()
+	if err != nil {
+		fmt.Println(err)
+		return 0
+	}
+	for _, i := range data {
+		if i.Currency == "KRW" {
+			fmt.Println("this")
+			cu, err := strconv.ParseFloat(i.Balance, 10)
+			if err != nil {
+				fmt.Println(err)
+			}
+			return int64(cu)
+		}
+	}
+	return 0
 }
 
 func (Upbit) Commission() float64 {
-	panic("implement me")
+	return 0.05
 }
 
 func (u *Upbit) Positions() map[string]position.Position {
-	tmap := map[string]position.Position{}
-	for k, v := range u.position {
-		tmap[k] = v
+	data, err := u.accounts()
+	if err != nil {
+		fmt.Println(err)
+		return nil
 	}
-	return tmap
+
+	result := map[string]position.Position{}
+	for _, i := range data {
+		result[fmt.Sprintf("KRW-%s", i.Currency)] = position.Position{
+			Code: fmt.Sprintf("KRW-%s", i.Currency),
+			Size: func() int64 {
+				cu, err := strconv.ParseFloat(i.Balance, 10)
+				if err != nil {
+					fmt.Println(err)
+				}
+				return int64(cu)
+			}(),
+			Price: func() float64 {
+				cu, err := strconv.ParseFloat(i.AvgBuyPrice, 10)
+				if err != nil {
+					fmt.Println(err)
+				}
+				return cu
+			}(),
+			CreatedAt: time.Time{},
+		}
+	}
+
+	return result
 }
 
 func (Upbit) OrderState(ctx context.Context) (<-chan event.OrderEvent, error) {
 	panic("implement me")
 }
 
-func (Upbit) OrderInfo(id string) (*order.Order, error) {
-	panic("implement me")
+func (u *Upbit) OrderInfo(id string) (*order.Order, error) {
+
+	values := url.Values{}
+	values.Add("identifier", id)
+	token, err := u.OrderToken(values)
+	if err != nil {
+		return nil, err
+	}
+
+	res, err := u.Client.R().
+		SetHeader("Authorization", fmt.Sprintf("Bearer %s", token)).
+		SetQueryString(values.Encode()).
+		Get("/order")
+	if err != nil {
+		return nil, err
+	}
+
+	var data UpbitOrder
+	err = json.Unmarshal(res.Body(), &data)
+	if err != nil {
+		return nil, err
+	}
+	fmt.Println(data)
+	o := order.Order{
+		Action: func() order.Action {
+			switch data.Side {
+			case "ask":
+				return order.Sell
+			case "bid":
+				return order.Buy
+			default:
+				return 0
+			}
+		}(),
+		ExecType: func() order.ExecType {
+			switch data.OrdType {
+			case "limit":
+				return order.Limit
+			case "price", "market":
+				return order.Market
+			default:
+				return 0
+			}
+		}(),
+		Code: data.Market,
+		UUID: data.Uuid,
+		Size: func() int64 {
+			result, err := strconv.ParseInt(data.Volume, 10, 64)
+			if err != nil {
+				return 0
+			}
+			return result
+		}(),
+		Price: func() float64 {
+			f, err := strconv.ParseFloat(data.Price, 64)
+			if err != nil {
+				return 0
+			}
+			return f
+		}(),
+		CreatedAt: data.CreatedAt,
+	}
+
+	return &o, nil
 }

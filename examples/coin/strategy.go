@@ -1,4 +1,4 @@
-package coin
+package main
 
 import (
 	"context"

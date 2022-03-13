@@ -14,10 +14,10 @@ require (
 )
 
 require (
+	github.com/dgrijalva/jwt-go v3.2.0+incompatible
+	github.com/go-playground/form v3.1.4+incompatible
 	github.com/json-iterator/go v1.1.12
-	github.com/robfig/cron/v3 v3.0.1
 	go.uber.org/zap v1.20.0
-	golang.org/x/exp v0.0.0-20190121172915-509febef88a4
 )
 
 require (
@@ -41,4 +41,5 @@ require (
 	golang.org/x/net v0.0.0-20210405180319-a5a99cb37ef4 // indirect
 	golang.org/x/sys v0.0.0-20210510120138-977fb7262007 // indirect
 	google.golang.org/protobuf v1.25.0 // indirect
+	gopkg.in/go-playground/assert.v1 v1.2.1 // indirect
 )

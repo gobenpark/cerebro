@@ -17,6 +17,7 @@ package cerebro
 
 import (
 	"context"
+	"os"
 	"os/signal"
 	"sync"
 	"syscall"
@@ -88,12 +89,10 @@ type Cerebro struct {
 
 //NewCerebro generate new cerebro with cerebro option
 func NewCerebro(opts ...Option) *Cerebro {
-	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGTERM, syscall.SIGINT, syscall.SIGHUP)
+	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGTERM, syscall.SIGINT, os.Interrupt, syscall.SIGHUP)
 	c := &Cerebro{
-		Ctx:    ctx,
-		Cancel: cancel,
-		//compress:       make(map[string][]container.CompressInfo),
-		//containers:     make(map[container.Info]container.Container),
+		Ctx:         ctx,
+		Cancel:      cancel,
 		order:       make(chan order.Order, 1),
 		dataCh:      make(chan container.Container, 1),
 		eventEngine: event.NewEventEngine(),
@@ -168,6 +167,7 @@ func (c *Cerebro) Start() error {
 		c.eventEngine.Register <- c.strategyEngine
 		c.eventEngine.Start(c.Ctx)
 	}
+
 	<-c.Ctx.Done()
 
 	return nil

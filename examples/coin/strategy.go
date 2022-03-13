@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	"fmt"
 	"time"
 
@@ -21,23 +20,12 @@ func (s st) CandleType() strategy.CandleType {
 
 func (s st) Next(broker broker.Broker, container container.Container2) error {
 
-	sma := indicators.NewSma(3, 0)
-	candles := container.Candles(3 * time.Second)
-	sma.Calculate(candles)
-	if sma.PeriodSatisfaction() {
-		datas := sma.Get()
-		if len(datas) > 2 && (datas[len(datas)-1].Data > datas[len(datas)-2].Data) {
-			if _, ok := broker.Positions()[container.Code()]; ok {
+	if container.Code() == "KRW-WAVES" {
+		sma := indicators.NewSma(15, 0)
+		sma.Calculate(container.Candles(time.Minute))
 
-			} else {
-				broker.Order(context.Background(), container.Code(), 10, candles[len(candles)-1].Close, order.Buy, order.Limit)
-				//if errors.Is(err, error2.ErrNotEnoughMoney) {
-				//	return nil
-				//} else if err != nil {
-				//	return err
-				//}
-				fmt.Println("position", broker.Positions())
-			}
+		if sma.PeriodSatisfaction() {
+			fmt.Println(sma.Get())
 		}
 	}
 

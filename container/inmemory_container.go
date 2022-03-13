@@ -21,22 +21,22 @@ import (
 	"time"
 )
 
-type TradeContainer struct {
+type InMemoryContainer struct {
 	mu      sync.Mutex
 	ticks   []Tick
 	candles map[time.Duration][]Candle
 	code    string
 }
 
-func NewTradeContainer(code string) *TradeContainer {
-	return &TradeContainer{
+func NewInMemoryContainer(code string) *InMemoryContainer {
+	return &InMemoryContainer{
 		ticks:   nil,
 		candles: make(map[time.Duration][]Candle),
 		code:    code,
 	}
 }
 
-func (t *TradeContainer) compressDate(date time.Time, level time.Duration, leftEdge bool) time.Time {
+func (t *InMemoryContainer) compressDate(date time.Time, level time.Duration, leftEdge bool) time.Time {
 	rd := date.Round(level)
 	if leftEdge {
 		if date.Sub(rd) < 0 {
@@ -50,7 +50,7 @@ func (t *TradeContainer) compressDate(date time.Time, level time.Duration, leftE
 	return rd
 }
 
-func (t *TradeContainer) AddCandle(candle Candle, tick Tick) Candle {
+func (t *InMemoryContainer) AddCandle(candle Candle, tick Tick) Candle {
 	candle.Code = tick.Code
 	if candle.Open == 0 {
 		candle.Open = tick.Price
@@ -70,7 +70,7 @@ func (t *TradeContainer) AddCandle(candle Candle, tick Tick) Candle {
 	return candle
 }
 
-func (t *TradeContainer) AddTick(tick Tick) {
+func (t *InMemoryContainer) AppendTick(tick Tick) {
 
 	if len(t.ticks) == 0 {
 		t.ticks = append(t.ticks, tick)
@@ -108,7 +108,7 @@ func (t *TradeContainer) AddTick(tick Tick) {
 	}
 }
 
-func (t *TradeContainer) Candles(level time.Duration) []Candle {
+func (t *InMemoryContainer) Candles(level time.Duration) []Candle {
 	if _, ok := t.candles[level]; ok {
 		return t.candles[level]
 	}
@@ -120,6 +120,6 @@ func (t *TradeContainer) Candles(level time.Duration) []Candle {
 	return tCandles
 }
 
-func (t *TradeContainer) Code() string {
+func (t *InMemoryContainer) Code() string {
 	return t.code
 }

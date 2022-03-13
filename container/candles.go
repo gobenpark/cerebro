@@ -13,28 +13,19 @@
  *  See the License for the specific language governing permissions and
  *  limitations under the License.
  */
-package indicators
 
-import (
-	"time"
+package container
 
-	"github.com/gobenpark/trader/container"
-)
+type Candles []Candle
 
-type IndicatorType string
-
-const (
-	BollingerBandType IndicatorType = "bollinger_band"
-	RsiType           IndicatorType = "rsi"
-)
-
-type Indicator interface {
-	Calculate(candles container.Candles)
-	Get() []Indicate
-	PeriodSatisfaction() bool
+func (c Candles) Len() int {
+	return len(c)
 }
 
-type Indicate struct {
-	Data float64
-	Date time.Time
+func (c Candles) Less(i, j int) bool {
+	return c[i].Date.Before(c[j].Date)
+}
+
+func (c Candles) Swap(i, j int) {
+	c[i], c[j] = c[j], c[i]
 }

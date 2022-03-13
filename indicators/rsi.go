@@ -36,7 +36,7 @@ func NewRsi(period int) Indicator {
 }
 
 //self.line[0] = self.line[-1] * self.alpha1 + self.data[0] * self.alpha
-func (r *rsi) Calculate(c []container.Candle) {
+func (r *rsi) Calculate(c container.Candles) {
 	if len(c) > 100 {
 		c = c[:100]
 	}

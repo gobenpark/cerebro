@@ -114,7 +114,7 @@ func (t *DataContainer) Code() string {
 
 type Container2 interface {
 	AddCandle(candle Candle, tick Tick) Candle
-	AddTick(tick Tick)
+	AppendTick(tick Tick)
 	Candles(level time.Duration) []Candle
 	Code() string
 }

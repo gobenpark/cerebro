@@ -13,28 +13,28 @@
  *  See the License for the specific language governing permissions and
  *  limitations under the License.
  */
+
 package indicators
 
 import (
-	"time"
+	_ "embed"
+	"encoding/json"
+	"fmt"
+	"sort"
+	"testing"
 
 	"github.com/gobenpark/trader/container"
+	"github.com/stretchr/testify/require"
 )
 
-type IndicatorType string
+//go:embed "sample.json"
+var samplejson []byte
 
-const (
-	BollingerBandType IndicatorType = "bollinger_band"
-	RsiType           IndicatorType = "rsi"
-)
+func TestSma_Calculate(t *testing.T) {
+	var data container.Candles
+	err := json.Unmarshal(samplejson, &data)
+	require.NoError(t, err)
 
-type Indicator interface {
-	Calculate(candles container.Candles)
-	Get() []Indicate
-	PeriodSatisfaction() bool
-}
-
-type Indicate struct {
-	Data float64
-	Date time.Time
+	sort.Sort(data)
+	fmt.Println(data)
 }

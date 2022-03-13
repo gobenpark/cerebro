@@ -16,6 +16,8 @@
 package indicators
 
 import (
+	"sort"
+
 	"github.com/gobenpark/trader/container"
 )
 
@@ -29,8 +31,10 @@ func NewSma(period int, limit int) Indicator {
 	return &sma{period: period, limit: limit}
 }
 
-func (s *sma) Calculate(candles []container.Candle) {
-	size := len(candles)
+func (s *sma) Calculate(candles container.Candles) {
+
+	sort.Sort(candles)
+	size := candles.Len()
 	var indicates []Indicate
 	if size >= s.period {
 		slide := (size - s.period)
@@ -38,7 +42,7 @@ func (s *sma) Calculate(candles []container.Candle) {
 		for i := 0; i <= slide; i++ {
 			id := Indicate{
 				Data: average(candles[i : s.period+i]),
-				Date: candles[i].Date,
+				Date: candles[(s.period+i)-1].Date,
 			}
 
 			if len(s.indicates) != 0 {
@@ -60,5 +64,5 @@ func (s *sma) Get() []Indicate {
 }
 
 func (s *sma) PeriodSatisfaction() bool {
-	return len(s.indicates) > s.period
+	return len(s.indicates) >= s.period
 }

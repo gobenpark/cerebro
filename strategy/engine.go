@@ -47,13 +47,13 @@ func (s *Engine) AddStrategy(sts ...Strategy) {
 
 func (s *Engine) Spawn(ctx context.Context, code string, tick <-chan container.Tick) {
 
-	ct := container.NewTradeContainer(code)
+	ct := container.NewInMemoryContainer(code)
 
 Done:
 	for {
 		select {
 		case i := <-tick:
-			ct.AddTick(i)
+			ct.AppendTick(i)
 			s.mu.Lock()
 			for _, st := range s.sts {
 				if err := st.Next(s.Broker, ct); err != nil {
@@ -62,7 +62,6 @@ Done:
 			}
 			s.mu.Unlock()
 		case <-ctx.Done():
-			s.log.Info("finish")
 			break Done
 		}
 	}

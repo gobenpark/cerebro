@@ -13,28 +13,32 @@
  *  See the License for the specific language governing permissions and
  *  limitations under the License.
  */
-package indicators
+
+package main
 
 import (
-	"time"
+	"testing"
 
-	"github.com/gobenpark/trader/container"
+	"github.com/gobenpark/trader/cerebro"
+	mock_store "github.com/gobenpark/trader/store/mock"
+	"github.com/golang/mock/gomock"
 )
 
-type IndicatorType string
+func TestTrade(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	store := mock_store.NewMockStore(ctrl)
 
-const (
-	BollingerBandType IndicatorType = "bollinger_band"
-	RsiType           IndicatorType = "rsi"
-)
+	items := store.GetMarketItems()
+	var codes []string
+	for _, code := range items {
+		codes = append(codes, code.Code)
+	}
 
-type Indicator interface {
-	Calculate(candles container.Candles)
-	Get() []Indicate
-	PeriodSatisfaction() bool
-}
-
-type Indicate struct {
-	Data float64
-	Date time.Time
+	c := cerebro.NewCerebro(
+		cerebro.WithLive(),
+		cerebro.WithStore(store),
+		cerebro.WithTargetItem(codes...),
+	)
+	c.SetStrategy(st{})
+	c.Start()
 }

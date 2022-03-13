@@ -25,7 +25,7 @@ import (
 )
 
 func TestTempContainer_AddTicks(t *testing.T) {
-	c := NewTradeContainer()
+	c := NewInMemoryContainer("KRW-BTC")
 
 	ti := time.Now()
 	t1 := Tick{
@@ -35,7 +35,7 @@ func TestTempContainer_AddTicks(t *testing.T) {
 		Price:  1,
 		Volume: 20,
 	}
-	c.AddTick(t1)
+	c.AppendTick(t1)
 
 	fmt.Println(c.Candles(time.Minute))
 
@@ -47,7 +47,7 @@ func TestTempContainer_AddTicks(t *testing.T) {
 		Volume: 20,
 	}
 
-	c.AddTick(t2)
+	c.AppendTick(t2)
 	t3 := Tick{
 		Code:   "KRW-BTC",
 		AskBid: "bid",
@@ -55,7 +55,7 @@ func TestTempContainer_AddTicks(t *testing.T) {
 		Price:  3,
 		Volume: 20,
 	}
-	c.AddTick(t3)
+	c.AppendTick(t3)
 
 	t4 := Tick{
 		Code:   "KRW-BTC",
@@ -64,7 +64,7 @@ func TestTempContainer_AddTicks(t *testing.T) {
 		Price:  2,
 		Volume: 20,
 	}
-	c.AddTick(t4)
+	c.AppendTick(t4)
 
 	t5 := Tick{
 		Code:   "KRW-BTC",
@@ -73,7 +73,7 @@ func TestTempContainer_AddTicks(t *testing.T) {
 		Price:  5,
 		Volume: 30,
 	}
-	c.AddTick(t5)
+	c.AppendTick(t5)
 
 	t3t4t5 := c.Candles(time.Minute)
 

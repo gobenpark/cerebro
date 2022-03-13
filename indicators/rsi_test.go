@@ -38,8 +38,7 @@ func TestRsi(t *testing.T) {
 	assert.NoError(t, err)
 
 	c := container.NewDataContainer(container.Info{
-		Code:             "code",
-		CompressionLevel: 0,
+		Code: "code",
 	})
 
 	stof := func(s string) float64 {

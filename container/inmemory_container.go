@@ -108,6 +108,10 @@ func (t *InMemoryContainer) AppendTick(tick Tick) {
 	}
 }
 
+func (t *InMemoryContainer) CurrentPrice() float64 {
+	return t.ticks[len(t.ticks)-1].Price
+}
+
 func (t *InMemoryContainer) Candles(level time.Duration) []Candle {
 	if _, ok := t.candles[level]; ok {
 		return t.candles[level]

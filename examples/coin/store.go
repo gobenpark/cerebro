@@ -17,7 +17,6 @@ import (
 	"github.com/go-playground/form"
 	"github.com/go-resty/resty/v2"
 	"github.com/gobenpark/trader/container"
-	"github.com/gobenpark/trader/event"
 	"github.com/gobenpark/trader/item"
 	"github.com/gobenpark/trader/order"
 	"github.com/gobenpark/trader/position"
@@ -339,17 +338,17 @@ func (u Upbit) Tick(ctx context.Context, codes ...string) (<-chan container.Tick
 
 }
 
-func (u *Upbit) Order(ctx context.Context, o *order.Order) error {
+func (u *Upbit) Order(ctx context.Context, o order.Order) error {
 
-	switch o.Action {
+	switch o.Action() {
 	case order.Buy:
 		od := Order{
-			Market: o.Code,
+			Market: o.Code(),
 			Side:   "bid",
 			Volume: "",
-			Price:  fmt.Sprintf("%f", o.Price*float64(o.Size)),
+			Price:  fmt.Sprintf("%f", o.OrderPrice()),
 			OrdType: func() string {
-				switch o.ExecType {
+				switch o.Exec() {
 				case order.Limit:
 					return "limit"
 				case order.Market:
@@ -358,7 +357,7 @@ func (u *Upbit) Order(ctx context.Context, o *order.Order) error {
 					return ""
 				}
 			}(),
-			Identifier: o.UUID,
+			Identifier: o.ID(),
 		}
 
 		values, err := form.NewEncoder().Encode(od)
@@ -383,12 +382,12 @@ func (u *Upbit) Order(ctx context.Context, o *order.Order) error {
 
 	case order.Sell:
 		od := Order{
-			Market: o.Code,
+			Market: o.Code(),
 			Side:   "ask",
-			Volume: fmt.Sprintf("%d", o.Size),
-			Price:  fmt.Sprintf("%f", o.Price),
+			Volume: fmt.Sprintf("%d", o.Size()),
+			Price:  fmt.Sprintf("%f", o.Price()),
 			OrdType: func() string {
-				switch o.ExecType {
+				switch o.Exec() {
 				case order.Limit:
 					return "limit"
 				case order.Market:
@@ -397,7 +396,7 @@ func (u *Upbit) Order(ctx context.Context, o *order.Order) error {
 					return ""
 				}
 			}(),
-			Identifier: o.UUID,
+			Identifier: o.ID(),
 		}
 
 		values, err := form.NewEncoder().Encode(od)
@@ -422,11 +421,11 @@ func (u *Upbit) Order(ctx context.Context, o *order.Order) error {
 
 	u.mu.Lock()
 	defer u.mu.Unlock()
-	u.position[o.Code] = position.Position{
-		Code:      o.Code,
-		Size:      o.Size,
-		Price:     o.Price,
-		CreatedAt: o.CreatedAt,
+	u.position[o.Code()] = position.Position{
+		Code:      o.Code(),
+		Size:      o.Size(),
+		Price:     o.Price(),
+		CreatedAt: time.Now(),
 	}
 
 	return nil
@@ -534,11 +533,11 @@ func (u *Upbit) Positions() map[string]position.Position {
 	return result
 }
 
-func (Upbit) OrderState(ctx context.Context) (<-chan event.OrderEvent, error) {
-	panic("implement me")
-}
+//func (Upbit) OrderState(ctx context.Context) (<-chan event.OrderEvent, error) {
+//	panic("implement me")
+//}
 
-func (u *Upbit) OrderInfo(id string) (*order.Order, error) {
+func (u *Upbit) OrderInfo(id string) (order.Order, error) {
 
 	values := url.Values{}
 	values.Add("identifier", id)
@@ -561,45 +560,45 @@ func (u *Upbit) OrderInfo(id string) (*order.Order, error) {
 		return nil, err
 	}
 	fmt.Println(data)
-	o := order.Order{
-		Action: func() order.Action {
-			switch data.Side {
-			case "ask":
-				return order.Sell
-			case "bid":
-				return order.Buy
-			default:
-				return 0
-			}
-		}(),
-		ExecType: func() order.ExecType {
-			switch data.OrdType {
-			case "limit":
-				return order.Limit
-			case "price", "market":
-				return order.Market
-			default:
-				return 0
-			}
-		}(),
-		Code: data.Market,
-		UUID: data.Uuid,
-		Size: func() int64 {
-			result, err := strconv.ParseInt(data.Volume, 10, 64)
-			if err != nil {
-				return 0
-			}
-			return result
-		}(),
-		Price: func() float64 {
-			f, err := strconv.ParseFloat(data.Price, 64)
-			if err != nil {
-				return 0
-			}
-			return f
-		}(),
-		CreatedAt: data.CreatedAt,
-	}
+	//o := order.Order{
+	//	Action: func() order.Action {
+	//		switch data.Side {
+	//		case "ask":
+	//			return order.Sell
+	//		case "bid":
+	//			return order.Buy
+	//		default:
+	//			return 0
+	//		}
+	//	}(),
+	//	ExecType: func() order.ExecType {
+	//		switch data.OrdType {
+	//		case "limit":
+	//			return order.Limit
+	//		case "price", "market":
+	//			return order.Market
+	//		default:
+	//			return 0
+	//		}
+	//	}(),
+	//	Code: data.Market,
+	//	UUID: data.Uuid,
+	//	Size: func() int64 {
+	//		result, err := strconv.ParseInt(data.Volume, 10, 64)
+	//		if err != nil {
+	//			return 0
+	//		}
+	//		return result
+	//	}(),
+	//	Price: func() float64 {
+	//		f, err := strconv.ParseFloat(data.Price, 64)
+	//		if err != nil {
+	//			return 0
+	//		}
+	//		return f
+	//	}(),
+	//	CreatedAt: data.CreatedAt,
+	//}
 
-	return &o, nil
+	return nil, nil
 }

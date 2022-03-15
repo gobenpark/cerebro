@@ -5,38 +5,39 @@
 package mock_strategy
 
 import (
+	reflect "reflect"
+
 	broker "github.com/gobenpark/trader/broker"
 	container "github.com/gobenpark/trader/container"
 	order "github.com/gobenpark/trader/order"
 	strategy "github.com/gobenpark/trader/strategy"
 	gomock "github.com/golang/mock/gomock"
-	reflect "reflect"
 )
 
-// MockStrategy is a mock of Strategy interface
+// MockStrategy is a mock of Strategy interface.
 type MockStrategy struct {
 	ctrl     *gomock.Controller
 	recorder *MockStrategyMockRecorder
 }
 
-// MockStrategyMockRecorder is the mock recorder for MockStrategy
+// MockStrategyMockRecorder is the mock recorder for MockStrategy.
 type MockStrategyMockRecorder struct {
 	mock *MockStrategy
 }
 
-// NewMockStrategy creates a new mock instance
+// NewMockStrategy creates a new mock instance.
 func NewMockStrategy(ctrl *gomock.Controller) *MockStrategy {
 	mock := &MockStrategy{ctrl: ctrl}
 	mock.recorder = &MockStrategyMockRecorder{mock}
 	return mock
 }
 
-// EXPECT returns an object that allows the caller to indicate expected use
+// EXPECT returns an object that allows the caller to indicate expected use.
 func (m *MockStrategy) EXPECT() *MockStrategyMockRecorder {
 	return m.recorder
 }
 
-// CandleType mocks base method
+// CandleType mocks base method.
 func (m *MockStrategy) CandleType() strategy.CandleType {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "CandleType")
@@ -44,13 +45,13 @@ func (m *MockStrategy) CandleType() strategy.CandleType {
 	return ret0
 }
 
-// CandleType indicates an expected call of CandleType
+// CandleType indicates an expected call of CandleType.
 func (mr *MockStrategyMockRecorder) CandleType() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CandleType", reflect.TypeOf((*MockStrategy)(nil).CandleType))
 }
 
-// Next mocks base method
+// Next mocks base method.
 func (m *MockStrategy) Next(broker broker.Broker, container container.Container2) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Next", broker, container)
@@ -58,56 +59,56 @@ func (m *MockStrategy) Next(broker broker.Broker, container container.Container2
 	return ret0
 }
 
-// Next indicates an expected call of Next
+// Next indicates an expected call of Next.
 func (mr *MockStrategyMockRecorder) Next(broker, container interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Next", reflect.TypeOf((*MockStrategy)(nil).Next), broker, container)
 }
 
-// NotifyOrder mocks base method
-func (m *MockStrategy) NotifyOrder(o order.Order) {
-	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "NotifyOrder", o)
-}
-
-// NotifyOrder indicates an expected call of NotifyOrder
-func (mr *MockStrategyMockRecorder) NotifyOrder(o interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NotifyOrder", reflect.TypeOf((*MockStrategy)(nil).NotifyOrder), o)
-}
-
-// NotifyTrade mocks base method
-func (m *MockStrategy) NotifyTrade() {
-	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "NotifyTrade")
-}
-
-// NotifyTrade indicates an expected call of NotifyTrade
-func (mr *MockStrategyMockRecorder) NotifyTrade() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NotifyTrade", reflect.TypeOf((*MockStrategy)(nil).NotifyTrade))
-}
-
-// NotifyCashValue mocks base method
+// NotifyCashValue mocks base method.
 func (m *MockStrategy) NotifyCashValue(before, after int64) {
 	m.ctrl.T.Helper()
 	m.ctrl.Call(m, "NotifyCashValue", before, after)
 }
 
-// NotifyCashValue indicates an expected call of NotifyCashValue
+// NotifyCashValue indicates an expected call of NotifyCashValue.
 func (mr *MockStrategyMockRecorder) NotifyCashValue(before, after interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NotifyCashValue", reflect.TypeOf((*MockStrategy)(nil).NotifyCashValue), before, after)
 }
 
-// NotifyFund mocks base method
+// NotifyFund mocks base method.
 func (m *MockStrategy) NotifyFund() {
 	m.ctrl.T.Helper()
 	m.ctrl.Call(m, "NotifyFund")
 }
 
-// NotifyFund indicates an expected call of NotifyFund
+// NotifyFund indicates an expected call of NotifyFund.
 func (mr *MockStrategyMockRecorder) NotifyFund() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NotifyFund", reflect.TypeOf((*MockStrategy)(nil).NotifyFund))
+}
+
+// NotifyOrder mocks base method.
+func (m *MockStrategy) NotifyOrder(o order.Order) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "NotifyOrder", o)
+}
+
+// NotifyOrder indicates an expected call of NotifyOrder.
+func (mr *MockStrategyMockRecorder) NotifyOrder(o interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NotifyOrder", reflect.TypeOf((*MockStrategy)(nil).NotifyOrder), o)
+}
+
+// NotifyTrade mocks base method.
+func (m *MockStrategy) NotifyTrade() {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "NotifyTrade")
+}
+
+// NotifyTrade indicates an expected call of NotifyTrade.
+func (mr *MockStrategyMockRecorder) NotifyTrade() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NotifyTrade", reflect.TypeOf((*MockStrategy)(nil).NotifyTrade))
 }

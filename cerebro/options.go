@@ -16,6 +16,7 @@
 package cerebro
 
 import (
+	"github.com/gobenpark/trader/analysis"
 	"github.com/gobenpark/trader/observer"
 	"github.com/gobenpark/trader/store"
 )
@@ -49,5 +50,11 @@ func WithTargetItem(codes ...string) Option {
 func WithPreload(b bool) Option {
 	return func(c *Cerebro) {
 		c.preload = b
+	}
+}
+
+func WithAnalyzer(analyzer analysis.Analyzer) Option {
+	return func(c *Cerebro) {
+		c.analyzer = analyzer
 	}
 }

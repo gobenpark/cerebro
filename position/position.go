@@ -15,11 +15,24 @@
  */
 package position
 
-import "time"
+import (
+	"time"
+
+	"github.com/gobenpark/trader/order"
+)
 
 type Position struct {
 	Code      string    `json:"code"`
 	Size      int64     `json:"size"`
 	Price     float64   `json:"price"`
 	CreatedAt time.Time `json:"createdAt"`
+}
+
+func NewPosition(o order.Order) Position {
+	return Position{
+		Code:      o.Code(),
+		Size:      o.Size(),
+		Price:     o.Price(),
+		CreatedAt: time.Now(),
+	}
 }

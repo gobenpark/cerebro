@@ -15,5 +15,8 @@
  */
 package analysis
 
+import "github.com/gobenpark/trader/event"
+
 type Analyzer interface {
+	event.Listener
 }

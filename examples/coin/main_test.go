@@ -17,9 +17,14 @@
 package main
 
 import (
+	"context"
 	"testing"
 
+	"github.com/gobenpark/trader/analysis"
 	"github.com/gobenpark/trader/cerebro"
+	"github.com/gobenpark/trader/container"
+	"github.com/gobenpark/trader/order"
+	"github.com/gobenpark/trader/position"
 	mock_store "github.com/gobenpark/trader/store/mock"
 	"github.com/golang/mock/gomock"
 )
@@ -28,7 +33,22 @@ func TestTrade(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	store := mock_store.NewMockStore(ctrl)
 
-	items := store.GetMarketItems()
+	sto := NewStore()
+
+	store.EXPECT().Tick(gomock.Any(), gomock.Any()).DoAndReturn(func(ctx context.Context, codes ...string) (<-chan container.Tick, error) {
+		return sto.Tick(ctx, codes...)
+	}).AnyTimes()
+
+	store.EXPECT().Order(gomock.Any(), gomock.Any()).DoAndReturn(func(ctx context.Context, o order.Order) error {
+		//return errors.New("거절")
+		return nil
+	}).AnyTimes()
+
+	store.EXPECT().Positions().Return(map[string]position.Position{}).AnyTimes()
+
+	store.EXPECT().Cash().Return(int64(10000)).AnyTimes()
+
+	items := sto.GetMarketItems()
 	var codes []string
 	for _, code := range items {
 		codes = append(codes, code.Code)
@@ -38,6 +58,7 @@ func TestTrade(t *testing.T) {
 		cerebro.WithLive(),
 		cerebro.WithStore(store),
 		cerebro.WithTargetItem(codes...),
+		cerebro.WithAnalyzer(analysis.NewInmemoryAnalyzer()),
 	)
 	c.SetStrategy(st{})
 	c.Start()

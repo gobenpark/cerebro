@@ -20,7 +20,6 @@ import (
 	"context"
 	"fmt"
 	"testing"
-	"time"
 
 	"github.com/gobenpark/trader/order"
 	uuid "github.com/satori/go.uuid"
@@ -44,31 +43,13 @@ func TestUpbit_Positions(t *testing.T) {
 
 func TestUpbit_Order(t *testing.T) {
 	st := NewStore()
-	require.NoError(t, st.Order(context.TODO(), &order.Order{
-		Action:     order.Buy,
-		ExecType:   order.Market,
-		Code:       "KRW-HUM",
-		UUID:       uuid.NewV4().String(),
-		Size:       1,
-		CreatedAt:  time.Now(),
-		ExecutedAt: time.Time{},
-	}))
+	require.NoError(t, st.Order(context.TODO(), order.NewOrder("KRW-HUM", order.Buy, order.Market, 1, 10)))
 }
 
 func TestUpbit_Sell(t *testing.T) {
 	uid := uuid.NewV4().String()
 	st := NewStore()
-	err := st.Order(context.TODO(), &order.Order{
-		Action:     order.Sell,
-		ExecType:   order.Limit,
-		Code:       "KRW-JST",
-		UUID:       uid,
-		Size:       100,
-		Price:      80.50,
-		CreatedAt:  time.Now(),
-		ExecutedAt: time.Time{},
-		StoreUID:   "",
-	})
+	err := st.Order(context.TODO(), order.NewOrder("KRW-JST", order.Sell, order.Limit, 100, 80.50))
 	require.NoError(t, err)
 	fmt.Println(uid)
 

@@ -18,13 +18,8 @@
 
 package event
 
-type EventType int
-
-const (
-	Buy EventType = iota + 1
-	Sell
-	Cash
-)
+type Event interface {
+}
 
 type Listener interface {
 	Listen(e interface{})
@@ -32,16 +27,4 @@ type Listener interface {
 
 type Broadcaster interface {
 	BroadCast(e interface{})
-}
-
-type Event struct {
-	EventType EventType
-	Message   string
-	Value     interface{}
-}
-
-type OrderEvent struct {
-	Event
-	State string
-	Oid   string
 }

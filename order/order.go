@@ -18,6 +18,8 @@ package order
 import (
 	"sync"
 	"time"
+
+	uuid "github.com/satori/go.uuid"
 )
 
 type (
@@ -54,73 +56,159 @@ const (
 	Historical
 )
 
-type Order struct {
-	status Status
-	Action
-	ExecType
-	Code       string    `json:"code" form:"code"`
-	UUID       string    `json:"uuid" form:"uuid"`
-	Size       int64     `json:"size" form:"size"`
-	Price      float64   `json:"price" form:"price"`
-	CreatedAt  time.Time `json:"createdAt" form:"created_at"`
-	ExecutedAt time.Time `json:"executedAt" form:"updated_at"`
-	mu         sync.RWMutex
-	StoreUID   string `json:"-"`
+type Order interface {
+	ID() string
+	Code() string
+	Reject(err error)
+	Expire()
+	Cancel()
+	Margin()
+	Submit()
+	Partial(size int64)
+	Complete()
+	Status() Status
+	Exec() ExecType
+	OrderPrice() float64
+	Action() Action
+	Price() float64
+	Size() int64
+	RemainPrice() float64
 }
 
-func (o *Order) Reject(err error) {
+type order struct {
+	status        Status `json:"status,omitempty"`
+	action        Action `json:"action,omitempty"`
+	ExecType      `json:"exec_type,omitempty"`
+	code          string       `json:"code" form:"code" json:"code,omitempty"`
+	uuid          string       `json:"uuid" form:"uuid" json:"uuid,omitempty"`
+	size          int64        `json:"size" form:"size" json:"size,omitempty"`
+	price         float64      `json:"price" form:"price" json:"price,omitempty"`
+	createdAt     time.Time    `json:"createdAt" form:"created_at" json:"created_at"`
+	updatedAt     time.Time    `json:"updatedAt" form:"updated_at" json:"updated_at"`
+	mu            sync.RWMutex `json:"-"`
+	remainingSize int64        `json:"remaining_size,omitempty"`
+}
+
+func NewOrder(code string, action Action, execType ExecType, size int64, price float64) Order {
+	return &order{
+		status:        Created,
+		action:        action,
+		ExecType:      execType,
+		code:          code,
+		uuid:          uuid.NewV4().String(),
+		size:          size,
+		price:         price,
+		createdAt:     time.Now(),
+		updatedAt:     time.Now(),
+		remainingSize: size,
+	}
+}
+
+func (o *order) Exec() ExecType {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	return o.ExecType
+}
+
+func (o *order) Action() Action {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	return o.action
+}
+
+func (o *order) Code() string {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	return o.code
+}
+
+func (o *order) ID() string {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	return o.uuid
+}
+
+func (o *order) Reject(err error) {
 	o.mu.Lock()
 	defer o.mu.Unlock()
 	o.status = Rejected
-	o.ExecutedAt = time.Now()
+	o.updatedAt = time.Now()
 }
 
-func (o *Order) Expire() {
+func (o *order) Expire() {
 	o.mu.Lock()
 	defer o.mu.Unlock()
 	o.status = Expired
-	o.ExecutedAt = time.Now()
+	o.updatedAt = time.Now()
 }
 
-func (o *Order) Cancel() {
+func (o *order) Cancel() {
 	o.mu.Lock()
 	defer o.mu.Unlock()
 	o.status = Canceled
-	o.ExecutedAt = time.Now()
+	o.updatedAt = time.Now()
 }
 
-func (o *Order) Margin() {
+func (o *order) Margin() {
 	o.mu.Lock()
 	defer o.mu.Unlock()
 	o.status = Margin
-	o.ExecutedAt = time.Now()
+	o.updatedAt = time.Now()
 }
 
-func (o *Order) Partial() {
+func (o *order) Partial(size int64) {
 	o.mu.Lock()
 	defer o.mu.Unlock()
+	o.remainingSize -= size
 	o.status = Partial
-	o.ExecutedAt = time.Now()
+	o.updatedAt = time.Now()
 }
 
-func (o *Order) Submit() {
+func (o *order) Submit() {
 	o.mu.Lock()
 	defer o.mu.Unlock()
 	o.status = Submitted
-	o.CreatedAt = time.Now()
-	o.ExecutedAt = time.Now()
+	o.updatedAt = time.Now()
 }
 
-func (o *Order) Complete() {
+func (o *order) Complete() {
 	o.mu.Lock()
 	defer o.mu.Unlock()
+	o.remainingSize = 0
 	o.status = Completed
 }
 
-func (o *Order) Status() Status {
+func (o *order) Status() Status {
 	var value Status
 	o.mu.RLock()
 	defer o.mu.RUnlock()
 	value = o.status
 	return value
+}
+
+func (o *order) OrderPrice() float64 {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	return o.price * float64(o.size)
+}
+
+func (o *order) RemainPrice() float64 {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	return o.price * float64(o.remainingSize)
+}
+
+func (o *order) Price() float64 {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	return o.price
+}
+
+func (o *order) Size() int64 {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	return o.size
+}
+
+func (o *order) Copy() {
 }

@@ -117,4 +117,5 @@ type Container2 interface {
 	AppendTick(tick Tick)
 	Candles(level time.Duration) []Candle
 	Code() string
+	CurrentPrice() float64
 }

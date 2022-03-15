@@ -22,6 +22,7 @@ import (
 	"sync"
 	"syscall"
 
+	"github.com/gobenpark/trader/analysis"
 	"github.com/gobenpark/trader/broker"
 	"github.com/gobenpark/trader/chart"
 	"github.com/gobenpark/trader/container"
@@ -70,6 +71,8 @@ type Cerebro struct {
 
 	//log in cerebro global logger
 	Logger log.Logger `validate:"required"`
+
+	analyzer analysis.Analyzer
 
 	//event channel of all event
 	order chan order.Order
@@ -164,8 +167,9 @@ func (c *Cerebro) Start() error {
 
 	//event engine settings
 	{
+		go c.eventEngine.Start(c.Ctx)
 		c.eventEngine.Register <- c.strategyEngine
-		c.eventEngine.Start(c.Ctx)
+		c.eventEngine.Register <- c.analyzer
 	}
 
 	<-c.Ctx.Done()

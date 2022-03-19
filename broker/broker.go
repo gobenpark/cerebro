@@ -29,10 +29,12 @@ import (
 
 // Broker it is instead of human for buy , sell and etc
 type Broker interface {
-	Order(ctx context.Context, code string, size int64, price float64, action order.Action, exec order.ExecType)
+	Order(ctx context.Context, code string, size int64, price float64, action order.Action, exec order.ExecType) error
+	OrderCash(ctx context.Context, code string, howmuch int64, currentPrice float64, action order.Action, exec order.ExecType) error
 	Cash() int64
 	Position(code string) (position.Position, bool)
 	SetCash(amount int64)
+	SetCommission(percent float64)
 }
 
 type broker struct {
@@ -70,42 +72,69 @@ func (b *broker) SetCommission(percent float64) {
 	b.commission = percent
 }
 
-func (b *broker) Order(ctx context.Context, code string, size int64, price float64, action order.Action, exec order.ExecType) {
+//OrderCash broker do buy/sell order from howmuch value and automatically calculate size
+func (b *broker) OrderCash(ctx context.Context, code string, howmuch int64, currentPrice float64, action order.Action, exec order.ExecType) error {
+	size := float64(howmuch) / currentPrice
+	return b.Order(ctx, code, int64(size), currentPrice, action, exec)
+}
+
+func (b *broker) Order(ctx context.Context, code string, size int64, price float64, action order.Action, exec order.ExecType) error {
 
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	if b.codeStateMachine[code] {
-		return
+		return PositionExists
 	}
 
 	b.codeStateMachine[code] = true
-	o := order.NewOrder(code, action, exec, size, price)
+	o := order.NewOrder(code, action, exec, size, price, b.commission)
+
+	switch o.Action() {
+	case order.Buy:
+		if int64(o.OrderPrice()+(o.OrderPrice()*(b.commission/100))) > b.cash {
+			return NotEnoughCash
+		}
+	case order.Sell:
+		if p, ok := b.positions[o.Code()]; !ok {
+			return PositionNotExists
+		} else {
+			if p.Size > o.Size() {
+				return LowSizeThenPosition
+			}
+		}
+	}
+
 	b.log.Debugf("order created: #@v", o)
 	go b.submit(o)
+	return nil
 }
 
 func (b *broker) submit(o order.Order) {
 	o.Submit()
-	b.notifyOrder(o)
+	b.notifyOrder(o.Copy())
 
 	if err := b.store.Order(context.Background(), o); err != nil {
 		o.Reject(err)
-		b.notifyOrder(o)
+		b.notifyOrder(o.Copy())
 		return
 	}
 	b.log.Debug("store order success")
 
-	time.Sleep(1 * time.Second)
 	o.Complete()
-	b.notifyOrder(o)
+	b.notifyOrder(o.Copy())
 	if o.Action() == order.Sell {
+		b.mu.Lock()
 		b.cash += int64(o.OrderPrice() - (o.OrderPrice() * (b.commission / 100)))
+		b.mu.Unlock()
 		b.deletePosition(o)
 	} else {
-		b.cash -= int64(o.OrderPrice() * (b.commission / 100))
+		b.mu.Lock()
+		b.cash -= int64(o.OrderPrice() + (o.OrderPrice() * (b.commission / 100)))
+		b.mu.Unlock()
 		b.appendPosition(o)
 	}
-	b.notifyCash()
+
+	b.notifyCash(o.Copy())
 
 	b.mu.Lock()
 	b.codeStateMachine[o.Code()] = false
@@ -128,6 +157,8 @@ func (b *broker) appendPosition(o order.Order) {
 }
 
 func (b *broker) deletePosition(o order.Order) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
 	if _, ok := b.positions[o.Code()]; ok {
 		if o.RemainPrice() == 0 {
 			delete(b.positions, o.Code())
@@ -141,17 +172,32 @@ func (b *broker) notifyOrder(o order.Order) {
 	b.eventEngine.BroadCast(o)
 }
 
-func (b *broker) notifyCash() {
-	changedCash := b.store.Cash()
-	b.eventEngine.BroadCast(event.CashEvent{Before: b.cash, After: changedCash})
-	b.cash = changedCash
+func (b *broker) notifyCash(o order.Order) {
+	//var value int64
+	//switch o.Action() {
+	//case order.Sell:
+	//	value = int64(o.OrderPrice() - ((o.OrderPrice() * o.Commission()) / 100))
+	//case order.Buy:
+	//	value = -int64(o.OrderPrice() - ((o.OrderPrice() * o.Commission()) / 100))
+	//}
+	//fmt.Println(o.Commission())
+	//fmt.Println("commision:", (o.OrderPrice()*o.Commission())/100)
+	//fmt.Println(value)
+	//fmt.Println(b.cash)
+	//b.eventEngine.BroadCast(event.CashEvent{Before: b.cash, After: b.cash + value})
+	//b.cash += value
 }
 
 func (b *broker) Cash() int64 {
 	if b.cash == 0 {
 		return b.store.Cash()
 	}
-	return b.cash
+	b.mu.Lock()
+	defer b.mu.Unlock()
+
+	var value int64
+	value = b.cash
+	return value
 }
 
 func (b *broker) Position(code string) (position.Position, bool) {

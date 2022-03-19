@@ -41,7 +41,7 @@ func (a *InmemoryAnalyzer) Listen(e interface{}) {
 			a.mu.Lock()
 			if o.Status() == order.Completed {
 
-				a.InitValue += o.OrderPrice()
+				a.InitValue += (o.OrderPrice() - (o.OrderPrice()*o.Commission())/100)
 
 				fmt.Printf("%s팔았다,%f원에 %d만큼 상태는? %d 남은돈: %f\n", o.Code(), o.Price(), o.Size(), o.Status(), a.InitValue)
 			}
@@ -49,7 +49,7 @@ func (a *InmemoryAnalyzer) Listen(e interface{}) {
 		} else {
 			a.mu.Lock()
 			if o.Status() == order.Completed {
-				a.InitValue -= o.OrderPrice()
+				a.InitValue -= (o.OrderPrice() + (o.OrderPrice()*o.Commission())/100)
 				fmt.Printf("%s샀다,%f원에 %d만큼 상태는? %d 남은돈: %f\n", o.Code(), o.Price(), o.Size(), o.Status(), a.InitValue)
 			}
 			a.mu.Unlock()

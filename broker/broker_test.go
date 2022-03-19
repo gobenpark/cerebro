@@ -3,7 +3,6 @@ package broker
 import (
 	"context"
 	"fmt"
-	"reflect"
 	"testing"
 	"time"
 
@@ -51,8 +50,8 @@ func TestBroker_GetPosition(t *testing.T) {
 	st.EXPECT().Positions().Return(map[string]position.Position{
 		"50912": input,
 	})
-	position := b.Positions()
-	require.True(t, reflect.DeepEqual(position["50912"], input))
+	_, ok := b.Position("50912")
+	require.True(t, ok)
 }
 
 func TestBroker_Order(t *testing.T) {
@@ -65,12 +64,12 @@ func TestBroker_Order(t *testing.T) {
 
 	st.EXPECT().
 		Order(gomock.Any(), gomock.Any()).
-		DoAndReturn(func(ctx context.Context, o *order.Order) error {
-			if o.Code != code ||
-				o.Price != price ||
-				o.Size != size ||
-				o.Action != order.Buy ||
-				o.ExecType != order.Close {
+		DoAndReturn(func(ctx context.Context, o order.Order) error {
+			if o.Code() != code ||
+				o.Price() != price ||
+				o.Size() != size ||
+				o.Action() != order.Buy ||
+				o.Exec() != order.Close {
 				return fmt.Errorf("error expect %v", o)
 			}
 			return nil
@@ -87,13 +86,13 @@ func TestBroker_Order(t *testing.T) {
 
 	evt.EXPECT().BroadCast(gomock.Any()).Do(func(e interface{}) {
 		switch o := e.(type) {
-		case *order.Order:
+		case order.Order:
 			require.Equal(t, order.Completed, o.Status())
-			if o.Code != code ||
-				o.Price != price ||
-				o.Size != size ||
-				o.Action != order.Buy ||
-				o.ExecType != order.Close {
+			if o.Code() != code ||
+				o.Price() != price ||
+				o.Size() != size ||
+				o.Action() != order.Buy ||
+				o.Exec() != order.Close {
 				require.Fail(t, "error broadCast")
 			}
 		case event.CashEvent:
@@ -103,13 +102,13 @@ func TestBroker_Order(t *testing.T) {
 		}
 	}).After(evt.EXPECT().BroadCast(gomock.Any()).Do(func(e interface{}) {
 		switch o := e.(type) {
-		case *order.Order:
+		case order.Order:
 			require.Equal(t, order.Submitted, o.Status())
-			if o.Code != code ||
-				o.Price != price ||
-				o.Size != size ||
-				o.Action != order.Buy ||
-				o.ExecType != order.Close {
+			if o.Code() != code ||
+				o.Price() != price ||
+				o.Size() != size ||
+				o.Action() != order.Buy ||
+				o.Exec() != order.Close {
 				require.Fail(t, "error broadCast")
 			}
 		case event.CashEvent:
@@ -146,14 +145,14 @@ func TestBroker_Order_Reject(t *testing.T) {
 
 	evt.EXPECT().BroadCast(gomock.Any()).Do(func(e interface{}) {
 		switch o := e.(type) {
-		case *order.Order:
+		case order.Order:
 			require.Equal(t, order.Rejected, o.Status())
 
-			if o.Code != code ||
-				o.Price != price ||
-				o.Size != size ||
-				o.Action != order.Buy ||
-				o.ExecType != order.Close {
+			if o.Code() != code ||
+				o.Price() != price ||
+				o.Size() != size ||
+				o.Action() != order.Buy ||
+				o.Exec() != order.Close {
 				require.Fail(t, "error broadCast")
 			}
 		case event.CashEvent:
@@ -163,14 +162,14 @@ func TestBroker_Order_Reject(t *testing.T) {
 		}
 	}).After(evt.EXPECT().BroadCast(gomock.Any()).Do(func(e interface{}) {
 		switch o := e.(type) {
-		case *order.Order:
+		case order.Order:
 			require.Equal(t, order.Submitted, o.Status())
 
-			if o.Code != code ||
-				o.Price != price ||
-				o.Size != size ||
-				o.Action != order.Buy ||
-				o.ExecType != order.Close {
+			if o.Code() != code ||
+				o.Price() != price ||
+				o.Size() != size ||
+				o.Action() != order.Buy ||
+				o.Exec() != order.Close {
 				require.Fail(t, "error broadCast")
 			}
 		case event.CashEvent:

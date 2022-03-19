@@ -59,13 +59,6 @@ type Cerebro struct {
 	strategies []strategy.Strategy
 
 	store store.Store
-
-	//compress compress info map for codes
-	//compress map[string][]container.CompressInfo
-
-	// containers list of all container
-	//containers map[container.Info]container.Container
-
 	//strategy.StrategyEngine embedding property for managing user strategy
 	strategyEngine *strategy.Engine
 
@@ -88,6 +81,8 @@ type Cerebro struct {
 	chart *chart.TraderChart
 
 	tickCh map[string]chan container.Tick
+
+	commision float64
 }
 
 //NewCerebro generate new cerebro with cerebro option
@@ -114,6 +109,7 @@ func NewCerebro(opts ...Option) *Cerebro {
 	if c.broker == nil {
 		c.broker = broker.NewBroker(c.Logger, c.store, c.eventEngine)
 	}
+	c.broker.SetCommission(c.commision)
 
 	if c.strategyEngine == nil {
 		c.strategyEngine = strategy.NewEngine(c.Logger, c.broker)

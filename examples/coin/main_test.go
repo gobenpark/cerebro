@@ -39,14 +39,21 @@ func TestTrade(t *testing.T) {
 		return sto.Tick(ctx, codes...)
 	}).AnyTimes()
 
-	store.EXPECT().Order(gomock.Any(), gomock.Any()).DoAndReturn(func(ctx context.Context, o order.Order) error {
-		//return errors.New("거절")
-		return nil
-	}).AnyTimes()
+	store.
+		EXPECT().
+		Order(gomock.Any(), gomock.Any()).
+		DoAndReturn(func(ctx context.Context, o order.Order) error {
+			//return errors.New("거절")
+			return nil
+		}).AnyTimes()
 
-	store.EXPECT().Positions().Return(map[string]position.Position{}).AnyTimes()
+	store.
+		EXPECT().
+		Positions().
+		Return(map[string]position.Position{}).
+		AnyTimes()
 
-	store.EXPECT().Cash().Return(int64(10000)).AnyTimes()
+	store.EXPECT().Cash().Return(int64(400000)).AnyTimes()
 
 	items := sto.GetMarketItems()
 	var codes []string
@@ -59,7 +66,9 @@ func TestTrade(t *testing.T) {
 		cerebro.WithStore(store),
 		cerebro.WithTargetItem(codes...),
 		cerebro.WithAnalyzer(analysis.NewInmemoryAnalyzer()),
+		cerebro.WithCommision(0.05),
 	)
+
 	c.SetStrategy(st{})
 	c.Start()
 }

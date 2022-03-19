@@ -73,12 +73,15 @@ type Order interface {
 	Price() float64
 	Size() int64
 	RemainPrice() float64
+	Copy() Order
+	Commission() float64
 }
 
 type order struct {
 	status        Status `json:"status,omitempty"`
 	action        Action `json:"action,omitempty"`
 	ExecType      `json:"exec_type,omitempty"`
+	commission    float64      `json:"commission,omitempty"`
 	code          string       `json:"code" form:"code" json:"code,omitempty"`
 	uuid          string       `json:"uuid" form:"uuid" json:"uuid,omitempty"`
 	size          int64        `json:"size" form:"size" json:"size,omitempty"`
@@ -89,7 +92,7 @@ type order struct {
 	remainingSize int64        `json:"remaining_size,omitempty"`
 }
 
-func NewOrder(code string, action Action, execType ExecType, size int64, price float64) Order {
+func NewOrder(code string, action Action, execType ExecType, size int64, price float64, commission float64) Order {
 	return &order{
 		status:        Created,
 		action:        action,
@@ -101,6 +104,7 @@ func NewOrder(code string, action Action, execType ExecType, size int64, price f
 		createdAt:     time.Now(),
 		updatedAt:     time.Now(),
 		remainingSize: size,
+		commission:    commission,
 	}
 }
 
@@ -192,6 +196,15 @@ func (o *order) OrderPrice() float64 {
 	return o.price * float64(o.size)
 }
 
+func (o *order) Commission() float64 {
+	var com float64
+	o.mu.Lock()
+	com = o.commission
+	o.mu.Unlock()
+	return com
+
+}
+
 func (o *order) RemainPrice() float64 {
 	o.mu.Lock()
 	defer o.mu.Unlock()
@@ -210,5 +223,20 @@ func (o *order) Size() int64 {
 	return o.size
 }
 
-func (o *order) Copy() {
+func (o *order) Copy() Order {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	return &order{
+		status:        o.status,
+		action:        o.action,
+		ExecType:      o.ExecType,
+		code:          o.code,
+		uuid:          o.uuid,
+		size:          o.size,
+		price:         o.price,
+		createdAt:     o.createdAt,
+		updatedAt:     o.updatedAt,
+		remainingSize: o.remainingSize,
+		commission:    o.commission,
+	}
 }

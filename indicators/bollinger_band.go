@@ -32,7 +32,7 @@ func NewBollingerBand(period int) *BollingerBand {
 	return &BollingerBand{period: period}
 }
 
-func (b *BollingerBand) mean(data []container.Candle) float64 {
+func (b *BollingerBand) mean(data container.Candles) float64 {
 	total := 0.0
 	for _, i := range data {
 		total += i.Close
@@ -76,9 +76,12 @@ func (b *BollingerBand) Calculate(candles []container.Candle) {
 			Date: candles[i].Date,
 		}}, b.Bottom...)
 	}
+}
 
+func (b *BollingerBand) PeriodSatisfaction() bool {
+	return len(b.Mid) >= b.period
 }
 
 func (b *BollingerBand) Get() []Indicate {
-	panic("implement me")
+	return nil
 }

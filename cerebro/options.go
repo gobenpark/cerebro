@@ -58,3 +58,9 @@ func WithAnalyzer(analyzer analysis.Analyzer) Option {
 		c.analyzer = analyzer
 	}
 }
+
+func WithCommision(com float64) Option {
+	return func(c *Cerebro) {
+		c.commision = com
+	}
+}

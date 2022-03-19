@@ -43,13 +43,13 @@ func TestUpbit_Positions(t *testing.T) {
 
 func TestUpbit_Order(t *testing.T) {
 	st := NewStore()
-	require.NoError(t, st.Order(context.TODO(), order.NewOrder("KRW-HUM", order.Buy, order.Market, 1, 10)))
+	require.NoError(t, st.Order(context.TODO(), order.NewOrder("KRW-HUM", order.Buy, order.Market, 1, 10, 0.05)))
 }
 
 func TestUpbit_Sell(t *testing.T) {
 	uid := uuid.NewV4().String()
 	st := NewStore()
-	err := st.Order(context.TODO(), order.NewOrder("KRW-JST", order.Sell, order.Limit, 100, 80.50))
+	err := st.Order(context.TODO(), order.NewOrder("KRW-JST", order.Sell, order.Limit, 100, 80.50, 0.05))
 	require.NoError(t, err)
 	fmt.Println(uid)
 

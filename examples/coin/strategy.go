@@ -2,12 +2,14 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
-	"github.com/gobenpark/trader/broker"
+	bk "github.com/gobenpark/trader/broker"
 	"github.com/gobenpark/trader/container"
 	"github.com/gobenpark/trader/indicators"
+	"github.com/gobenpark/trader/log/v1"
 	"github.com/gobenpark/trader/order"
 	"github.com/gobenpark/trader/strategy"
 )
@@ -19,14 +21,21 @@ func (s st) CandleType() strategy.CandleType {
 	panic("implement me")
 }
 
-func (s st) Next(broker broker.Broker, container container.Container2) error {
+func (s st) Next(broker bk.Broker, container container.Container2) error {
 
 	if container.Code() == "KRW-WAVES" {
 		sma5 := indicators.NewSma(3, 0)
-		sma5.Calculate(container.Candles(time.Second))
+		sma5.Calculate(container.Candles(3 * time.Minute))
 
 		sma10 := indicators.NewSma(5, 0)
-		sma10.Calculate(container.Candles(time.Second))
+		sma10.Calculate(container.Candles(time.Minute))
+
+		bollinger := indicators.NewBollingerBand(20)
+		bollinger.Calculate(container.Candles(3 * time.Minute))
+
+		if bollinger.PeriodSatisfaction() {
+			fmt.Println(bollinger.Mid[len(bollinger.Mid)-1])
+		}
 
 		if sma10.PeriodSatisfaction() {
 			a := sma10.Get()
@@ -37,14 +46,16 @@ func (s st) Next(broker broker.Broker, container container.Container2) error {
 
 			if p, ok := broker.Position(container.Code()); !ok {
 				if data1.Data > data2.Data {
-					fmt.Println(broker.Cash())
-					if (10 * int64(container.CurrentPrice())) < broker.Cash() {
-						broker.Order(context.Background(), container.Code(), 10, container.CurrentPrice(), order.Buy, order.Limit)
+					if err := broker.OrderCash(context.Background(), container.Code(), broker.Cash(), container.CurrentPrice(), order.Buy, order.Limit); err != nil {
+						log.Error(err)
 					}
 				}
 			} else {
 				if data1.Data < data2.Data {
-					broker.Order(context.Background(), container.Code(), p.Size, container.CurrentPrice(), order.Sell, order.Limit)
+					if err := broker.Order(context.Background(), container.Code(), p.Size, container.CurrentPrice(), order.Sell, order.Limit); err != nil && !errors.Is(err, bk.PositionExists) {
+						log.Error(err)
+					}
+
 				}
 			}
 		}

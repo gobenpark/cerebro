@@ -20,7 +20,6 @@ import (
 	"github.com/gobenpark/trader/item"
 	"github.com/gobenpark/trader/order"
 	"github.com/gobenpark/trader/position"
-	"github.com/gobenpark/trader/store"
 	"github.com/gorilla/websocket"
 	uuid "github.com/satori/go.uuid"
 )
@@ -81,14 +80,22 @@ var secretkey []byte
 //go:embed accesskey
 var accesskey []byte
 
-func (u Upbit) CreateToken() (string, error) {
+func (u Upbit) CreateToken() error {
 
 	tk := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
 		"access_key": string(accesskey),
 		"nonce":      uuid.NewV4().String(),
 	})
 
-	return tk.SignedString(secretkey)
+	key, err := tk.SignedString(secretkey)
+	if err != nil {
+		return err
+	}
+
+	u.Client.SetAuthToken(key)
+	u.Client.SetAuthScheme("Bearer")
+
+	return nil
 }
 
 func (u Upbit) OrderToken(values url.Values) (string, error) {
@@ -137,16 +144,28 @@ func (u Upbit) GetMarketItems() []item.Item {
 	return items
 }
 
-func (u Upbit) Candles(ctx context.Context, code string, c store.CandleType, value int) ([]container.Candle, error) {
+func (u Upbit) Candles(ctx context.Context, code string, level time.Duration) (container.Candles, error) {
 	var res *resty.Response
 	var err error
-	switch c {
-	case store.MIN:
-		res, err = u.Client.R().SetContext(ctx).Get(fmt.Sprintf("/candles/minutes/%d?market=%s&count=500", value, code))
-	case store.DAY:
-		res, err = u.Client.R().SetContext(ctx).Get(fmt.Sprintf("/candles/days?count=500&market=%s", code))
-	case store.WEEK:
-		res, err = u.Client.R().SetContext(ctx).Get(fmt.Sprintf("/candles/weeks?count=500&market=%s", code))
+	min := int(level / time.Minute)
+	switch min {
+	case 1, 3, 5, 15, 10, 30, 60, 240:
+		res, err = u.Client.R().
+			SetQueryParam("market", code).
+			SetQueryParam("count", "200").
+			Get(fmt.Sprintf("/candles/minutes/%d", min))
+	case 1440:
+		res, err = u.Client.R().
+			SetQueryParam("market", code).
+			SetQueryParam("count", "200").
+			Get("/candles/days")
+	case 1440 * 7:
+		res, err = u.Client.R().
+			SetQueryParam("market", code).
+			SetQueryParam("count", "200").
+			Get("/candles/weeks")
+	default:
+		return nil, fmt.Errorf("not found candle types: %d", min)
 	}
 	if err != nil {
 		return nil, err
@@ -459,12 +478,12 @@ func (Upbit) Uid() string {
 }
 
 func (u *Upbit) accounts() ([]Account, error) {
-	tk, err := u.CreateToken()
+	err := u.CreateToken()
 	if err != nil {
 		fmt.Println(err)
 	}
 
-	res, err := u.Client.R().SetHeader("Authorization", fmt.Sprintf("Bearer %s", tk)).Get("/accounts")
+	res, err := u.Client.R().Get("/accounts")
 	if err != nil {
 		return nil, err
 	}
@@ -546,8 +565,8 @@ func (u *Upbit) OrderInfo(id string) (order.Order, error) {
 		return nil, err
 	}
 
+	u.Client.SetAuthToken(token)
 	res, err := u.Client.R().
-		SetHeader("Authorization", fmt.Sprintf("Bearer %s", token)).
 		SetQueryString(values.Encode()).
 		Get("/order")
 	if err != nil {

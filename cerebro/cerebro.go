@@ -112,7 +112,7 @@ func NewCerebro(opts ...Option) *Cerebro {
 	c.broker.SetCommission(c.commision)
 
 	if c.strategyEngine == nil {
-		c.strategyEngine = strategy.NewEngine(c.Logger, c.broker)
+		c.strategyEngine = strategy.NewEngine(c.Logger, c.broker, c.preload)
 	}
 
 	return c

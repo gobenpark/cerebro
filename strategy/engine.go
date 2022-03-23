@@ -29,15 +29,17 @@ import (
 type Engine struct {
 	mu sync.Mutex
 	broker.Broker
-	sts []Strategy
-	log log.Logger
+	sts     []Strategy
+	log     log.Logger
+	preload bool
 }
 
-func NewEngine(log log.Logger, bk broker.Broker) *Engine {
+func NewEngine(log log.Logger, bk broker.Broker, preload bool) *Engine {
 
 	return &Engine{
-		Broker: bk,
-		log:    log,
+		Broker:  bk,
+		log:     log,
+		preload: preload,
 	}
 }
 

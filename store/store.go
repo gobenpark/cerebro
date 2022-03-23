@@ -4,6 +4,7 @@ package store
 
 import (
 	"context"
+	"time"
 
 	"github.com/gobenpark/trader/container"
 	"github.com/gobenpark/trader/item"
@@ -23,13 +24,15 @@ type Store interface {
 	//GetMarketItems get all market item
 	GetMarketItems() []item.Item
 
-	Candles(ctx context.Context, code string, c CandleType, value int) ([]container.Candle, error)
+	//Candles get level(min) candles level only can be minute
+	Candles(ctx context.Context, code string, level time.Duration) (container.Candles, error)
 
 	TradeCommits(ctx context.Context, code string) ([]container.TradeHistory, error)
 
 	Tick(ctx context.Context, codes ...string) (<-chan container.Tick, error)
 
 	Order(ctx context.Context, o order.Order) error
+
 	Cancel(id string) error
 	Uid() string
 	Cash() int64

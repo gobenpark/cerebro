@@ -20,6 +20,7 @@ import (
 	"context"
 	"fmt"
 	"testing"
+	"time"
 
 	"github.com/gobenpark/trader/order"
 	uuid "github.com/satori/go.uuid"
@@ -67,4 +68,19 @@ func TestUpbit_Cancel(t *testing.T) {
 	st := NewStore()
 	err := st.Cancel("cca036fd-8b5b-4d2c-8bd7-6a643e0d8879")
 	require.NoError(t, err)
+}
+
+func TestUpbit_Candles(t *testing.T) {
+	st := NewStore()
+	candles, err := st.Candles(context.TODO(), "KRW-BTC", 3*time.Minute)
+	require.NoError(t, err)
+	require.Len(t, candles, 200)
+
+	candles, err = st.Candles(context.TODO(), "KRW-BTC", 1440*time.Minute)
+	require.NoError(t, err)
+	require.Len(t, candles, 200)
+
+	candles, err = st.Candles(context.TODO(), "KRW-BTC", 1440*7*time.Minute)
+	require.NoError(t, err)
+	require.Len(t, candles, 200)
 }

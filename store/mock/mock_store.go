@@ -7,12 +7,12 @@ package mock_store
 import (
 	context "context"
 	reflect "reflect"
+	time "time"
 
 	container "github.com/gobenpark/trader/container"
 	item "github.com/gobenpark/trader/item"
 	order "github.com/gobenpark/trader/order"
 	position "github.com/gobenpark/trader/position"
-	store "github.com/gobenpark/trader/store"
 	gomock "github.com/golang/mock/gomock"
 )
 
@@ -54,18 +54,18 @@ func (mr *MockStoreMockRecorder) Cancel(id interface{}) *gomock.Call {
 }
 
 // Candles mocks base method.
-func (m *MockStore) Candles(ctx context.Context, code string, c store.CandleType, value int) ([]container.Candle, error) {
+func (m *MockStore) Candles(ctx context.Context, code string, level time.Duration) (container.Candles, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Candles", ctx, code, c, value)
-	ret0, _ := ret[0].([]container.Candle)
+	ret := m.ctrl.Call(m, "Candles", ctx, code, level)
+	ret0, _ := ret[0].(container.Candles)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // Candles indicates an expected call of Candles.
-func (mr *MockStoreMockRecorder) Candles(ctx, code, c, value interface{}) *gomock.Call {
+func (mr *MockStoreMockRecorder) Candles(ctx, code, level interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Candles", reflect.TypeOf((*MockStore)(nil).Candles), ctx, code, c, value)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Candles", reflect.TypeOf((*MockStore)(nil).Candles), ctx, code, level)
 }
 
 // Cash mocks base method.

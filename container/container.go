@@ -32,7 +32,7 @@ type Container interface {
 	Empty() bool
 	Size() int
 	Clear()
-	Values() []Candle
+	Values() Candles
 	Add(candle Candle)
 	Code() string
 }
@@ -115,7 +115,8 @@ func (t *DataContainer) Code() string {
 type Container2 interface {
 	AddCandle(candle Candle, tick Tick) Candle
 	AppendTick(tick Tick)
-	Candles(level time.Duration) []Candle
+	Candles(level time.Duration) Candles
 	Code() string
 	CurrentPrice() float64
+	SetPreload(f func(code string, level time.Duration) Candles)
 }

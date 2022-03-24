@@ -17,6 +17,7 @@
 package container
 
 import (
+	"sort"
 	"sync"
 	"time"
 )
@@ -26,6 +27,7 @@ type InMemoryContainer struct {
 	ticks   []Tick
 	candles map[time.Duration][]Candle
 	code    string
+	preload func(code string, level time.Duration) Candles
 }
 
 func NewInMemoryContainer(code string) *InMemoryContainer {
@@ -112,16 +114,26 @@ func (t *InMemoryContainer) CurrentPrice() float64 {
 	return t.ticks[len(t.ticks)-1].Price
 }
 
-func (t *InMemoryContainer) Candles(level time.Duration) []Candle {
+func (t *InMemoryContainer) Candles(level time.Duration) Candles {
 	if _, ok := t.candles[level]; ok {
 		return t.candles[level]
 	}
 
 	candles := ReSample(t.ticks, level, true)
+	if t.preload != nil {
+		cds := t.preload(t.code, level)
+		sort.Sort(cds)
+		candles = append(cds, candles...)
+	}
+
 	tCandles := make([]Candle, len(candles))
 	copy(tCandles, candles)
 	t.candles[level] = candles
 	return tCandles
+}
+
+func (t *InMemoryContainer) SetPreload(f func(code string, level time.Duration) Candles) {
+	t.preload = f
 }
 
 func (t *InMemoryContainer) Code() string {

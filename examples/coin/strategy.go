@@ -24,6 +24,7 @@ func (s st) CandleType() strategy.CandleType {
 func (s st) Next(broker bk.Broker, container container.Container2) error {
 
 	if container.Code() == "KRW-WAVES" {
+
 		sma5 := indicators.NewSma(3, 0)
 		sma5.Calculate(container.Candles(3 * time.Minute))
 
@@ -34,7 +35,7 @@ func (s st) Next(broker bk.Broker, container container.Container2) error {
 		bollinger.Calculate(container.Candles(3 * time.Minute))
 
 		if bollinger.PeriodSatisfaction() {
-			fmt.Println(bollinger.Mid[len(bollinger.Mid)-1])
+			fmt.Println(bollinger.Top[len(bollinger.Top)-1])
 		}
 
 		if sma10.PeriodSatisfaction() {

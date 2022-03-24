@@ -21,6 +21,7 @@ import (
 	"os/signal"
 	"sync"
 	"syscall"
+	"time"
 
 	"github.com/gobenpark/trader/analysis"
 	"github.com/gobenpark/trader/broker"
@@ -136,7 +137,6 @@ func (c *Cerebro) Start() error {
 		c.tickCh[i] = make(chan container.Tick, 1)
 	}
 	go pkg.Retry(3, func() error {
-
 		tk, err := c.store.Tick(c.Ctx, c.targetCodes...)
 		if err != nil {
 			c.Logger.Error(err)
@@ -157,7 +157,23 @@ func (c *Cerebro) Start() error {
 
 	mu.Lock()
 	for code, ch := range c.tickCh {
-		go c.strategyEngine.Spawn(c.Ctx, code, ch)
+		ct := container.NewInMemoryContainer(code)
+
+		if c.preload {
+			ct.SetPreload(func(code string, level time.Duration) container.Candles {
+				ctx, cancel := context.WithTimeout(c.Ctx, 10*time.Second)
+				defer cancel()
+				candle, err := c.store.Candles(ctx, code, level)
+				if err != nil {
+					c.Logger.Error(err)
+					return nil
+				}
+
+				return candle
+			})
+		}
+
+		go c.strategyEngine.Spawn(c.Ctx, ct, ch)
 	}
 	mu.Unlock()
 

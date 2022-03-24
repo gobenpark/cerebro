@@ -47,18 +47,15 @@ func (s *Engine) AddStrategy(sts ...Strategy) {
 	s.sts = append(s.sts, sts...)
 }
 
-func (s *Engine) Spawn(ctx context.Context, code string, tick <-chan container.Tick) {
-
-	ct := container.NewInMemoryContainer(code)
-
+func (s *Engine) Spawn(ctx context.Context, cont container.Container2, tick <-chan container.Tick) {
 Done:
 	for {
 		select {
 		case i := <-tick:
-			ct.AppendTick(i)
+			cont.AppendTick(i)
 			s.mu.Lock()
 			for _, st := range s.sts {
-				if err := st.Next(s.Broker, ct); err != nil {
+				if err := st.Next(s.Broker, cont); err != nil {
 					s.log.Error(err)
 				}
 			}

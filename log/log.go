@@ -39,7 +39,7 @@ func NewZapLogger() Logger {
 	//	InitialFields:    nil,
 	//}.Build(zap.AddCallerSkip(1))
 	config := zap.NewProductionConfig()
-	config.Level = zap.NewAtomicLevelAt(zapcore.WarnLevel)
+	config.Level = zap.NewAtomicLevelAt(zapcore.InfoLevel)
 	logger, err := config.Build(zap.AddCallerSkip(1))
 	if err != nil {
 		panic(err)

@@ -86,7 +86,7 @@ func (b *bgContainer) Clear() {
 	panic("implement me")
 }
 
-func (b *bgContainer) Values() []Candle {
+func (b *bgContainer) Values() Candles {
 	var c []Candle
 	txn, it, err := b.getTx()
 	if err != nil {

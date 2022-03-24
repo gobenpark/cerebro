@@ -19,6 +19,7 @@ package main
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/gobenpark/trader/analysis"
 	"github.com/gobenpark/trader/cerebro"
@@ -47,6 +48,10 @@ func TestTrade(t *testing.T) {
 			return nil
 		}).AnyTimes()
 
+	store.EXPECT().Candles(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(func(ctx context.Context, code string, level time.Duration) (container.Candles, error) {
+		return sto.Candles(ctx, code, level)
+	}).AnyTimes()
+
 	store.
 		EXPECT().
 		Positions().
@@ -67,6 +72,7 @@ func TestTrade(t *testing.T) {
 		cerebro.WithTargetItem(codes...),
 		cerebro.WithAnalyzer(analysis.NewInmemoryAnalyzer()),
 		cerebro.WithCommision(0.05),
+		cerebro.WithPreload(true),
 	)
 
 	c.SetStrategy(st{})

@@ -83,8 +83,7 @@ func (s st) NotifyOrder(o order.Order) {
 }
 
 func (s st) NotifyTrade() {
-	//TODO implement me
-	panic("implement me")
+	log.Info("notifytrade")
 }
 
 func (s st) NotifyCashValue(before, after int64) {

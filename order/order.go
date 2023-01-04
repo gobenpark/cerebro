@@ -23,9 +23,9 @@ import (
 )
 
 type (
-	Action   int
-	Status   int32
-	ExecType int
+	Action    int
+	Status    int32
+	OrderType int
 )
 
 const (
@@ -46,7 +46,7 @@ const (
 )
 
 const (
-	Market ExecType = iota + 1
+	Market OrderType = iota + 1
 	Close
 	Limit
 	Stop
@@ -92,7 +92,7 @@ type order struct {
 	remainingSize int64        `json:"remaining_size,omitempty"`
 }
 
-func NewOrder(code string, action Action, execType ExecType, size int64, price float64, commission float64) Order {
+func NewOrder(code string, action Action, execType OrderType, size int64, price float64, commission float64) Order {
 	return &order{
 		status:        Created,
 		action:        action,

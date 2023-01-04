@@ -17,10 +17,7 @@ package cerebro
 
 import (
 	"context"
-	"os"
-	"os/signal"
 	"sync"
-	"syscall"
 	"time"
 
 	"github.com/gobenpark/trader/analysis"
@@ -35,19 +32,24 @@ import (
 	"github.com/gobenpark/trader/order"
 	"github.com/gobenpark/trader/store"
 	"github.com/gobenpark/trader/strategy"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 )
+
+func init() {
+	conf := zap.NewProductionConfig()
+	conf.Level = zap.NewAtomicLevelAt(zapcore.DebugLevel)
+	conf.EncoderConfig.TimeKey = "timestamp"
+	conf.EncoderConfig.EncodeTime = zapcore.ISO8601TimeEncoder
+	l, _ := conf.Build()
+	zap.ReplaceGlobals(l)
+}
 
 type Filter func(item item.Item) string
 
 // Cerebro head of trading system
 // make all dependency manage
 type Cerebro struct {
-	targetCodes []string
-	//Ctx cerebro global context
-	Ctx context.Context `json:"ctx" validate:"required"`
-
-	//Cancel cerebro global context cancel
-	Cancel context.CancelFunc `json:"cancel" validate:"required"`
 	//isLive use cerebro live trading
 	isLive bool
 	// preload bool value, decide use candle history
@@ -86,12 +88,9 @@ type Cerebro struct {
 	commision float64
 }
 
-//NewCerebro generate new cerebro with cerebro option
+// NewCerebro generate new cerebro with cerebro option
 func NewCerebro(opts ...Option) *Cerebro {
-	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGTERM, syscall.SIGINT, os.Interrupt, syscall.SIGHUP)
 	c := &Cerebro{
-		Ctx:         ctx,
-		Cancel:      cancel,
 		order:       make(chan order.Order, 1),
 		dataCh:      make(chan container.Container, 1),
 		eventEngine: event.NewEventEngine(),
@@ -129,8 +128,8 @@ func (c *Cerebro) SetStrategy(s strategy.Strategy) {
 	c.strategies = append(c.strategies, s)
 }
 
-//Start run cerebro
-func (c *Cerebro) Start() error {
+// Start run cerebro
+func (c *Cerebro) Start(ctx context.Context) error {
 	var mu sync.Mutex
 	c.Logger.Info("Cerebro starting ...")
 	for _, i := range c.targetCodes {
@@ -189,7 +188,7 @@ func (c *Cerebro) Start() error {
 	return nil
 }
 
-//Stop all cerebro goroutine and finish
+// Stop all cerebro goroutine and finish
 func (c *Cerebro) Stop() error {
 	c.Cancel()
 	return nil

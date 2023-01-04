@@ -579,45 +579,5 @@ func (u *Upbit) OrderInfo(id string) (order.Order, error) {
 		return nil, err
 	}
 	fmt.Println(data)
-	//o := order.Order{
-	//	Action: func() order.Action {
-	//		switch data.Side {
-	//		case "ask":
-	//			return order.Sell
-	//		case "bid":
-	//			return order.Buy
-	//		default:
-	//			return 0
-	//		}
-	//	}(),
-	//	ExecType: func() order.ExecType {
-	//		switch data.OrdType {
-	//		case "limit":
-	//			return order.Limit
-	//		case "price", "market":
-	//			return order.Market
-	//		default:
-	//			return 0
-	//		}
-	//	}(),
-	//	Code: data.Market,
-	//	UUID: data.Uuid,
-	//	Size: func() int64 {
-	//		result, err := strconv.ParseInt(data.Volume, 10, 64)
-	//		if err != nil {
-	//			return 0
-	//		}
-	//		return result
-	//	}(),
-	//	Price: func() float64 {
-	//		f, err := strconv.ParseFloat(data.Price, 64)
-	//		if err != nil {
-	//			return 0
-	//		}
-	//		return f
-	//	}(),
-	//	CreatedAt: data.CreatedAt,
-	//}
-
 	return nil, nil
 }

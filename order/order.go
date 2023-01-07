@@ -67,7 +67,7 @@ type Order interface {
 	Partial(size int64)
 	Complete()
 	Status() Status
-	Exec() ExecType
+	Exec() OrderType
 	OrderPrice() float64
 	Action() Action
 	Price() float64
@@ -80,7 +80,7 @@ type Order interface {
 type order struct {
 	status        Status `json:"status,omitempty"`
 	action        Action `json:"action,omitempty"`
-	ExecType      `json:"exec_type,omitempty"`
+	OrderType     `json:"exec_type,omitempty"`
 	commission    float64      `json:"commission,omitempty"`
 	code          string       `json:"code" form:"code" json:"code,omitempty"`
 	uuid          string       `json:"uuid" form:"uuid" json:"uuid,omitempty"`
@@ -96,7 +96,7 @@ func NewOrder(code string, action Action, execType OrderType, size int64, price 
 	return &order{
 		status:        Created,
 		action:        action,
-		ExecType:      execType,
+		OrderType:     execType,
 		code:          code,
 		uuid:          uuid.NewV4().String(),
 		size:          size,
@@ -108,10 +108,10 @@ func NewOrder(code string, action Action, execType OrderType, size int64, price 
 	}
 }
 
-func (o *order) Exec() ExecType {
+func (o *order) Exec() OrderType {
 	o.mu.Lock()
 	defer o.mu.Unlock()
-	return o.ExecType
+	return o.OrderType
 }
 
 func (o *order) Action() Action {
@@ -229,7 +229,7 @@ func (o *order) Copy() Order {
 	return &order{
 		status:        o.status,
 		action:        o.action,
-		ExecType:      o.ExecType,
+		OrderType:     o.OrderType,
 		code:          o.code,
 		uuid:          o.uuid,
 		size:          o.size,

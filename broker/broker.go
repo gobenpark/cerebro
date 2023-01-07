@@ -29,66 +29,55 @@ import (
 )
 
 // Broker it is instead of human for buy , sell and etc
-type Broker interface {
-	Order(ctx context.Context, code string, size int64, price float64, action order.Action, exec order.OrderType) error
-	OrderCash(ctx context.Context, code string, amount float64, currentPrice float64, action order.Action, exec order.OrderType) error
-	Cash() int64
-	Position(code string) (position.Position, bool)
-	SetCash(amount int64)
-	SetCommission(percent float64)
-}
+//type Broker interface {
+//	Order(ctx context.Context, code string, size int64, price float64, action order.Action, exec order.OrderType) error
+//	OrderCash(ctx context.Context, code string, amount float64, currentPrice float64, action order.Action, exec order.OrderType) error
+//	Cash() int64
+//	Position(code string) (position.Position, bool)
+//	SetCash(amount int64)
+//	SetCommission(percent float64)
+//}
 
-type Config struct {
-	Cash       int64
-	Commission float64
-}
-
-type broker struct {
-	config           Config
+type Broker struct {
 	orders           map[string]order.Order
 	mu               sync.RWMutex
-	eventEngine      event.Broadcaster
+	EventEngine      event.Broadcaster
 	positions        map[string]position.Position
 	store            store.Store
 	cashValueChanged bool
 	log              log.Logger
 	codeStateMachine map[string]bool
+	Commission       float64
+	Cash             int64
 }
 
-// NewBroker Init new broker with cash,commission
-func NewBroker(config ...Config) Broker {
-	app := &broker{
-		//store:            store,
-		//eventEngine:      evt,
-		orders:           make(map[string]order.Order),
+func NewBroker(eventEngine event.Broadcaster, store store.Store, commission float64, cash int64) *Broker {
+	return &Broker{
+		orders:           map[string]order.Order{},
+		EventEngine:      eventEngine,
 		positions:        map[string]position.Position{},
+		store:            store,
+		cashValueChanged: false,
+		log:              nil,
 		codeStateMachine: map[string]bool{},
+		Commission:       commission,
+		Cash:             cash,
 	}
-
-	if len(config) > 0 {
-		app.config = config[0]
-	}
-
-	return app
 }
 
-func (b *broker) SetCash(amount int64) {
-	b.config.Cash = amount
-}
-
-func (b *broker) SetCommission(percent float64) {
-	b.config.Commission = percent
+func (b *Broker) SetCommission(percent float64) {
+	b.Commission = percent
 }
 
 // TODO: impelement
 // OrderCash broker do buy/sell order from how much value and automatically calculate size
-func (b *broker) OrderCash(ctx context.Context, code string, amount float64, currentPrice float64, action order.Action, exec order.OrderType) error {
+func (b *Broker) OrderCash(ctx context.Context, code string, amount float64, currentPrice float64, action order.Action, exec order.OrderType) error {
 
 	size := amount / currentPrice
 	return b.Order(ctx, code, int64(size), currentPrice, action, exec)
 }
 
-func (b *broker) Order(ctx context.Context, code string, size int64, price float64, action order.Action, ot order.OrderType) error {
+func (b *Broker) Order(ctx context.Context, code string, size int64, price float64, action order.Action, ot order.OrderType) error {
 
 	b.mu.Lock()
 	defer b.mu.Unlock()
@@ -98,12 +87,13 @@ func (b *broker) Order(ctx context.Context, code string, size int64, price float
 
 	b.codeStateMachine[code] = true
 
-	o := order.NewOrder(code, action, ot, size, price, b.config.Commission)
+	o := order.NewOrder(code, action, ot, size, price, b.Commission)
 
+	value := int64(o.OrderPrice() + (o.OrderPrice() * (b.Commission / 100)))
 	// validation check
 	switch o.Action() {
 	case order.Buy:
-		if int64(o.OrderPrice()+(o.OrderPrice()*(b.config.Commission/100))) > b.config.Cash {
+		if value > b.Cash {
 			return NotEnoughCash
 		}
 	case order.Sell:
@@ -121,10 +111,10 @@ func (b *broker) Order(ctx context.Context, code string, size int64, price float
 }
 
 // In goroutine
-func (b *broker) submit(ctx context.Context, o order.Order) {
+func (b *Broker) submit(ctx context.Context, o order.Order) {
 	o.Submit()
 	b.notifyOrder(o.Copy())
-	start := b.config.Cash
+	start := b.Cash
 
 	if err := b.store.Order(ctx, o); err != nil {
 		o.Reject(err)
@@ -138,16 +128,16 @@ func (b *broker) submit(ctx context.Context, o order.Order) {
 
 	if o.Action() == order.Sell {
 		b.mu.Lock()
-		b.config.Cash += int64(o.OrderPrice() - (o.OrderPrice() * (b.config.Commission / 100)))
+		b.Cash += int64(o.OrderPrice() - (o.OrderPrice() * (b.Commission / 100)))
 		b.mu.Unlock()
 		b.deletePosition(o)
 	} else {
 		b.mu.Lock()
-		b.config.Cash -= int64(o.OrderPrice() + (o.OrderPrice() * (b.config.Commission / 100)))
+		b.Cash -= int64(o.OrderPrice() + (o.OrderPrice() * (b.Commission / 100)))
 		b.mu.Unlock()
 		b.appendPosition(o)
 	}
-	zap.L().Debug("cash size change", zap.Int64("start", start), zap.Int64("end", b.config.Cash))
+	zap.L().Debug("cash size change", zap.Int64("start", start), zap.Int64("end", b.Cash))
 	b.notifyCash(o.Copy())
 
 	b.mu.Lock()
@@ -155,7 +145,7 @@ func (b *broker) submit(ctx context.Context, o order.Order) {
 	b.mu.Unlock()
 }
 
-func (b *broker) appendPosition(o order.Order) {
+func (b *Broker) appendPosition(o order.Order) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	if p, ok := b.positions[o.Code()]; ok {
@@ -170,7 +160,7 @@ func (b *broker) appendPosition(o order.Order) {
 	b.positions[o.Code()] = position.NewPosition(o)
 }
 
-func (b *broker) deletePosition(o order.Order) {
+func (b *Broker) deletePosition(o order.Order) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	if _, ok := b.positions[o.Code()]; ok {
@@ -180,13 +170,13 @@ func (b *broker) deletePosition(o order.Order) {
 	}
 }
 
-func (b *broker) notifyOrder(o order.Order) {
+func (b *Broker) notifyOrder(o order.Order) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
-	b.eventEngine.BroadCast(o)
+	b.EventEngine.BroadCast(o)
 }
 
-func (b *broker) notifyCash(o order.Order) {
+func (b *Broker) notifyCash(o order.Order) {
 	//var value int64
 	//switch o.Action() {
 	//case order.Sell:
@@ -202,11 +192,7 @@ func (b *broker) notifyCash(o order.Order) {
 	//b.cash += value
 }
 
-func (b *broker) Cash() int64 {
-	return b.config.Cash
-}
-
-func (b *broker) Position(code string) (position.Position, bool) {
+func (b *Broker) Position(code string) (position.Position, bool) {
 	b.mu.RLock()
 	defer b.mu.RUnlock()
 
@@ -215,7 +201,7 @@ func (b *broker) Position(code string) (position.Position, bool) {
 }
 
 // TODO: test
-func (b *broker) Listen(e interface{}) {
+func (b *Broker) Listen(e interface{}) {
 
 	//if evt, ok := e.(event.OrderEvent); ok {
 	//	switch evt.State {

@@ -55,7 +55,7 @@ type Cerebro struct {
 	// preload bool value, decide use candle history
 	preload bool
 	// broker buy, sell and manage order
-	broker broker.Broker `validate:"required"`
+	broker *broker.Broker `validate:"required"`
 
 	filters []Filter
 
@@ -86,6 +86,8 @@ type Cerebro struct {
 	tickCh map[string]chan container.Tick
 
 	commision float64
+
+	cash int64
 }
 
 // NewCerebro generate new cerebro with cerebro option
@@ -106,10 +108,11 @@ func NewCerebro(opts ...Option) *Cerebro {
 		c.Logger = log.NewZapLogger()
 	}
 
-	if c.broker == nil {
-		c.broker = broker.NewBroker(c.Logger, c.store, c.eventEngine)
+	c.broker = &broker.Broker{
+		EventEngine: c.eventEngine,
+		Commision:   c.commision,
+		Cash:        c.cash,
 	}
-	c.broker.SetCommission(c.commision)
 
 	if c.strategyEngine == nil {
 		c.strategyEngine = strategy.NewEngine(c.Logger, c.broker, c.preload)
@@ -132,9 +135,15 @@ func (c *Cerebro) SetStrategy(s strategy.Strategy) {
 func (c *Cerebro) Start(ctx context.Context) error {
 	var mu sync.Mutex
 	c.Logger.Info("Cerebro starting ...")
+
+	//시작을 어떻게 할것인가?
+	// 시작 코드를 받아서? 코드가없으면 전체 종목?
+	//
+
 	for _, i := range c.targetCodes {
 		c.tickCh[i] = make(chan container.Tick, 1)
 	}
+
 	go pkg.Retry(3, func() error {
 		tk, err := c.store.Tick(c.Ctx, c.targetCodes...)
 		if err != nil {
@@ -178,18 +187,12 @@ func (c *Cerebro) Start(ctx context.Context) error {
 
 	//event engine settings
 	{
-		go c.eventEngine.Start(c.Ctx)
+		go c.eventEngine.Start(ctx)
 		c.eventEngine.Register <- c.strategyEngine
 		c.eventEngine.Register <- c.analyzer
 	}
 
-	<-c.Ctx.Done()
+	<-ctx.Done()
 
-	return nil
-}
-
-// Stop all cerebro goroutine and finish
-func (c *Cerebro) Stop() error {
-	c.Cancel()
 	return nil
 }

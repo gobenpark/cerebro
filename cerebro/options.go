@@ -43,7 +43,7 @@ func WithStore(s store.Store) Option {
 
 func WithTargetItem(codes ...string) Option {
 	return func(c *Cerebro) {
-		c.targetCodes = codes
+		c.target = codes
 	}
 }
 

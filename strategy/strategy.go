@@ -18,6 +18,8 @@ package strategy
 //go:generate mockgen -source=./strategy.go -destination=./mock/mock_strategy.go
 
 import (
+	"context"
+
 	"github.com/gobenpark/trader/broker"
 	"github.com/gobenpark/trader/container"
 	"github.com/gobenpark/trader/order"
@@ -36,7 +38,7 @@ const (
 
 type Strategy interface {
 	CandleType() CandleType
-	Next(broker broker.Broker, container container.Container2) error
+	Next(ctx context.Context, broker *broker.Broker, container container.Container2) error
 
 	//NotifyOrder is when event rise order then called
 	NotifyOrder(o order.Order)

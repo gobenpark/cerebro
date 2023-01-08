@@ -21,7 +21,7 @@ func (s st) CandleType() strategy.CandleType {
 	panic("implement me")
 }
 
-func (s st) Next(broker bk.Broker, container container.Container2) error {
+func (s st) Next(ctx context.Context, broker *bk.Broker, container container.Container2) error {
 
 	if container.Code() == "KRW-WAVES" {
 
@@ -47,9 +47,6 @@ func (s st) Next(broker bk.Broker, container container.Container2) error {
 
 			if p, ok := broker.Position(container.Code()); !ok {
 				if data1.Data > data2.Data {
-					if err := broker.OrderCash(context.Background(), container.Code(), broker.Cash(), container.CurrentPrice(), order.Buy, order.Limit); err != nil {
-						log.Error(err)
-					}
 				}
 			} else {
 				if data1.Data < data2.Data {

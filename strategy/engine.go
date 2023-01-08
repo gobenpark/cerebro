@@ -27,17 +27,17 @@ import (
 )
 
 type Engine struct {
-	mu sync.Mutex
-	broker.Broker
+	mu      sync.Mutex
+	broker  *broker.Broker
 	sts     []Strategy
 	log     log.Logger
 	preload bool
 }
 
-func NewEngine(log log.Logger, bk broker.Broker, preload bool) *Engine {
+func NewEngine(log log.Logger, bk *broker.Broker, preload bool) *Engine {
 
 	return &Engine{
-		Broker:  bk,
+		broker:  bk,
 		log:     log,
 		preload: preload,
 	}
@@ -55,7 +55,7 @@ Done:
 			cont.AppendTick(i)
 			s.mu.Lock()
 			for _, st := range s.sts {
-				if err := st.Next(s.Broker, cont); err != nil {
+				if err := st.Next(ctx, s.broker, cont); err != nil {
 					s.log.Error(err)
 				}
 			}

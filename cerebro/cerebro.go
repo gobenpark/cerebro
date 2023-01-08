@@ -61,6 +61,8 @@ type Cerebro struct {
 
 	strategies []strategy.Strategy
 
+	target []string
+
 	store store.Store
 	//strategy.StrategyEngine embedding property for managing user strategy
 	strategyEngine *strategy.Engine
@@ -88,6 +90,8 @@ type Cerebro struct {
 	commision float64
 
 	cash int64
+
+	mu sync.RWMutex
 }
 
 // NewCerebro generate new cerebro with cerebro option
@@ -108,11 +112,7 @@ func NewCerebro(opts ...Option) *Cerebro {
 		c.Logger = log.NewZapLogger()
 	}
 
-	c.broker = &broker.Broker{
-		EventEngine: c.eventEngine,
-		Commision:   c.commision,
-		Cash:        c.cash,
-	}
+	c.broker = broker.NewBroker(c.eventEngine, c.store, c.commision, c.cash, c.Logger)
 
 	if c.strategyEngine == nil {
 		c.strategyEngine = strategy.NewEngine(c.Logger, c.broker, c.preload)
@@ -133,19 +133,18 @@ func (c *Cerebro) SetStrategy(s strategy.Strategy) {
 
 // Start run cerebro
 func (c *Cerebro) Start(ctx context.Context) error {
-	var mu sync.Mutex
 	c.Logger.Info("Cerebro starting ...")
 
 	//시작을 어떻게 할것인가?
 	// 시작 코드를 받아서? 코드가없으면 전체 종목?
 	//
 
-	for _, i := range c.targetCodes {
+	for _, i := range c.target {
 		c.tickCh[i] = make(chan container.Tick, 1)
 	}
 
 	go pkg.Retry(3, func() error {
-		tk, err := c.store.Tick(c.Ctx, c.targetCodes...)
+		tk, err := c.store.Tick(ctx, c.target...)
 		if err != nil {
 			c.Logger.Error(err)
 			return err
@@ -153,9 +152,9 @@ func (c *Cerebro) Start(ctx context.Context) error {
 
 		go func() {
 			for i := range tk {
-				mu.Lock()
+				c.mu.Lock()
 				c.tickCh[i.Code] <- i
-				mu.Unlock()
+				c.mu.Unlock()
 			}
 		}()
 		return nil
@@ -163,13 +162,13 @@ func (c *Cerebro) Start(ctx context.Context) error {
 
 	c.strategyEngine.AddStrategy(c.strategies...)
 
-	mu.Lock()
+	c.mu.Lock()
 	for code, ch := range c.tickCh {
 		ct := container.NewInMemoryContainer(code)
 
 		if c.preload {
 			ct.SetPreload(func(code string, level time.Duration) container.Candles {
-				ctx, cancel := context.WithTimeout(c.Ctx, 10*time.Second)
+				ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 				defer cancel()
 				candle, err := c.store.Candles(ctx, code, level)
 				if err != nil {
@@ -181,9 +180,9 @@ func (c *Cerebro) Start(ctx context.Context) error {
 			})
 		}
 
-		go c.strategyEngine.Spawn(c.Ctx, ct, ch)
+		go c.strategyEngine.Spawn(ctx, ct, ch)
 	}
-	mu.Unlock()
+	c.mu.Unlock()
 
 	//event engine settings
 	{

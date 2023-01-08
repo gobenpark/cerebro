@@ -35,7 +35,7 @@ import (
 //	Cash() int64
 //	Position(code string) (position.Position, bool)
 //	SetCash(amount int64)
-//	SetCommission(percent float64)
+//	Setcommission(percent float64)
 //}
 
 type Broker struct {
@@ -47,26 +47,26 @@ type Broker struct {
 	cashValueChanged bool
 	log              log.Logger
 	codeStateMachine map[string]bool
-	Commission       float64
-	Cash             int64
+	commission       float64
+	cash             int64
 }
 
-func NewBroker(eventEngine event.Broadcaster, store store.Store, commission float64, cash int64) *Broker {
+func NewBroker(eventEngine event.Broadcaster, store store.Store, commission float64, cash int64, logger log.Logger) *Broker {
 	return &Broker{
 		orders:           map[string]order.Order{},
 		EventEngine:      eventEngine,
 		positions:        map[string]position.Position{},
 		store:            store,
 		cashValueChanged: false,
-		log:              nil,
+		log:              logger,
 		codeStateMachine: map[string]bool{},
-		Commission:       commission,
-		Cash:             cash,
+		commission:       commission,
+		cash:             cash,
 	}
 }
 
-func (b *Broker) SetCommission(percent float64) {
-	b.Commission = percent
+func (b *Broker) Setcommission(percent float64) {
+	b.commission = percent
 }
 
 // TODO: impelement
@@ -87,13 +87,13 @@ func (b *Broker) Order(ctx context.Context, code string, size int64, price float
 
 	b.codeStateMachine[code] = true
 
-	o := order.NewOrder(code, action, ot, size, price, b.Commission)
+	o := order.NewOrder(code, action, ot, size, price, b.commission)
 
-	value := int64(o.OrderPrice() + (o.OrderPrice() * (b.Commission / 100)))
+	value := int64(o.OrderPrice() + (o.OrderPrice() * (b.commission / 100)))
 	// validation check
 	switch o.Action() {
 	case order.Buy:
-		if value > b.Cash {
+		if value > b.cash {
 			return NotEnoughCash
 		}
 	case order.Sell:
@@ -114,7 +114,7 @@ func (b *Broker) Order(ctx context.Context, code string, size int64, price float
 func (b *Broker) submit(ctx context.Context, o order.Order) {
 	o.Submit()
 	b.notifyOrder(o.Copy())
-	start := b.Cash
+	start := b.cash
 
 	if err := b.store.Order(ctx, o); err != nil {
 		o.Reject(err)
@@ -128,16 +128,16 @@ func (b *Broker) submit(ctx context.Context, o order.Order) {
 
 	if o.Action() == order.Sell {
 		b.mu.Lock()
-		b.Cash += int64(o.OrderPrice() - (o.OrderPrice() * (b.Commission / 100)))
+		b.cash += int64(o.OrderPrice() - (o.OrderPrice() * (b.commission / 100)))
 		b.mu.Unlock()
 		b.deletePosition(o)
 	} else {
 		b.mu.Lock()
-		b.Cash -= int64(o.OrderPrice() + (o.OrderPrice() * (b.Commission / 100)))
+		b.cash -= int64(o.OrderPrice() + (o.OrderPrice() * (b.commission / 100)))
 		b.mu.Unlock()
 		b.appendPosition(o)
 	}
-	zap.L().Debug("cash size change", zap.Int64("start", start), zap.Int64("end", b.Cash))
+	zap.L().Debug("cash size change", zap.Int64("start", start), zap.Int64("end", b.cash))
 	b.notifyCash(o.Copy())
 
 	b.mu.Lock()
@@ -180,16 +180,20 @@ func (b *Broker) notifyCash(o order.Order) {
 	//var value int64
 	//switch o.Action() {
 	//case order.Sell:
-	//	value = int64(o.OrderPrice() - ((o.OrderPrice() * o.Commission()) / 100))
+	//	value = int64(o.OrderPrice() - ((o.OrderPrice() * o.commission()) / 100))
 	//case order.Buy:
-	//	value = -int64(o.OrderPrice() - ((o.OrderPrice() * o.Commission()) / 100))
+	//	value = -int64(o.OrderPrice() - ((o.OrderPrice() * o.commission()) / 100))
 	//}
-	//fmt.Println(o.Commission())
-	//fmt.Println("commision:", (o.OrderPrice()*o.Commission())/100)
+	//fmt.Println(o.commission())
+	//fmt.Println("commision:", (o.OrderPrice()*o.commission())/100)
 	//fmt.Println(value)
 	//fmt.Println(b.cash)
 	//b.eventEngine.BroadCast(event.CashEvent{Before: b.cash, After: b.cash + value})
 	//b.cash += value
+}
+
+func (b *Broker) Cash() int64 {
+	return b.cash
 }
 
 func (b *Broker) Position(code string) (position.Position, bool) {

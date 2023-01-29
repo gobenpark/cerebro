@@ -21,7 +21,7 @@ func (suite *TestBrokerSuite) SetupTest() {
 	ctrl := gomock.NewController(suite.T())
 	mst := mock_store.NewMockStore(ctrl)
 
-	suite.Broker = NewBroker(event.NewEventEngine(), mst, 0.03, 10000)
+	suite.Broker = NewBroker(event.NewEventEngine(), mst, 0.03, 10000, nil)
 }
 
 func (suite *TestBrokerSuite) TestOrderFail() {

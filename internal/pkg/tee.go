@@ -16,13 +16,11 @@ package pkg
 
 import (
 	"context"
-
-	"github.com/gobenpark/trader/container"
 )
 
-func Tee(ctx context.Context, in <-chan container.Tick) (_, _ <-chan container.Tick) {
-	out1 := make(chan container.Tick)
-	out2 := make(chan container.Tick)
+func Tee[T any](ctx context.Context, in <-chan T) (_, _ <-chan T) {
+	out1 := make(chan T)
+	out2 := make(chan T)
 
 	go func() {
 		defer close(out1)

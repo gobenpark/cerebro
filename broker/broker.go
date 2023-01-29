@@ -21,14 +21,13 @@ import (
 	"time"
 
 	"github.com/gobenpark/trader/event"
-	"github.com/gobenpark/trader/log"
 	"github.com/gobenpark/trader/order"
 	"github.com/gobenpark/trader/position"
 	"github.com/gobenpark/trader/store"
 	"go.uber.org/zap"
 )
 
-// Broker it is instead of human for buy , sell and etc
+// Broker it's instead of human for buy, sell and etc
 //type Broker interface {
 //	Order(ctx context.Context, code string, size int64, price float64, action order.Action, exec order.OrderType) error
 //	OrderCash(ctx context.Context, code string, amount float64, currentPrice float64, action order.Action, exec order.OrderType) error
@@ -45,21 +44,21 @@ type Broker struct {
 	positions        map[string]position.Position
 	store            store.Store
 	cashValueChanged bool
-	log              log.Logger
-	codeStateMachine map[string]bool
+	log              *zap.Logger
+	orderState       map[string]bool
 	commission       float64
 	cash             int64
 }
 
-func NewBroker(eventEngine event.Broadcaster, store store.Store, commission float64, cash int64, logger log.Logger) *Broker {
+func NewBroker(eventEngine event.Broadcaster, store store.Store, commission float64, cash int64, log *zap.Logger) *Broker {
 	return &Broker{
 		orders:           map[string]order.Order{},
 		EventEngine:      eventEngine,
 		positions:        map[string]position.Position{},
 		store:            store,
 		cashValueChanged: false,
-		log:              logger,
-		codeStateMachine: map[string]bool{},
+		log:              log,
+		orderState:       map[string]bool{},
 		commission:       commission,
 		cash:             cash,
 	}
@@ -81,11 +80,11 @@ func (b *Broker) Order(ctx context.Context, code string, size int64, price float
 
 	b.mu.Lock()
 	defer b.mu.Unlock()
-	if b.codeStateMachine[code] {
+	if b.orderState[code] {
 		return PositionExists
 	}
 
-	b.codeStateMachine[code] = true
+	b.orderState[code] = true
 
 	o := order.NewOrder(code, action, ot, size, price, b.commission)
 
@@ -141,7 +140,7 @@ func (b *Broker) submit(ctx context.Context, o order.Order) {
 	b.notifyCash(o.Copy())
 
 	b.mu.Lock()
-	b.codeStateMachine[o.Code()] = false
+	b.orderState[o.Code()] = false
 	b.mu.Unlock()
 }
 

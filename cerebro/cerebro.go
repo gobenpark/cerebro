@@ -27,23 +27,12 @@ import (
 	"github.com/gobenpark/trader/event"
 	"github.com/gobenpark/trader/internal/pkg"
 	"github.com/gobenpark/trader/item"
-	"github.com/gobenpark/trader/log"
 	"github.com/gobenpark/trader/observer"
 	"github.com/gobenpark/trader/order"
 	"github.com/gobenpark/trader/store"
 	"github.com/gobenpark/trader/strategy"
 	"go.uber.org/zap"
-	"go.uber.org/zap/zapcore"
 )
-
-func init() {
-	conf := zap.NewProductionConfig()
-	conf.Level = zap.NewAtomicLevelAt(zapcore.DebugLevel)
-	conf.EncoderConfig.TimeKey = "timestamp"
-	conf.EncoderConfig.EncodeTime = zapcore.ISO8601TimeEncoder
-	l, _ := conf.Build()
-	zap.ReplaceGlobals(l)
-}
 
 type Filter func(item item.Item) string
 
@@ -68,7 +57,7 @@ type Cerebro struct {
 	strategyEngine *strategy.Engine
 
 	//log in cerebro global logger
-	Logger log.Logger `validate:"required"`
+	log *zap.Logger `validate:"required"`
 
 	analyzer analysis.Analyzer
 
@@ -108,14 +97,18 @@ func NewCerebro(opts ...Option) *Cerebro {
 		opt(c)
 	}
 
-	if c.Logger == nil {
-		c.Logger = log.NewZapLogger()
+	if c.log == nil {
+		log, err := zap.NewProduction()
+		if err != nil {
+			panic(err)
+		}
+		c.log = log
 	}
 
-	c.broker = broker.NewBroker(c.eventEngine, c.store, c.commision, c.cash, c.Logger)
+	c.broker = broker.NewBroker(c.eventEngine, c.store, c.commision, c.cash, c.log)
 
 	if c.strategyEngine == nil {
-		c.strategyEngine = strategy.NewEngine(c.Logger, c.broker, c.preload)
+		c.strategyEngine = strategy.NewEngine(c.log, c.broker, c.preload)
 	}
 
 	return c
@@ -133,7 +126,7 @@ func (c *Cerebro) SetStrategy(s strategy.Strategy) {
 
 // Start run cerebro
 func (c *Cerebro) Start(ctx context.Context) error {
-	c.Logger.Info("Cerebro starting ...")
+	c.log.Info("Cerebro starting ...")
 
 	//시작을 어떻게 할것인가?
 	// 시작 코드를 받아서? 코드가없으면 전체 종목?
@@ -146,7 +139,7 @@ func (c *Cerebro) Start(ctx context.Context) error {
 	go pkg.Retry(3, func() error {
 		tk, err := c.store.Tick(ctx, c.target...)
 		if err != nil {
-			c.Logger.Error(err)
+			c.log.Error("store tick error", zap.Error(err))
 			return err
 		}
 
@@ -172,7 +165,7 @@ func (c *Cerebro) Start(ctx context.Context) error {
 				defer cancel()
 				candle, err := c.store.Candles(ctx, code, level)
 				if err != nil {
-					c.Logger.Error(err)
+					c.log.Error("candle error", zap.Error(err))
 					return nil
 				}
 

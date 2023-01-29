@@ -28,12 +28,10 @@ var json = jsoniter.ConfigCompatibleWithStandardLibrary
 
 type bgContainer struct {
 	*badger.DB
-	DataContainer
 }
 
 func NewBadgerContainer(db *badger.DB, info Info) Container {
 	b := &bgContainer{}
-	b.Info = info
 	b.DB = db
 	return b
 }

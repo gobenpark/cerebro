@@ -16,19 +16,31 @@
 package container
 
 import (
+	"bytes"
 	"fmt"
 	"testing"
 	"time"
 
 	"github.com/dgraph-io/badger/v3"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
-func TestLeftInsert(t *testing.T) {
-	data := []int{1, 2, 3, 4, 5}
+type Sample struct {
+	data string
+}
 
-	data = append([]int{7}, data...)
-	fmt.Println(data)
+func TestLeftInsert(t *testing.T) {
+	d := Sample{data: "dsad"}
+
+	bt, err := json.Marshal(d)
+	require.NoError(t, err)
+
+	b := bytes.Buffer{}
+
+	n, err := b.Write(bt)
+	require.NoError(t, err)
+	fmt.Println(n)
 }
 
 func BenchmarkContainer(b *testing.B) {

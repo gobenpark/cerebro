@@ -16,12 +16,10 @@ package pkg
 
 import (
 	"context"
-
-	"github.com/gobenpark/trader/container"
 )
 
-func OrDone(ctx context.Context, c <-chan container.Tick) <-chan container.Tick {
-	valStream := make(chan container.Tick)
+func OrDone[T any](ctx context.Context, c <-chan T) <-chan T {
+	valStream := make(chan T)
 	go func() {
 		defer close(valStream)
 		for {

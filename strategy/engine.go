@@ -22,20 +22,20 @@ import (
 	"github.com/gobenpark/trader/broker"
 	"github.com/gobenpark/trader/container"
 	"github.com/gobenpark/trader/event"
-	"github.com/gobenpark/trader/log"
+	"github.com/gobenpark/trader/internal/pkg"
 	"github.com/gobenpark/trader/order"
+	"go.uber.org/zap"
 )
 
 type Engine struct {
 	mu      sync.Mutex
 	broker  *broker.Broker
 	sts     []Strategy
-	log     log.Logger
+	log     *zap.Logger
 	preload bool
 }
 
-func NewEngine(log log.Logger, bk *broker.Broker, preload bool) *Engine {
-
+func NewEngine(log *zap.Logger, bk *broker.Broker, preload bool) *Engine {
 	return &Engine{
 		broker:  bk,
 		log:     log,
@@ -48,21 +48,17 @@ func (s *Engine) AddStrategy(sts ...Strategy) {
 }
 
 func (s *Engine) Spawn(ctx context.Context, cont container.Container2, tick <-chan container.Tick) {
-Done:
-	for {
-		select {
-		case i := <-tick:
-			cont.AppendTick(i)
-			s.mu.Lock()
-			for _, st := range s.sts {
-				if err := st.Next(ctx, s.broker, cont); err != nil {
-					s.log.Error(err)
-				}
+	s.log.Info("strategy engine start")
+
+	for i := range pkg.OrDone(ctx, tick) {
+		cont.AppendTick(i)
+		s.mu.Lock()
+		for _, st := range s.sts {
+			if err := st.Next(ctx, s.broker, cont); err != nil {
+				s.log.Error("next error", zap.Error(err))
 			}
-			s.mu.Unlock()
-		case <-ctx.Done():
-			break Done
 		}
+		s.mu.Unlock()
 	}
 }
 

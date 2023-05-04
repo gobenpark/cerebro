@@ -17,20 +17,22 @@ package cerebro
 
 import (
 	"context"
+	"fmt"
 	"sync"
-	"time"
 
-	"github.com/gobenpark/trader/analysis"
-	"github.com/gobenpark/trader/broker"
-	"github.com/gobenpark/trader/chart"
-	"github.com/gobenpark/trader/container"
-	"github.com/gobenpark/trader/event"
-	"github.com/gobenpark/trader/internal/pkg"
-	"github.com/gobenpark/trader/item"
-	"github.com/gobenpark/trader/observer"
-	"github.com/gobenpark/trader/order"
-	"github.com/gobenpark/trader/store"
-	"github.com/gobenpark/trader/strategy"
+	"github.com/gobenpark/cerebro/analysis"
+	"github.com/gobenpark/cerebro/broker"
+	"github.com/gobenpark/cerebro/chart"
+	"github.com/gobenpark/cerebro/container"
+	"github.com/gobenpark/cerebro/event"
+	"github.com/gobenpark/cerebro/internal/pkg"
+	"github.com/gobenpark/cerebro/item"
+	"github.com/gobenpark/cerebro/log"
+	log2 "github.com/gobenpark/cerebro/log/v1"
+	"github.com/gobenpark/cerebro/observer"
+	"github.com/gobenpark/cerebro/order"
+	"github.com/gobenpark/cerebro/store"
+	"github.com/gobenpark/cerebro/strategy"
 	"go.uber.org/zap"
 )
 
@@ -52,12 +54,14 @@ type Cerebro struct {
 
 	target []string
 
+	controlPlane *container.ControlPlane
+
 	store store.Store
 	//strategy.StrategyEngine embedding property for managing user strategy
 	strategyEngine *strategy.Engine
 
 	//log in cerebro global logger
-	log *zap.Logger `validate:"required"`
+	log log.Logger `validate:"required"`
 
 	analyzer analysis.Analyzer
 
@@ -86,11 +90,12 @@ type Cerebro struct {
 // NewCerebro generate new cerebro with cerebro option
 func NewCerebro(opts ...Option) *Cerebro {
 	c := &Cerebro{
-		order:       make(chan order.Order, 1),
-		dataCh:      make(chan container.Container, 1),
-		eventEngine: event.NewEventEngine(),
-		chart:       chart.NewTraderChart(),
-		tickCh:      make(map[string]chan container.Tick),
+		order:        make(chan order.Order, 1),
+		dataCh:       make(chan container.Container, 1),
+		eventEngine:  event.NewEventEngine(),
+		chart:        chart.NewTraderChart(),
+		tickCh:       make(map[string]chan container.Tick),
+		controlPlane: container.NewControlPlane(),
 	}
 
 	for _, opt := range opts {
@@ -98,7 +103,7 @@ func NewCerebro(opts ...Option) *Cerebro {
 	}
 
 	if c.log == nil {
-		log, err := zap.NewProduction()
+		log, err := log2.NewLogger()
 		if err != nil {
 			panic(err)
 		}
@@ -126,56 +131,32 @@ func (c *Cerebro) SetStrategy(s strategy.Strategy) {
 
 // Start run cerebro
 func (c *Cerebro) Start(ctx context.Context) error {
-	c.log.Info("Cerebro starting ...")
+	c.log.Debug("Cerebro starting ...")
 
-	//시작을 어떻게 할것인가?
-	// 시작 코드를 받아서? 코드가없으면 전체 종목?
-	//
-
+	if len(c.target) == 0 {
+		return fmt.Errorf("error target zero value")
+	}
 	for _, i := range c.target {
 		c.tickCh[i] = make(chan container.Tick, 1)
 	}
 
-	go pkg.Retry(3, func() error {
+	c.strategyEngine.AddStrategy(c.strategies...)
+
+	go pkg.Retry(ctx, 3, func() error {
 		tk, err := c.store.Tick(ctx, c.target...)
 		if err != nil {
 			c.log.Error("store tick error", zap.Error(err))
 			return err
 		}
 
-		go func() {
-			for i := range tk {
-				c.mu.Lock()
-				c.tickCh[i.Code] <- i
-				c.mu.Unlock()
-			}
-		}()
+		// use pipeline
+		// control plane receive tick data and return container
+		// after return container then do filter or other
+		for cn := range c.controlPlane.Add(pkg.OrDone(ctx, tk)) {
+			fmt.Println(cn)
+		}
 		return nil
 	})
-
-	c.strategyEngine.AddStrategy(c.strategies...)
-
-	c.mu.Lock()
-	for code, ch := range c.tickCh {
-		ct := container.NewInMemoryContainer(code)
-
-		if c.preload {
-			ct.SetPreload(func(code string, level time.Duration) container.Candles {
-				ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
-				defer cancel()
-				candle, err := c.store.Candles(ctx, code, level)
-				if err != nil {
-					c.log.Error("candle error", zap.Error(err))
-					return nil
-				}
-
-				return candle
-			})
-		}
-
-		go c.strategyEngine.Spawn(ctx, ct, ch)
-	}
-	c.mu.Unlock()
 
 	//event engine settings
 	{

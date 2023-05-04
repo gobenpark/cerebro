@@ -4,9 +4,9 @@ import (
 	"context"
 	"testing"
 
-	"github.com/gobenpark/trader/event"
-	"github.com/gobenpark/trader/order"
-	mock_store "github.com/gobenpark/trader/store/mock"
+	"github.com/gobenpark/cerebro/event"
+	"github.com/gobenpark/cerebro/order"
+	mock_store "github.com/gobenpark/cerebro/store/mock"
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/suite"

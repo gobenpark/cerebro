@@ -1,5 +1,5 @@
 /*
- *  Copyright 2021 The Trader Authors
+ *  Copyright 2021 The Cerebro Authors
  *
  *  Licensed under the GNU General Public License v3.0 (the "License");
  *  you may not use this file except in compliance with the License.
@@ -19,8 +19,8 @@ package broker
 import "errors"
 
 var (
-	NotEnoughCash       = errors.New("Not Enough Cash")
-	PositionExists      = errors.New("Broker Position is Exists")
-	PositionNotExists   = errors.New("Broker Position is not Exists")
-	LowSizeThenPosition = errors.New("Low Size then position")
+	ErrNotEnoughCash       = errors.New("Not Enough Cash")
+	ErrPositionExists      = errors.New("Broker Position is Exists")
+	ErrPositionNotExists   = errors.New("Broker Position is not Exists")
+	ErrLowSizeThenPosition = errors.New("Low Size then position")
 )

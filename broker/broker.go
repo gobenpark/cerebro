@@ -1,5 +1,5 @@
 /*
- *  Copyright 2023 The Trader Authors
+ *  Copyright 2023 The Cerebro Authors
  *
  *  Licensed under the GNU General Public License v3.0 (the "License");
  *  you may not use this file except in compliance with the License.
@@ -20,10 +20,11 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gobenpark/trader/event"
-	"github.com/gobenpark/trader/order"
-	"github.com/gobenpark/trader/position"
-	"github.com/gobenpark/trader/store"
+	"github.com/gobenpark/cerebro/event"
+	"github.com/gobenpark/cerebro/log"
+	"github.com/gobenpark/cerebro/order"
+	"github.com/gobenpark/cerebro/position"
+	"github.com/gobenpark/cerebro/store"
 	"go.uber.org/zap"
 )
 
@@ -44,20 +45,20 @@ type Broker struct {
 	positions        map[string]position.Position
 	store            store.Store
 	cashValueChanged bool
-	log              *zap.Logger
+	logger           log.Logger
 	orderState       map[string]bool
 	commission       float64
 	cash             int64
 }
 
-func NewBroker(eventEngine event.Broadcaster, store store.Store, commission float64, cash int64, log *zap.Logger) *Broker {
+func NewBroker(eventEngine event.Broadcaster, store store.Store, commission float64, cash int64, logger log.Logger) *Broker {
 	return &Broker{
 		orders:           map[string]order.Order{},
 		EventEngine:      eventEngine,
 		positions:        map[string]position.Position{},
 		store:            store,
 		cashValueChanged: false,
-		log:              log,
+		logger:           logger,
 		orderState:       map[string]bool{},
 		commission:       commission,
 		cash:             cash,
@@ -81,7 +82,7 @@ func (b *Broker) Order(ctx context.Context, code string, size int64, price float
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	if b.orderState[code] {
-		return PositionExists
+		return ErrPositionExists
 	}
 
 	b.orderState[code] = true
@@ -93,14 +94,14 @@ func (b *Broker) Order(ctx context.Context, code string, size int64, price float
 	switch o.Action() {
 	case order.Buy:
 		if value > b.cash {
-			return NotEnoughCash
+			return ErrNotEnoughCash
 		}
 	case order.Sell:
 		if p, ok := b.positions[o.Code()]; !ok {
-			return PositionNotExists
+			return ErrPositionNotExists
 		} else {
 			if p.Size > o.Size() {
-				return LowSizeThenPosition
+				return ErrLowSizeThenPosition
 			}
 		}
 	}

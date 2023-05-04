@@ -23,7 +23,7 @@ import (
 	"sort"
 	"testing"
 
-	"github.com/gobenpark/trader/container"
+	"github.com/gobenpark/cerebro/container"
 	"github.com/stretchr/testify/require"
 )
 

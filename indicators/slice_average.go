@@ -15,7 +15,7 @@
  */
 package indicators
 
-import "github.com/gobenpark/trader/container"
+import "github.com/gobenpark/cerebro/container"
 
 func average(candle []container.Candle) float64 {
 	total := 0.0

@@ -18,7 +18,7 @@ package indicators
 import (
 	"math"
 
-	"github.com/gobenpark/trader/container"
+	"github.com/gobenpark/cerebro/container"
 )
 
 type BollingerBand struct {

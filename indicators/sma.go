@@ -18,7 +18,7 @@ package indicators
 import (
 	"sort"
 
-	"github.com/gobenpark/trader/container"
+	"github.com/gobenpark/cerebro/container"
 )
 
 type sma struct {

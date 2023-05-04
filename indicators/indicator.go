@@ -18,7 +18,7 @@ package indicators
 import (
 	"time"
 
-	"github.com/gobenpark/trader/container"
+	"github.com/gobenpark/cerebro/container"
 )
 
 type IndicatorType string

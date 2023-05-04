@@ -36,7 +36,7 @@ func NewEventEngine() *Engine {
 	}
 }
 
-//Start event engine start function need goroutine
+// Start event engine start function need goroutine
 func (e *Engine) Start(ctx context.Context) {
 Done:
 	for {

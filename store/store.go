@@ -6,10 +6,10 @@ import (
 	"context"
 	"time"
 
-	"github.com/gobenpark/trader/container"
-	"github.com/gobenpark/trader/item"
-	"github.com/gobenpark/trader/order"
-	"github.com/gobenpark/trader/position"
+	"github.com/gobenpark/cerebro/container"
+	"github.com/gobenpark/cerebro/item"
+	"github.com/gobenpark/cerebro/order"
+	"github.com/gobenpark/cerebro/position"
 )
 
 type CandleType int

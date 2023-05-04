@@ -18,7 +18,7 @@ package indicators
 import (
 	"math"
 
-	"github.com/gobenpark/trader/container"
+	"github.com/gobenpark/cerebro/container"
 )
 
 type rsi struct {
@@ -35,7 +35,7 @@ func NewRsi(period int) Indicator {
 	return &rsi{period: period, indicates: []Indicate{}}
 }
 
-//self.line[0] = self.line[-1] * self.alpha1 + self.data[0] * self.alpha
+// self.line[0] = self.line[-1] * self.alpha1 + self.data[0] * self.alpha
 func (r *rsi) Calculate(c container.Candles) {
 	if len(c) > 100 {
 		c = c[:100]

@@ -16,9 +16,9 @@
 package cerebro
 
 import (
-	"github.com/gobenpark/trader/analysis"
-	"github.com/gobenpark/trader/observer"
-	"github.com/gobenpark/trader/store"
+	"github.com/gobenpark/cerebro/analysis"
+	"github.com/gobenpark/cerebro/observer"
+	"github.com/gobenpark/cerebro/store"
 )
 
 type Option func(*Cerebro)

@@ -1,9 +1,9 @@
 package event
 
-type ErrorEvent struct {
+type EventError struct {
 	Message string
 }
 
-func (e ErrorEvent) Error() string {
+func (e EventError) Error() string {
 	return e.Message
 }

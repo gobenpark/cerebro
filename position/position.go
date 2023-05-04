@@ -18,7 +18,7 @@ package position
 import (
 	"time"
 
-	"github.com/gobenpark/trader/order"
+	"github.com/gobenpark/cerebro/order"
 )
 
 type Position struct {

@@ -14,7 +14,7 @@
 
 package observer
 
-import "github.com/gobenpark/trader/container"
+import "github.com/gobenpark/cerebro/container"
 
 type Observer interface {
 	Next(tick container.Tick)

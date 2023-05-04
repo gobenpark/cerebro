@@ -16,52 +16,57 @@
 
 package log
 
-import "github.com/gobenpark/trader/log"
+import (
+	"github.com/gobenpark/cerebro/log"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
+)
 
-var _log = log.NewZapLogger()
-
-func Debug(v ...interface{}) {
-	_log.Debug(v...)
+type Logger struct {
+	l *zap.SugaredLogger
 }
 
-func Debugf(format string, v ...interface{}) {
-	_log.Debugf(format, v...)
+func NewLogger() (log.Logger, error) {
+	conf := zap.NewProductionConfig()
+	conf.Level = zap.NewAtomicLevelAt(zapcore.DebugLevel)
+	encoderConfig := zap.NewProductionEncoderConfig()
+	encoderConfig.TimeKey = "timestamp"
+	encoderConfig.EncodeTime = zapcore.ISO8601TimeEncoder
+	encoderConfig.StacktraceKey = ""
+	conf.EncoderConfig = encoderConfig
+	conf.OutputPaths = []string{
+		"stderr",
+	}
+
+	l, err := conf.Build(zap.AddCallerSkip(1))
+	if err != nil {
+		return nil, err
+	}
+
+	return &Logger{l.Sugar()}, nil
 }
 
-func Error(v ...interface{}) {
-	_log.Error(v...)
+func (l *Logger) Error(msg string, kv ...interface{}) {
+	l.l.Errorw(msg, kv...)
+	l.l.Sync()
 }
 
-func Errorf(format string, v ...interface{}) {
-	_log.Errorf(format, v...)
+func (l *Logger) Info(msg string, kv ...interface{}) {
+	l.l.Infow(msg, kv...)
+	l.l.Sync()
 }
 
-func Info(v ...interface{}) {
-	_log.Info(v...)
-}
-func Infof(format string, v ...interface{}) {
-	_log.Infof(format, v...)
+func (l *Logger) Warn(msg string, kv ...interface{}) {
+	l.l.Warnw(msg, kv...)
+	l.l.Sync()
 }
 
-func Warning(v ...interface{}) {
-	_log.Warning(v...)
-}
-func Warningf(format string, v ...interface{}) {
-	_log.Warningf(format, v...)
+func (l *Logger) Debug(msg string, kv ...interface{}) {
+	l.l.Debugw(msg, kv...)
+	l.l.Sync()
 }
 
-func Fatal(v ...interface{}) {
-	_log.Fatal(v...)
-}
-
-func Fatalf(format string, v ...interface{}) {
-	_log.Fatalf(format, v...)
-}
-
-func Panic(v ...interface{}) {
-	_log.Panic(v...)
-}
-
-func Panicf(format string, v ...interface{}) {
-	_log.Panicf(format, v...)
+func (l *Logger) Panic(msg string, kv ...interface{}) {
+	l.l.Panicw(msg, kv...)
+	l.l.Sync()
 }

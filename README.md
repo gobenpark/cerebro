@@ -3,12 +3,12 @@
 golang live trading framework
 ---
 [![made-with-Go](https://img.shields.io/badge/Made%20with-Go-1f425f.svg)](http://golang.org)
-[![codecov](https://codecov.io/gh/gobenpark/trader/branch/master/graph/badge.svg?token=4UWNV7BMZ3)](https://codecov.io/gh/gobenpark/trader)
-[![GitHub go.mod Go version of a Go module](https://img.shields.io/github/go-mod/go-version/gobenpark/trader.svg)](https://github.com/gobenpark/trader)
-[![GitHub release](https://img.shields.io/github/v/release/gobenpark/trader)](https://github.com/gobenpark/trader/releases)
-[![Go Report Card](https://goreportcard.com/badge/github.com/gobenpark/trader?style=flat-square)](https://goreportcard.com/report/github.com/gobenpark/trader)
-[![Godoc](http://img.shields.io/badge/go-documentation-blue.svg?style=flat-square)](https://godoc.org/github.com/gobenpark/trader)
-[![LICENSE](https://img.shields.io/github/license/gobenpark/trader.svg?style=flat-square)](https://github.com/gobenpark/trader/blob/master/LICENSE)
+[![codecov](https://codecov.io/gh/gobenpark/cerebro/branch/master/graph/badge.svg?token=4UWNV7BMZ3)](https://codecov.io/gh/gobenpark/trader)
+[![GitHub go.mod Go version of a Go module](https://img.shields.io/github/go-mod/go-version/gobenpark/trader.svg)](https://github.com/gobenpark/cerebro)
+[![GitHub release](https://img.shields.io/github/v/release/gobenpark/trader)](https://github.com/gobenpark/cerebro/releases)
+[![Go Report Card](https://goreportcard.com/badge/github.com/gobenpark/cerebro?style=flat-square)](https://goreportcard.com/report/github.com/gobenpark/cerebro)
+[![Godoc](http://img.shields.io/badge/go-documentation-blue.svg?style=flat-square)](https://godoc.org/github.com/gobenpark/cerebro)
+[![LICENSE](https://img.shields.io/github/license/gobenpark/trader.svg?style=flat-square)](https://github.com/gobenpark/cerebro/blob/master/LICENSE)
 
 ## Introduce
 This project was inspired by [backtrader](https://www.backtrader.com)
@@ -20,7 +20,7 @@ so i want solve by golang
 
 ## Installation
 
-`go get github.com/gobenpark/trader`
+`go get github.com/gobenpark/cerebro`
 
 ## Usage
 
@@ -37,8 +37,8 @@ import (
 	"time"
 
 	"github.com/gobenpark/proto/stock"
-	"github.com/gobenpark/trader/container"
-	"github.com/gobenpark/trader/order"
+	"github.com/gobenpark/cerebro/container"
+	"github.com/gobenpark/cerebro/order"
 	"github.com/rs/zerolog/log"
 	uuid "github.com/satori/go.uuid"
 )
@@ -89,10 +89,10 @@ in this part you can every using indicator and buy, sell using broker
 import (
 	"fmt"
 
-	"github.com/gobenpark/trader/broker"
-	"github.com/gobenpark/trader/container"
-	"github.com/gobenpark/trader/indicators"
-	"github.com/gobenpark/trader/order"
+	"github.com/gobenpark/cerebro/broker"
+	"github.com/gobenpark/cerebro/container"
+	"github.com/gobenpark/cerebro/indicators"
+	"github.com/gobenpark/cerebro/order"
 )
 
 type Bighands struct {
@@ -167,9 +167,9 @@ package main
 
 import (
 	"time"
-	"github.com/gobenpark/trader/broker"
-	"github.com/gobenpark/trader/cerebro"
-	"github.com/gobenpark/trader/strategy"
+	"github.com/gobenpark/cerebro/broker"
+	"github.com/gobenpark/cerebro/cerebro"
+	"github.com/gobenpark/cerebro/strategy"
 )
 
 func main() {

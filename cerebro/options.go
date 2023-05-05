@@ -16,7 +16,10 @@
 package cerebro
 
 import (
+	"time"
+
 	"github.com/gobenpark/cerebro/analysis"
+	"github.com/gobenpark/cerebro/log"
 	"github.com/gobenpark/cerebro/observer"
 	"github.com/gobenpark/cerebro/store"
 )
@@ -62,5 +65,17 @@ func WithAnalyzer(analyzer analysis.Analyzer) Option {
 func WithCommision(com float64) Option {
 	return func(c *Cerebro) {
 		c.commision = com
+	}
+}
+
+func WithLogLevel(lvl log.Level) Option {
+	return func(c *Cerebro) {
+		c.logLevel = lvl
+	}
+}
+
+func WithStrategyTimeout(du time.Duration) Option {
+	return func(c *Cerebro) {
+		c.timeout = du
 	}
 }

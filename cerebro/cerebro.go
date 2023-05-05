@@ -19,10 +19,10 @@ import (
 	"context"
 	"fmt"
 	"sync"
+	"time"
 
 	"github.com/gobenpark/cerebro/analysis"
 	"github.com/gobenpark/cerebro/broker"
-	"github.com/gobenpark/cerebro/chart"
 	"github.com/gobenpark/cerebro/container"
 	"github.com/gobenpark/cerebro/event"
 	"github.com/gobenpark/cerebro/internal/pkg"
@@ -33,7 +33,7 @@ import (
 	"github.com/gobenpark/cerebro/order"
 	"github.com/gobenpark/cerebro/store"
 	"github.com/gobenpark/cerebro/strategy"
-	"go.uber.org/zap"
+	"go.uber.org/zap
 )
 
 type Filter func(item item.Item) string
@@ -41,6 +41,7 @@ type Filter func(item item.Item) string
 // Cerebro head of trading system
 // make all dependency manage
 type Cerebro struct {
+	logLevel log.Level
 	//isLive use cerebro live trading
 	isLive bool
 	// preload bool value, decide use candle history
@@ -76,7 +77,7 @@ type Cerebro struct {
 
 	o observer.Observer
 
-	chart *chart.TraderChart
+	//chart *chart.TraderChart
 
 	tickCh map[string]chan container.Tick
 
@@ -85,15 +86,17 @@ type Cerebro struct {
 	cash int64
 
 	mu sync.RWMutex
+
+	timeout time.Duration
 }
 
 // NewCerebro generate new cerebro with cerebro option
 func NewCerebro(opts ...Option) *Cerebro {
 	c := &Cerebro{
-		order:        make(chan order.Order, 1),
-		dataCh:       make(chan container.Container, 1),
-		eventEngine:  event.NewEventEngine(),
-		chart:        chart.NewTraderChart(),
+		order:       make(chan order.Order, 1),
+		dataCh:      make(chan container.Container, 1),
+		eventEngine: event.NewEventEngine(),
+		//chart:        chart.NewTraderChart(),
 		tickCh:       make(map[string]chan container.Tick),
 		controlPlane: container.NewControlPlane(),
 	}
@@ -103,7 +106,7 @@ func NewCerebro(opts ...Option) *Cerebro {
 	}
 
 	if c.log == nil {
-		log, err := log2.NewLogger()
+		log, err := log2.NewLogger(c.logLevel)
 		if err != nil {
 			panic(err)
 		}
@@ -113,7 +116,7 @@ func NewCerebro(opts ...Option) *Cerebro {
 	c.broker = broker.NewBroker(c.eventEngine, c.store, c.commision, c.cash, c.log)
 
 	if c.strategyEngine == nil {
-		c.strategyEngine = strategy.NewEngine(c.log, c.broker, c.preload)
+		c.strategyEngine = strategy.NewEngine(c.log, c.broker, c.preload,c.timeout)
 	}
 
 	return c
@@ -142,6 +145,7 @@ func (c *Cerebro) Start(ctx context.Context) error {
 
 	c.strategyEngine.AddStrategy(c.strategies...)
 
+	// tick data receive from store
 	go pkg.Retry(ctx, 3, func() error {
 		tk, err := c.store.Tick(ctx, c.target...)
 		if err != nil {
@@ -149,14 +153,15 @@ func (c *Cerebro) Start(ctx context.Context) error {
 			return err
 		}
 
-		// use pipeline
-		// control plane receive tick data and return container
-		// after return container then do filter or other
-		for cn := range c.controlPlane.Add(pkg.OrDone(ctx, tk)) {
-			fmt.Println(cn)
-		}
+
+		ch := c.controlPlane.Add(pkg.OrDone(ctx,tk))
+
+		c.strategyEngine.Spawn(ctx,ch)
+
 		return nil
 	})
+
+
 
 	//event engine settings
 	{

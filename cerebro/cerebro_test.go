@@ -20,11 +20,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gobenpark/trader/container"
-	"github.com/gobenpark/trader/event"
-	"github.com/gobenpark/trader/item"
-	"github.com/gobenpark/trader/order"
-	"github.com/gobenpark/trader/position"
+	"github.com/gobenpark/cerebro/container"
+	"github.com/gobenpark/cerebro/event"
+	"github.com/gobenpark/cerebro/item"
+	"github.com/gobenpark/cerebro/order"
+	"github.com/gobenpark/cerebro/position"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -53,8 +53,8 @@ func (s SampleStore) LoadTick(ctx context.Context, code string) (<-chan containe
 				Code:   "test1",
 				AskBid: "ASK",
 				Date:   time.Now(),
-				Price:  float64(i),
-				Volume: float64(i),
+				Price:  int64(i),
+				Volume: int64(i),
 			}
 		}
 	}()

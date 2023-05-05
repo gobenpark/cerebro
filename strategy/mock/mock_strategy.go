@@ -5,12 +5,13 @@
 package mock_strategy
 
 import (
+	context "context"
 	reflect "reflect"
 
-	broker "github.com/gobenpark/trader/broker"
-	container "github.com/gobenpark/trader/container"
-	order "github.com/gobenpark/trader/order"
-	strategy "github.com/gobenpark/trader/strategy"
+	broker "github.com/gobenpark/cerebro/broker"
+	container "github.com/gobenpark/cerebro/container"
+	order "github.com/gobenpark/cerebro/order"
+	strategy "github.com/gobenpark/cerebro/strategy"
 	gomock "github.com/golang/mock/gomock"
 )
 
@@ -52,17 +53,17 @@ func (mr *MockStrategyMockRecorder) CandleType() *gomock.Call {
 }
 
 // Next mocks base method.
-func (m *MockStrategy) Next(broker broker.Broker, container container.Container2) error {
+func (m *MockStrategy) Next(ctx context.Context, broker *broker.Broker, container container.Container) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Next", broker, container)
+	ret := m.ctrl.Call(m, "Next", ctx, broker, container)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // Next indicates an expected call of Next.
-func (mr *MockStrategyMockRecorder) Next(broker, container interface{}) *gomock.Call {
+func (mr *MockStrategyMockRecorder) Next(ctx, broker, container interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Next", reflect.TypeOf((*MockStrategy)(nil).Next), broker, container)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Next", reflect.TypeOf((*MockStrategy)(nil).Next), ctx, broker, container)
 }
 
 // NotifyCashValue mocks base method.

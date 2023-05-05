@@ -18,28 +18,32 @@ package strategy
 import (
 	"context"
 	"sync"
+	"time"
 
-	"github.com/gobenpark/trader/broker"
-	"github.com/gobenpark/trader/container"
-	"github.com/gobenpark/trader/event"
-	"github.com/gobenpark/trader/internal/pkg"
-	"github.com/gobenpark/trader/order"
-	"go.uber.org/zap"
+	"github.com/gobenpark/cerebro/log"
+
+	"github.com/gobenpark/cerebro/broker"
+	"github.com/gobenpark/cerebro/container"
+	"github.com/gobenpark/cerebro/event"
+	"github.com/gobenpark/cerebro/order"
 )
 
 type Engine struct {
 	mu      sync.Mutex
 	broker  *broker.Broker
 	sts     []Strategy
-	log     *zap.Logger
+	log     log.Logger
 	preload bool
+	chs     []chan container.Container
+	timeout time.Duration
 }
 
-func NewEngine(log *zap.Logger, bk *broker.Broker, preload bool) *Engine {
+func NewEngine(log log.Logger, bk *broker.Broker, preload bool, timeout time.Duration) *Engine {
 	return &Engine{
 		broker:  bk,
 		log:     log,
 		preload: preload,
+		timeout: timeout,
 	}
 }
 
@@ -47,19 +51,41 @@ func (s *Engine) AddStrategy(sts ...Strategy) {
 	s.sts = append(s.sts, sts...)
 }
 
-func (s *Engine) Spawn(ctx context.Context, cont container.Container2, tick <-chan container.Tick) {
+func (s *Engine) Spawn(ctx context.Context, cont <-chan container.Container) error {
 	s.log.Info("strategy engine start")
 
-	for i := range pkg.OrDone(ctx, tick) {
-		cont.AppendTick(i)
-		s.mu.Lock()
-		for _, st := range s.sts {
-			if err := st.Next(ctx, s.broker, cont); err != nil {
-				s.log.Error("next error", zap.Error(err))
+	for _, i := range s.sts {
+		ch := make(chan container.Container, 1)
+		s.chs = append(s.chs, ch)
+		go func(st Strategy) {
+			for j := range ch {
+				if s.timeout == 0 {
+					ctx, cancel := context.WithTimeout(ctx, s.timeout)
+					if err := st.Next(ctx, s.broker, j); err != nil {
+						s.log.Error("error strategy engine", "err", err)
+						continue
+					}
+					cancel()
+					continue
+				}
+
+				if err := st.Next(ctx, s.broker, j); err != nil {
+					s.log.Error("error strategy engine", "err", err)
+				}
 			}
-		}
-		s.mu.Unlock()
+		}(i)
 	}
+
+	for i := range cont {
+		for _, j := range s.chs {
+			j <- i
+		}
+	}
+
+	for i := range s.sts {
+		close(s.chs[i])
+	}
+	return nil
 }
 
 func (s *Engine) Listen(e interface{}) {

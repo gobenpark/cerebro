@@ -26,9 +26,9 @@ type Logger struct {
 	l *zap.SugaredLogger
 }
 
-func NewLogger() (log.Logger, error) {
+func NewLogger(lvl log.Level) (log.Logger, error) {
 	conf := zap.NewProductionConfig()
-	conf.Level = zap.NewAtomicLevelAt(zapcore.DebugLevel)
+	conf.Level = zap.NewAtomicLevelAt(zapcore.Level(lvl))
 	encoderConfig := zap.NewProductionEncoderConfig()
 	encoderConfig.TimeKey = "timestamp"
 	encoderConfig.EncodeTime = zapcore.ISO8601TimeEncoder

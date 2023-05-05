@@ -20,9 +20,9 @@ package strategy
 import (
 	"context"
 
-	"github.com/gobenpark/trader/broker"
-	"github.com/gobenpark/trader/container"
-	"github.com/gobenpark/trader/order"
+	"github.com/gobenpark/cerebro/broker"
+	"github.com/gobenpark/cerebro/container"
+	"github.com/gobenpark/cerebro/order"
 )
 
 type CandleType int
@@ -38,7 +38,7 @@ const (
 
 type Strategy interface {
 	CandleType() CandleType
-	Next(ctx context.Context, broker *broker.Broker, container container.Container2) error
+	Next(ctx context.Context, broker *broker.Broker, container container.Container) error
 
 	//NotifyOrder is when event rise order then called
 	NotifyOrder(o order.Order)

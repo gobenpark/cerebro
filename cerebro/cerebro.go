@@ -33,7 +33,7 @@ import (
 	"github.com/gobenpark/cerebro/order"
 	"github.com/gobenpark/cerebro/store"
 	"github.com/gobenpark/cerebro/strategy"
-	"go.uber.org/zap
+	"go.uber.org/zap"
 )
 
 type Filter func(item item.Item) string
@@ -116,7 +116,7 @@ func NewCerebro(opts ...Option) *Cerebro {
 	c.broker = broker.NewBroker(c.eventEngine, c.store, c.commision, c.cash, c.log)
 
 	if c.strategyEngine == nil {
-		c.strategyEngine = strategy.NewEngine(c.log, c.broker, c.preload,c.timeout)
+		c.strategyEngine = strategy.NewEngine(c.log, c.broker, c.preload, c.timeout)
 	}
 
 	return c
@@ -153,15 +153,15 @@ func (c *Cerebro) Start(ctx context.Context) error {
 			return err
 		}
 
+		ch := c.controlPlane.Add(pkg.OrDone(ctx, tk))
 
-		ch := c.controlPlane.Add(pkg.OrDone(ctx,tk))
-
-		c.strategyEngine.Spawn(ctx,ch)
+		if err := c.strategyEngine.Spawn(ctx, ch); err != nil {
+			c.log.Error("spawn error", "err", err)
+			return err
+		}
 
 		return nil
 	})
-
-
 
 	//event engine settings
 	{

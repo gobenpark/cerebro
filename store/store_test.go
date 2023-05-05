@@ -9,12 +9,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gobenpark/cerebro/container"
+	"github.com/gobenpark/cerebro/internal/pkg"
+	"github.com/gobenpark/cerebro/item"
+	"github.com/gobenpark/cerebro/order"
+	"github.com/gobenpark/cerebro/position"
 	kv "github.com/gobenpark/kinvest-go"
-	"github.com/gobenpark/trader/container"
-	"github.com/gobenpark/trader/internal/pkg"
-	"github.com/gobenpark/trader/item"
-	"github.com/gobenpark/trader/order"
-	"github.com/gobenpark/trader/position"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
 )

@@ -1,84 +1,86 @@
 /*
- *  Copyright 2021 The Trader Authors
+ * Copyright 2023 The Trader Authors
  *
- *  Licensed under the GNU General Public License v3.0 (the "License");
- *  you may not use this file except in compliance with the License.
- *  You may obtain a copy of the License at
+ * Licensed under the GNU General Public License v3.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
- *      <https:fsf.org/>
+ *   <https:fsf.org/>
  *
- *  Unless required by applicable law or agreed to in writing, software
- *  distributed under the License is distributed on an "AS IS" BASIS,
- *  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- *  See the License for the specific language governing permissions and
- *  limitations under the License.
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
+
 package container
 
 import (
-	"bytes"
+	"context"
 	"fmt"
 	"testing"
 	"time"
 
-	"github.com/dgraph-io/badger/v3"
-	"github.com/stretchr/testify/assert"
+	influxdb2 "github.com/influxdata/influxdb-client-go/v2"
 	"github.com/stretchr/testify/require"
 )
 
-type Sample struct {
-	data string
-}
+func TickDatas(t *testing.T) []Tick {
+	t.Helper()
+	cli := influxdb2.NewClient("http://192.168.0.58:8086", "-wrQo-soyW1A-xl4ROPAIU0jMx-1SEeoAZJYQSmcfUpQuA5cZyNmJeqD3AA8wfZGggG2v7fG5AW_M0nv2ADGQQ==")
+	fmt.Println(cli.Ping(context.TODO()))
+	api := cli.QueryAPI("stock")
+	re, err := api.Query(context.TODO(), `
+import "join"
 
-func TestLeftInsert(t *testing.T) {
-	d := Sample{data: "dsad"}
+price = from(bucket: "stock")
+|> range(start: 2023-04-01, stop: now())
+|> filter(fn: (r) => r._field == "price")
+|> filter(fn: (r) => r.code == "005930")
+|> group(columns: ["_time","_value","_field"],mode: "except")
 
-	bt, err := json.Marshal(d)
+
+volume = from(bucket: "stock")
+|> range(start: 2023-04-01, stop: now())
+|> filter(fn: (r) => r._field == "volume")
+|> filter(fn: (r) => r.code == "005930")
+|> group(columns: ["_time","_value","_field"],mode: "except")
+
+
+join.time(
+left: price,
+right: volume,
+as: (l,r) => ({l with volume: r._value})
+)
+`)
 	require.NoError(t, err)
 
-	b := bytes.Buffer{}
+	tks := []Tick{}
 
-	n, err := b.Write(bt)
-	require.NoError(t, err)
-	fmt.Println(n)
+	for re.Next() {
+		tk := Tick{
+			Code:   re.Record().ValueByKey("code").(string),
+			Date:   re.Record().ValueByKey("_time").(time.Time),
+			Price:  re.Record().ValueByKey("_value").(int64),
+			Volume: re.Record().ValueByKey("volume").(int64),
+		}
+		tks = append(tks, tk)
+	}
+
+	return tks
 }
 
-func BenchmarkContainer(b *testing.B) {
-	db, err := badger.Open(badger.DefaultOptions("").WithInMemory(true))
-	defer db.Close()
-	assert.NoError(b, err)
-	benchmarks := []struct {
-		name      string
-		container Container
-	}{
-		{
-			"default",
-			NewDataContainer(Info{
-				Code: "default",
-			}),
-		},
-		{
-			"badger",
-			NewBadgerContainer(db, Info{
-				Code: "badger",
-			}),
-		},
-	}
-	for _, bm := range benchmarks {
-		b.Run(bm.name, func(b *testing.B) {
-			for i := 0; i < b.N; i++ {
-				bm.container.Add(Candle{
-					Code:   "default",
-					Open:   1,
-					High:   2,
-					Low:    1000,
-					Close:  3000,
-					Volume: 1000000,
-					Date:   time.Now(),
-				})
+func TestNewControlPlane(t *testing.T) {
 
-				bm.container.Values()
-			}
-		})
+	p := NewControlPlane()
+
+	for _, i := range TickDatas(t) {
+		p.Add(i)
 	}
+
+	for _, i := range p.containers["005930"].Candle(Min15) {
+		fmt.Println(i)
+	}
+
 }

@@ -16,15 +16,23 @@
 package container
 
 import (
+	"encoding/json"
 	"time"
+)
+
+type Spread string
+
+const (
+	Bid Spread = "bid"
+	Ask Spread = "ask"
 )
 
 type Tick struct {
 	Code   string    `json:"code"`
-	AskBid string    `json:"askBid"`
+	AskBid Spread    `json:"askBid"`
 	Date   time.Time `json:"date"`
-	Price  float64   `json:"price"`
-	Volume float64   `json:"volume"`
+	Price  int64     `json:"price"`
+	Volume int64     `json:"volume"`
 }
 
 func (t *Tick) UnmarshalJSON(bytes []byte) error {
@@ -40,8 +48,8 @@ func (t *Tick) UnmarshalJSON(bytes []byte) error {
 	}
 
 	t.Date = ti
-	t.AskBid = data["askBid"].(string)
-	t.Price = data["price"].(float64)
-	t.Volume = data["volume"].(float64)
+	t.AskBid = data["askBid"].(Spread)
+	t.Price = data["price"].(int64)
+	t.Volume = data["volume"].(int64)
 	return nil
 }

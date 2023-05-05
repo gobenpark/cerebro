@@ -19,74 +19,114 @@ package container
 import (
 	"sort"
 	"time"
+
+	e "github.com/gobenpark/cerebro/error"
 )
 
-func ReSample(tick []Tick, level time.Duration, leftEdge bool) []Candle {
+var (
+	ErrOverDate = e.Error{Code: 1, Message: "raise unexpected error"}
+)
 
-	compressionDate := func(date time.Time) time.Time {
-		rd := date.Round(level)
-		if leftEdge {
-			if date.Sub(rd) < 0 {
-				rd = rd.Add(-level)
-			}
-		} else {
-			if date.Sub(rd) > 0 {
-				rd = rd.Add(level)
-			}
-		}
-		return rd
+// Rasampler is resample for realtime tick data
+func Resampler(last *Candle, tk Tick, compress time.Duration) error {
+	d := last.Date.Add(compress).Truncate(compress)
+
+	if tk.Date.After(d) {
+		return ErrOverDate
 	}
+	last.Close = tk.Price
+	last.Volume += tk.Volume
+	if last.Low > tk.Price {
+		last.Low = tk.Price
+	}
+	if last.High < tk.Price {
+		last.High = tk.Price
+	}
+	return nil
+}
 
-	sort.Slice(tick, func(i, j int) bool {
-		return tick[i].Date.Before(tick[j].Date)
+func Resample(tk []Tick, compress time.Duration) Candles {
+	sort.Slice(tk, func(i, j int) bool {
+		return tk[i].Date.Before(tk[j].Date)
 	})
-
-	var candles []Candle
-	for _, t := range tick {
-		if candles == nil {
-			candles = []Candle{{
-				Code:   t.Code,
-				Open:   t.Price,
-				High:   t.Price,
-				Low:    t.Price,
-				Close:  t.Price,
-				Volume: t.Volume,
-				Date:   compressionDate(t.Date),
-			}}
+	cds := Candles{}
+	for i := range tk {
+		if len(cds) == 0 {
+			cds = append(cds, Candle{
+				Open:   tk[i].Price,
+				High:   tk[i].Price,
+				Low:    tk[i].Price,
+				Close:  tk[i].Price,
+				Date:   tk[i].Date.Truncate(compress),
+				Volume: tk[i].Volume,
+			})
+			continue
 		}
+		last := cds[len(cds)-1]
+		edge := last.Date.Add(compress).Truncate(compress)
+		if tk[i].Date.Before(edge) {
+			last.Close = tk[i].Price
+			last.Volume += tk[i].Volume
 
-		c := candles[len(candles)-1]
-		switch {
-		case c.Date.Equal(compressionDate(t.Date)):
-			c.Volume += t.Volume
-			c.Code = t.Code
-			c.Close = t.Price
-			if c.Open == 0 {
-				c.Open = t.Price
+			if last.Low > tk[i].Price {
+				last.Low = tk[i].Price
 			}
 
-			if c.High < t.Price {
-				c.High = t.Price
+			if last.High < tk[i].Price {
+				last.High = tk[i].Price
 			}
-
-			if c.Low == 0 || c.Low > t.Price {
-				c.Low = t.Price
-			}
-			candles[len(candles)-1] = c
-		case c.Date.Before(compressionDate(t.Date)),
-			c.Date.Equal(time.Time{}),
-			candles == nil:
-			candles = append(candles, Candle{
-				Code:   t.Code,
-				Open:   t.Price,
-				High:   t.Price,
-				Low:    t.Price,
-				Close:  t.Price,
-				Volume: t.Volume,
-				Date:   compressionDate(t.Date),
+			cds[len(cds)-1] = last
+		} else {
+			cds = append(cds, Candle{
+				Open:   tk[i].Price,
+				High:   tk[i].Price,
+				Low:    tk[i].Price,
+				Close:  tk[i].Price,
+				Date:   tk[i].Date.Truncate(compress),
+				Volume: tk[i].Volume,
 			})
 		}
 	}
+	return cds
+}
 
-	return candles
+func ResampleCandle(cds Candles, compress time.Duration, tk ...Tick) Candles {
+	for i := range tk {
+		if len(cds) == 0 {
+			cds = append(cds, Candle{
+				Open:   tk[i].Price,
+				High:   tk[i].Price,
+				Low:    tk[i].Price,
+				Close:  tk[i].Price,
+				Date:   tk[i].Date.Truncate(compress),
+				Volume: tk[i].Volume,
+			})
+			continue
+		}
+		last := cds[len(cds)-1]
+		edge := last.Date.Add(compress).Truncate(compress)
+		if tk[i].Date.Before(edge) {
+			last.Close = tk[i].Price
+			last.Volume += tk[i].Volume
+
+			if last.Low > tk[i].Price {
+				last.Low = tk[i].Price
+			}
+
+			if last.High < tk[i].Price {
+				last.High = tk[i].Price
+			}
+			cds[len(cds)-1] = last
+		} else {
+			cds = append(cds, Candle{
+				Open:   tk[i].Price,
+				High:   tk[i].Price,
+				Low:    tk[i].Price,
+				Close:  tk[i].Price,
+				Date:   tk[i].Date.Truncate(compress),
+				Volume: tk[i].Volume,
+			})
+		}
+	}
+	return cds
 }

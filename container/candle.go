@@ -42,16 +42,35 @@ const (
 	Day
 )
 
+func (c CandleType) Duration() time.Duration {
+	switch c {
+	case Min:
+		return time.Minute
+	case Min3:
+		return 3 * time.Minute
+	case Min5:
+		return 5 * time.Minute
+	case Min15:
+		return 15 * time.Minute
+	case Min60:
+		return time.Hour
+	case Day:
+		return 24 * time.Hour
+	default:
+		return 0
+	}
+}
+
 const maxInt = int(^uint(0) >> 1)
 
 type Candle struct {
 	Type   CandleType
 	Code   string    `json:"code"`
-	Open   float64   `json:"open"`
-	High   float64   `json:"high"`
-	Low    float64   `json:"low"`
-	Close  float64   `json:"close"`
-	Volume float64   `json:"volume"`
+	Open   int64     `json:"open"`
+	High   int64     `json:"high"`
+	Low    int64     `json:"low"`
+	Close  int64     `json:"close"`
+	Volume int64     `json:"volume"`
 	Date   time.Time `json:"date"`
 }
 

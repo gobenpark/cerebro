@@ -20,23 +20,34 @@ package container
 import "context"
 
 type ControlPlane struct {
-	buffer []Tick
+	containers map[string]Container
 }
 
 func NewControlPlane() *ControlPlane {
-	return &ControlPlane{}
+	return &ControlPlane{containers: map[string]Container{}}
 }
 
-func (d *ControlPlane) Add(tick Tick) {
-	d.buffer = append(d.buffer, tick)
+func (c *ControlPlane) Add(tick <-chan Tick) <-chan Container {
+
+	ch := make(chan Container, 1)
+	go func() {
+		defer close(ch)
+
+		for tk := range tick {
+			if _, ok := c.containers[tk.Code]; !ok {
+				c.containers[tk.Code] = &container{}
+			}
+			c.containers[tk.Code].Add(tk)
+			ch <- c.containers[tk.Code]
+		}
+	}()
+	return ch
 }
 
+// which one you make candle type of rasample the time duration
 func (d *ControlPlane) calculate() {
 
 }
 
 func (d *ControlPlane) merge(ctx context.Context, ch <-chan Tick) {
-	for i := range ch {
-
-	}
 }

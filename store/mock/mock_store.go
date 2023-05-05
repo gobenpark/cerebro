@@ -9,10 +9,10 @@ import (
 	reflect "reflect"
 	time "time"
 
-	container "github.com/gobenpark/trader/container"
-	item "github.com/gobenpark/trader/item"
-	order "github.com/gobenpark/trader/order"
-	position "github.com/gobenpark/trader/position"
+	container "github.com/gobenpark/cerebro/container"
+	item "github.com/gobenpark/cerebro/item"
+	order "github.com/gobenpark/cerebro/order"
+	position "github.com/gobenpark/cerebro/position"
 	gomock "github.com/golang/mock/gomock"
 )
 
@@ -96,18 +96,18 @@ func (mr *MockStoreMockRecorder) Commission() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Commission", reflect.TypeOf((*MockStore)(nil).Commission))
 }
 
-// GetMarketItems mocks base method.
-func (m *MockStore) GetMarketItems() []item.Item {
+// MarketItems mocks base method.
+func (m *MockStore) MarketItems(ctx context.Context) []item.Item {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetMarketItems")
+	ret := m.ctrl.Call(m, "MarketItems", ctx)
 	ret0, _ := ret[0].([]item.Item)
 	return ret0
 }
 
-// GetMarketItems indicates an expected call of GetMarketItems.
-func (mr *MockStoreMockRecorder) GetMarketItems() *gomock.Call {
+// MarketItems indicates an expected call of MarketItems.
+func (mr *MockStoreMockRecorder) MarketItems(ctx interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetMarketItems", reflect.TypeOf((*MockStore)(nil).GetMarketItems))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MarketItems", reflect.TypeOf((*MockStore)(nil).MarketItems), ctx)
 }
 
 // Order mocks base method.

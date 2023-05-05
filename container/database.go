@@ -16,15 +16,35 @@
 
 package container
 
+import (
+	"errors"
+
+	"github.com/dgraph-io/badger/v4"
+)
+
+const (
+	StockCodeTick = "stock:code:tick"
+)
+
 type DataObject interface {
 	Code() string
 }
 
 type Database struct {
 	data map[string]interface{}
+	*badger.DB
 }
 
 func (d *Database) Add(input DataObject) error {
-	d.data[input.Code()] = input
+	txn := d.DB.NewTransaction(true)
+	defer txn.Discard()
+
+	item, err := txn.Get([]byte(StockCodeTick + input.Code()))
+	if errors.Is(err, badger.ErrKeyNotFound) {
+
+	} else if err != nil {
+		return err
+	}
+	_ = item
 	return nil
 }

@@ -22,6 +22,7 @@ import (
 	"github.com/gobenpark/cerebro/log"
 	"github.com/gobenpark/cerebro/observer"
 	"github.com/gobenpark/cerebro/store"
+	"github.com/gobenpark/cerebro/strategy"
 )
 
 type Option func(*Cerebro)
@@ -71,6 +72,12 @@ func WithCommision(com float64) Option {
 func WithLogLevel(lvl log.Level) Option {
 	return func(c *Cerebro) {
 		c.logLevel = lvl
+	}
+}
+
+func WithStrategy(st ...strategy.Strategy) Option {
+	return func(c *Cerebro) {
+		c.strategies = st
 	}
 }
 

@@ -17,14 +17,19 @@
 // container package is store of tick data or candle stick data
 package container
 
-import "context"
+import (
+	"context"
+
+	"github.com/gobenpark/cerebro/log"
+)
 
 type ControlPlane struct {
 	containers map[string]Container
+	log        log.Logger
 }
 
-func NewControlPlane() *ControlPlane {
-	return &ControlPlane{containers: map[string]Container{}}
+func NewControlPlane(log log.Logger) *ControlPlane {
+	return &ControlPlane{containers: map[string]Container{}, log: log}
 }
 
 func (c *ControlPlane) Add(tick <-chan Tick) <-chan Container {
@@ -32,8 +37,14 @@ func (c *ControlPlane) Add(tick <-chan Tick) <-chan Container {
 	ch := make(chan Container, 1)
 	go func() {
 		defer close(ch)
-
 		for tk := range tick {
+			c.log.Debug("receive tick",
+				"code", tk.Code,
+				"price", tk.Price,
+				"date", tk.Date,
+				"askbid", tk.AskBid,
+				"volume", tk.Volume,
+			)
 			if _, ok := c.containers[tk.Code]; !ok {
 				c.containers[tk.Code] = &container{}
 			}

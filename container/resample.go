@@ -103,7 +103,7 @@ func ResampleCandle(cds Candles, compress time.Duration, tk ...Tick) Candles {
 			})
 			continue
 		}
-		last := cds[len(cds)-1]
+		last := cds[0]
 		edge := last.Date.Add(compress).Truncate(compress)
 		if tk[i].Date.Before(edge) {
 			last.Close = tk[i].Price
@@ -116,16 +116,18 @@ func ResampleCandle(cds Candles, compress time.Duration, tk ...Tick) Candles {
 			if last.High < tk[i].Price {
 				last.High = tk[i].Price
 			}
-			cds[len(cds)-1] = last
+			cds[0] = last
 		} else {
-			cds = append(cds, Candle{
-				Open:   tk[i].Price,
-				High:   tk[i].Price,
-				Low:    tk[i].Price,
-				Close:  tk[i].Price,
-				Date:   tk[i].Date.Truncate(compress),
-				Volume: tk[i].Volume,
-			})
+			cds = append([]Candle{
+				{
+					Open:   tk[i].Price,
+					High:   tk[i].Price,
+					Low:    tk[i].Price,
+					Close:  tk[i].Price,
+					Date:   tk[i].Date.Truncate(compress),
+					Volume: tk[i].Volume,
+				},
+			}, cds...)
 		}
 	}
 	return cds

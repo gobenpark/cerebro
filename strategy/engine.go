@@ -57,8 +57,9 @@ func (s *Engine) Spawn(ctx context.Context, cont <-chan container.Container) err
 	for _, i := range s.sts {
 		ch := make(chan container.Container, 1)
 		s.chs = append(s.chs, ch)
-		go func(st Strategy) {
-			for j := range ch {
+		go func(st Strategy, c <-chan container.Container) {
+			for j := range c {
+				s.log.Debug("receive event", "strategy", st.Name())
 				if s.timeout == 0 {
 					ctx, cancel := context.WithTimeout(ctx, s.timeout)
 					if err := st.Next(ctx, s.broker, j); err != nil {
@@ -73,7 +74,7 @@ func (s *Engine) Spawn(ctx context.Context, cont <-chan container.Container) err
 					s.log.Error("error strategy engine", "err", err)
 				}
 			}
-		}(i)
+		}(i, ch)
 	}
 
 	for i := range cont {

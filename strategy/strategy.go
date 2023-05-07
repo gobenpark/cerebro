@@ -45,4 +45,5 @@ type Strategy interface {
 	NotifyTrade()
 	NotifyCashValue(before, after int64)
 	NotifyFund()
+	Name() string
 }

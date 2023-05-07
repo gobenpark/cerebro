@@ -97,8 +97,7 @@ func NewCerebro(opts ...Option) *Cerebro {
 		dataCh:      make(chan container.Container, 1),
 		eventEngine: event.NewEventEngine(),
 		//chart:        chart.NewTraderChart(),
-		tickCh:       make(map[string]chan container.Tick),
-		controlPlane: container.NewControlPlane(),
+		tickCh: make(map[string]chan container.Tick),
 	}
 
 	for _, opt := range opts {
@@ -106,12 +105,17 @@ func NewCerebro(opts ...Option) *Cerebro {
 	}
 
 	if c.log == nil {
+		if c.logLevel == 0 {
+			c.logLevel = log.InfoLevel
+		}
+
 		log, err := log2.NewLogger(c.logLevel)
 		if err != nil {
 			panic(err)
 		}
 		c.log = log
 	}
+	c.controlPlane = container.NewControlPlane(c.log)
 
 	c.broker = broker.NewBroker(c.eventEngine, c.store, c.commision, c.cash, c.log)
 
@@ -127,11 +131,6 @@ func (c *Cerebro) SetFilter(f Filter) {
 	c.filters = append(c.filters, f)
 }
 
-// SetStrategy set user private strategy
-func (c *Cerebro) SetStrategy(s strategy.Strategy) {
-	c.strategies = append(c.strategies, s)
-}
-
 // Start run cerebro
 func (c *Cerebro) Start(ctx context.Context) error {
 	c.log.Debug("Cerebro starting ...")
@@ -139,6 +138,11 @@ func (c *Cerebro) Start(ctx context.Context) error {
 	if len(c.target) == 0 {
 		return fmt.Errorf("error target zero value")
 	}
+
+	if c.strategies == nil {
+		return fmt.Errorf("error empty strategies")
+	}
+
 	for _, i := range c.target {
 		c.tickCh[i] = make(chan container.Tick, 1)
 	}

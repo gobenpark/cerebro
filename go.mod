@@ -14,7 +14,7 @@ require (
 
 require (
 	github.com/dgraph-io/badger/v4 v4.1.0
-	github.com/gobenpark/kinvest-go v0.0.9
+	github.com/gobenpark/kinvest-go v0.0.11
 	github.com/influxdata/influxdb-client-go/v2 v2.12.2
 	github.com/reactivex/rxgo/v2 v2.5.0
 	go.uber.org/goleak v1.1.11

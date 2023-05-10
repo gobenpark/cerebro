@@ -39,6 +39,10 @@ github.com/go-resty/resty/v2 v2.7.0 h1:me+K9p3uhSmXtrBZ4k9jcEAfJmuC8IivWHwaLZwPr
 github.com/go-resty/resty/v2 v2.7.0/go.mod h1:9PWDzw47qPphMRFfhsyk0NnSgvluHcljSMVIq3w7q0I=
 github.com/gobenpark/kinvest-go v0.0.9 h1:OX8WYJrdfiKFTRpuEHyN5j8n0tDv2/+Gb0eM60tK1nc=
 github.com/gobenpark/kinvest-go v0.0.9/go.mod h1:7JQA+opwl73IKBpNLzhlKq0heXgjvBrEUKGyYkudNkY=
+github.com/gobenpark/kinvest-go v0.0.10 h1:Kt9v95R6FEjf/1CzAROgjRS+1AWHktoCM8RFys/2hGE=
+github.com/gobenpark/kinvest-go v0.0.10/go.mod h1:7JQA+opwl73IKBpNLzhlKq0heXgjvBrEUKGyYkudNkY=
+github.com/gobenpark/kinvest-go v0.0.11 h1:Gz2vPo1JtK4s6wN6nW+OqwuiC/iv89p3L5rVJHPBaCo=
+github.com/gobenpark/kinvest-go v0.0.11/go.mod h1:7JQA+opwl73IKBpNLzhlKq0heXgjvBrEUKGyYkudNkY=
 github.com/gogo/protobuf v1.3.2 h1:Ov1cvc58UF3b5XjBnZv7+opcTcQFZebYjWzi34vdm4Q=
 github.com/gogo/protobuf v1.3.2/go.mod h1:P1XiOD3dCwIKUDQYPy72D8LYyHL2YPYrpS2s69NZV8Q=
 github.com/golang/glog v0.0.0-20160126235308-23def4e6c14b h1:VKtxabqXZkF25pY9ekfRL6a582T4P37/31XEstQ5p58=

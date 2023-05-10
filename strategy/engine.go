@@ -55,6 +55,7 @@ func (s *Engine) Spawn(ctx context.Context, cont <-chan container.Container) err
 	s.log.Info("strategy engine start")
 
 	for _, i := range s.sts {
+		s.log.Debug("strategy added", "name", i.Name())
 		ch := make(chan container.Container, 1)
 		s.chs = append(s.chs, ch)
 		go func(st Strategy, c <-chan container.Container) {

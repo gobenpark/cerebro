@@ -95,6 +95,14 @@ func NewCandleBuffer(c []Candle) *CandleBuffer {
 	return &CandleBuffer{buf: c}
 }
 
+func (c *CandleBuffer) Less(i int, j int) bool {
+	return c.buf[i].Date.Before(c.buf[j].Date)
+}
+
+func (c *CandleBuffer) Swap(i int, j int) {
+	c.buf[i], c.buf[j] = c.buf[j], c.buf[i]
+}
+
 func (c *CandleBuffer) empty() bool {
 	return len(c.buf) <= c.off
 }

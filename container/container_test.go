@@ -31,7 +31,7 @@ func TestContainer_Add(t *testing.T) {
 		mu:     sync.RWMutex{},
 	}
 
-	c.Add(
+	c.AddTick(
 		Tick{
 			Code:   "005930",
 			AskBid: Bid,

@@ -147,6 +147,9 @@ func (c *Cerebro) Start(ctx context.Context) error {
 		c.tickCh[i] = make(chan container.Tick, 1)
 	}
 
+	if c.preload {
+	}
+
 	c.strategyEngine.AddStrategy(c.strategies...)
 
 	// tick data receive from store
@@ -173,8 +176,6 @@ func (c *Cerebro) Start(ctx context.Context) error {
 		c.eventEngine.Register <- c.strategyEngine
 		c.eventEngine.Register <- c.analyzer
 	}
-
-	<-ctx.Done()
 
 	return nil
 }

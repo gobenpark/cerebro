@@ -17,18 +17,20 @@
 package container
 
 import (
+	"sort"
 	"sync"
 )
 
 type Container interface {
-	Add(tk ...Tick)
+	AddTick(tk ...Tick)
+	AddCandles(candleType CandleType, candles ...Candle)
 	Candle(candleType CandleType) Candles
 	Preload()
 }
 
 type container struct {
 	Code    string
-	buffer  []Tick
+	tick    []Tick
 	candles map[CandleType]Candles
 	mu      sync.RWMutex
 }
@@ -38,7 +40,7 @@ func (c *container) Preload() {
 	panic("implement me")
 }
 
-func (c *container) Add(tk ...Tick) {
+func (c *container) AddTick(tk ...Tick) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if c.candles == nil {
@@ -49,6 +51,16 @@ func (c *container) Add(tk ...Tick) {
 	for k, v := range c.candles {
 		c.candles[k] = ResampleCandle(v, k.Duration(), tk...)
 	}
+}
+
+func (c *container) AddCandles(candleType CandleType, candles ...Candle) {
+	sort.Sort(sort.Reverse(Candles(candles)))
+	if c.candles == nil {
+		c.candles = map[CandleType]Candles{
+			Min: {}, Min3: {}, Min5: {}, Min15: {}, Min60: {}, Day: {},
+		}
+	}
+	c.candles[candleType] = candles
 }
 
 // 0 index is closed now

@@ -70,17 +70,3 @@ as: (l,r) => ({l with volume: r._value})
 
 	return tks
 }
-
-func TestNewControlPlane(t *testing.T) {
-
-	p := NewControlPlane()
-
-	for _, i := range TickDatas(t) {
-		p.Add(i)
-	}
-
-	for _, i := range p.containers["005930"].Candle(Min15) {
-		fmt.Println(i)
-	}
-
-}

@@ -3,7 +3,9 @@ package container
 import (
 	"bytes"
 	"fmt"
+	"sort"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 )
@@ -17,4 +19,28 @@ func TestBuffer(t *testing.T) {
 	fmt.Println(buf.Next(1))
 	fmt.Println(buf.Cap())
 	fmt.Println(buf.Len())
+}
+
+func TestBufferSwap(t *testing.T) {
+	buf := NewCandleBuffer([]Candle{
+		{
+			Date: time.Now(),
+		},
+		{
+			Date: time.Now().Add(time.Minute),
+		},
+		{
+			Date: time.Now().Add(2 * time.Minute),
+		},
+	})
+
+	for _, i := range buf.buf {
+		fmt.Println(i.Date)
+	}
+
+	fmt.Println()
+	sort.Sort(sort.Reverse(buf))
+	for _, i := range buf.buf {
+		fmt.Println(i.Date)
+	}
 }

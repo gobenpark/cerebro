@@ -48,11 +48,23 @@ func (c *ControlPlane) Add(tick <-chan Tick) <-chan Container {
 			if _, ok := c.containers[tk.Code]; !ok {
 				c.containers[tk.Code] = &container{}
 			}
-			c.containers[tk.Code].Add(tk)
+			c.containers[tk.Code].AddTick(tk)
 			ch <- c.containers[tk.Code]
 		}
 	}()
 	return ch
+}
+
+func (c *ControlPlane) Preload(ctx context.Context, candles Candles, candle CandleType) {
+	if len(candles) == 0 {
+		return
+	}
+
+	if _, ok := c.containers[candles[0].Code]; !ok {
+		c.containers[candles[0].Code] = &container{}
+	}
+
+	c.containers[candles[0].Code].AddTick()
 }
 
 // which one you make candle type of rasample the time duration

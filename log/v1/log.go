@@ -38,7 +38,7 @@ func NewLogger(lvl log.Level) (log.Logger, error) {
 		"stderr",
 	}
 
-	l, err := conf.Build(zap.AddCallerSkip(1))
+	l, err := conf.Build(zap.AddCallerSkip(2))
 	if err != nil {
 		return nil, err
 	}

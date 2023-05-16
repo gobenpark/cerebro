@@ -22,8 +22,9 @@ import (
 
 type Container interface {
 	Add(tk ...Tick)
-	Candle(candleType CandleType) Candles
+	Candles(candleType CandleType) Candles
 	Preload()
+	Candle(candleType CandleType, idx int) Candle
 }
 
 type container struct {
@@ -52,8 +53,17 @@ func (c *container) Add(tk ...Tick) {
 }
 
 // 0 index is closed now
-func (c *container) Candle(candleType CandleType) Candles {
+func (c *container) Candles(candleType CandleType) Candles {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	return c.candles[candleType]
+}
+
+func (c *container) Candle(candleType CandleType, idx int) Candle {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if len(c.candles[candleType]) > idx {
+		return c.candles[candleType][idx]
+	}
+	return Candle{}
 }

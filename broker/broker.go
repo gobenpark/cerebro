@@ -28,7 +28,7 @@ import (
 	"go.uber.org/zap"
 )
 
-// Broker it's instead of human for buy, sell and etc
+// Broker it's instead of human for buy, sell and other
 //type Broker interface {
 //	Order(ctx context.Context, code string, size int64, price float64, action order.Action, exec order.OrderType) error
 //	OrderCash(ctx context.Context, code string, amount float64, currentPrice float64, action order.Action, exec order.OrderType) error

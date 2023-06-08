@@ -151,24 +151,17 @@ func (c *Cerebro) Start(ctx context.Context) error {
 	}
 
 	c.strategyEngine.AddStrategy(c.strategies...)
+	tk, err := c.store.Tick(ctx, c.target...)
+	if err != nil {
+		c.log.Error("store tick error", zap.Error(err))
+		return err
+	}
 
-	// tick data receive from store
-	go pkg.Retry(ctx, 3, func() error {
-		tk, err := c.store.Tick(ctx, c.target...)
-		if err != nil {
-			c.log.Error("store tick error", zap.Error(err))
-			return err
-		}
-
-		ch := c.controlPlane.Add(pkg.OrDone(ctx, tk))
-
-		if err := c.strategyEngine.Spawn(ctx, ch); err != nil {
-			c.log.Error("spawn error", "err", err)
-			return err
-		}
-
-		return nil
-	})
+	ch := c.controlPlane.Add(pkg.OrDone(ctx, tk))
+	if err := c.strategyEngine.Spawn(ctx, ch); err != nil {
+		c.log.Error("spawn error", "err", err)
+		return err
+	}
 
 	//event engine settings
 	{

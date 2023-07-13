@@ -2,11 +2,13 @@ package container
 
 import (
 	"bytes"
+	"context"
+	"crypto/tls"
 	"fmt"
-	"sort"
 	"testing"
 	"time"
 
+	influxdb2 "github.com/influxdata/influxdb-client-go/v2"
 	"github.com/stretchr/testify/require"
 )
 
@@ -22,25 +24,17 @@ func TestBuffer(t *testing.T) {
 }
 
 func TestBufferSwap(t *testing.T) {
-	buf := NewCandleBuffer([]Candle{
-		{
-			Date: time.Now(),
-		},
-		{
-			Date: time.Now().Add(time.Minute),
-		},
-		{
-			Date: time.Now().Add(2 * time.Minute),
-		},
-	})
+	influxcli := influxdb2.NewClientWithOptions(
+		"http://benpark.iptime.org:50086",
+		"Oeov-ZmdqapihV-MUkLqM-TY8NCPvmh8xZpWiQMxC4pD4SjAXeE3FE7dVdrf6E0DJTrHNpi5WTuHZJSSgBiM1Q==",
+		influxdb2.DefaultOptions().SetTLSConfig(&tls.Config{InsecureSkipVerify: true}).
+			SetMaxRetryInterval(uint(5*time.Second.Milliseconds())).SetFlushInterval(uint(10*time.Second.Milliseconds())))
 
-	for _, i := range buf.buf {
-		fmt.Println(i.Date)
-	}
+	api := influxcli.QueryAPI("stock")
+	api.Query(context.TODO(), `
+from(bucket: "stock")
+  |> range(start: 2023-05-30, stop: now())
+  |> filter(fn: (r) => r["_measurement"] == "price")
+`)
 
-	fmt.Println()
-	sort.Sort(sort.Reverse(buf))
-	for _, i := range buf.buf {
-		fmt.Println(i.Date)
-	}
 }

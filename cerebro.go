@@ -33,6 +33,7 @@ import (
 	"github.com/gobenpark/cerebro/order"
 	"github.com/gobenpark/cerebro/store"
 	"github.com/gobenpark/cerebro/strategy"
+	"github.com/samber/lo"
 	"go.uber.org/zap"
 )
 
@@ -41,53 +42,50 @@ type Filter func(item item.Item) string
 // Cerebro head of trading system
 // make all dependency manage
 type Cerebro struct {
-	logLevel log.Level
-	//isLive use cerebro live trading
-	isLive bool
+	logLevel log.Level `json:"log_level,omitempty"`
+
+	isLive bool `json:"is_live,omitempty"`
 	// preload bool value, decide use candle history
-	preload bool
+	preload bool `json:"preload,omitempty"`
 	// broker buy, sell and manage order
-	broker *broker.Broker `validate:"required"`
+	broker *broker.Broker `validate:"required" json:"broker,omitempty"`
 
-	filters []Filter
+	filters []Filter `json:"filters,omitempty"`
 
-	strategies []strategy.Strategy
+	strategies []strategy.Strategy `json:"strategies,omitempty"`
 
-	target []string
+	target []string `json:"target,omitempty"`
 
-	controlPlane *container.ControlPlane
+	controlPlane *container.ControlPlane `json:"control_plane,omitempty"`
 
-	store store.Store
-	//strategy.StrategyEngine embedding property for managing user strategy
-	strategyEngine *strategy.Engine
+	store          store.Store      `json:"store,omitempty"`
+	strategyEngine *strategy.Engine `json:"strategy_engine,omitempty"`
 
-	//log in cerebro global logger
-	log log.Logger `validate:"required"`
+	log log.Logger `validate:"required" json:"log,omitempty"`
 
-	analyzer analysis.Analyzer
+	analyzer analysis.Analyzer `json:"analyzer,omitempty"`
 
-	//event channel of all event
-	order chan order.Order
+	order chan order.Order `json:"order,omitempty"`
 
 	// eventEngine engine of management all event
-	eventEngine *event.Engine
+	eventEngine *event.Engine `json:"event_engine,omitempty"`
 
 	// dataCh all data container channel
-	dataCh chan container.Container
+	dataCh chan container.Container `json:"data_ch,omitempty"`
 
-	o observer.Observer
+	o observer.Observer `json:"o,omitempty"`
 
-	//chart *chart.TraderChart
+	tickCh map[string]chan container.Tick `json:"tick_ch,omitempty"`
 
-	tickCh map[string]chan container.Tick
+	commision float64 `json:"commision,omitempty"`
 
-	commision float64
+	cash int64 `json:"cash,omitempty"`
 
-	cash int64
+	mu sync.RWMutex `json:"mu"`
 
-	mu sync.RWMutex
+	timeout time.Duration `json:"timeout,omitempty"`
 
-	timeout time.Duration
+	automaticTarget bool
 }
 
 // NewCerebro generate new cerebro with cerebro option
@@ -109,11 +107,11 @@ func NewCerebro(opts ...Option) *Cerebro {
 			c.logLevel = log.InfoLevel
 		}
 
-		log, err := log2.NewLogger(c.logLevel)
+		logger, err := log2.NewLogger(c.logLevel)
 		if err != nil {
 			panic(err)
 		}
-		c.log = log
+		c.log = logger
 	}
 	c.controlPlane = container.NewControlPlane(c.log)
 
@@ -135,12 +133,18 @@ func (c *Cerebro) SetFilter(f Filter) {
 func (c *Cerebro) Start(ctx context.Context) error {
 	c.log.Debug("Cerebro starting ...")
 
-	if len(c.target) == 0 {
-		return fmt.Errorf("error target zero value")
+	if len(c.target) == 0 || !c.automaticTarget {
+		return fmt.Errorf("error need target setting")
 	}
 
 	if c.strategies == nil {
 		return fmt.Errorf("error empty strategies")
+	}
+
+	if c.automaticTarget {
+		c.target = lo.Map[item.Item, string](c.store.MarketItems(ctx), func(item item.Item, index int) string {
+			return item.Code
+		})
 	}
 
 	for _, i := range c.target {
@@ -148,9 +152,11 @@ func (c *Cerebro) Start(ctx context.Context) error {
 	}
 
 	if c.preload {
+		//TODO: preload
 	}
 
 	c.strategyEngine.AddStrategy(c.strategies...)
+
 	tk, err := c.store.Tick(ctx, c.target...)
 	if err != nil {
 		c.log.Error("store tick error", zap.Error(err))
@@ -158,17 +164,16 @@ func (c *Cerebro) Start(ctx context.Context) error {
 	}
 
 	ch := c.controlPlane.Add(pkg.OrDone(ctx, tk))
+
 	if err := c.strategyEngine.Spawn(ctx, ch); err != nil {
 		c.log.Error("spawn error", "err", err)
 		return err
 	}
 
-	//event engine settings
-	{
-		go c.eventEngine.Start(ctx)
-		c.eventEngine.Register <- c.strategyEngine
-		c.eventEngine.Register <- c.analyzer
-	}
+	// event engine settings
+	go c.eventEngine.Start(ctx)
+	c.eventEngine.Register <- c.strategyEngine
+	c.eventEngine.Register <- c.analyzer
 
 	return nil
 }

@@ -175,7 +175,8 @@ issues:
 
 
 run:
-  modules-download-mode: mod
+  modules-download-mode: readonly
+  allow-parallel-runners: true
   timeout: 20m
   go: '1.18' # TODO(ldez): we force to use an old version of Go for the CI and the tests.
   tests: false

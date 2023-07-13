@@ -24,14 +24,15 @@ import (
 )
 
 type ControlPlane struct {
-	containers map[string]Container
+	containers map[string]*container
 	log        log.Logger
 }
 
 func NewControlPlane(log log.Logger) *ControlPlane {
-	return &ControlPlane{containers: map[string]Container{}, log: log}
+	return &ControlPlane{containers: map[string]*container{}, log: log}
 }
 
+// Add is add tick data to container
 func (c *ControlPlane) Add(tick <-chan Tick) <-chan Container {
 
 	ch := make(chan Container, 1)
@@ -45,10 +46,13 @@ func (c *ControlPlane) Add(tick <-chan Tick) <-chan Container {
 				"askbid", tk.AskBid,
 				"volume", tk.Volume,
 			)
+
 			if _, ok := c.containers[tk.Code]; !ok {
-				c.containers[tk.Code] = &container{}
+				c.containers[tk.Code] = &container{
+					Code: tk.Code,
+				}
 			}
-			c.containers[tk.Code].AddTick(tk)
+			c.containers[tk.Code].add(tk)
 			ch <- c.containers[tk.Code]
 		}
 	}()
@@ -64,13 +68,13 @@ func (c *ControlPlane) Preload(ctx context.Context, candles Candles, candle Cand
 		c.containers[candles[0].Code] = &container{}
 	}
 
-	c.containers[candles[0].Code].AddTick()
+	c.containers[candles[0].Code].add()
 }
 
 // which one you make candle type of rasample the time duration
-func (d *ControlPlane) calculate() {
+func (c *ControlPlane) calculate() {
 
 }
 
-func (d *ControlPlane) merge(ctx context.Context, ch <-chan Tick) {
+func (c *ControlPlane) merge(ctx context.Context, ch <-chan Tick) {
 }

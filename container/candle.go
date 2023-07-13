@@ -95,11 +95,11 @@ func NewCandleBuffer(c []Candle) *CandleBuffer {
 	return &CandleBuffer{buf: c}
 }
 
-func (c *CandleBuffer) Less(i int, j int) bool {
+func (c *CandleBuffer) Less(i, j int) bool {
 	return c.buf[i].Date.Before(c.buf[j].Date)
 }
 
-func (c *CandleBuffer) Swap(i int, j int) {
+func (c *CandleBuffer) Swap(i, j int) {
 	c.buf[i], c.buf[j] = c.buf[j], c.buf[i]
 }
 
@@ -146,7 +146,7 @@ func makeSlice(n int) []Candle {
 	// If the make fails, give a known error.
 	defer func() {
 		if recover() != nil {
-			panic(errors.New("Candle Buffer: too large"))
+			panic(errors.New("candle Buffer: too large"))
 		}
 	}()
 	return make([]Candle, n)
@@ -182,7 +182,7 @@ func (c *CandleBuffer) grow(n int) int {
 		// don't spend all our time copying.
 		copy(c.buf, c.buf[c.off:])
 	} else if b > maxInt-b-n {
-		panic(errors.New("Candle Buffer: too large"))
+		panic(errors.New("candle Buffer: too large"))
 	} else {
 		// Not enough space anywhere, we need to allocate.
 		buf := makeSlice(2*b + n)

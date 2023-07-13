@@ -86,3 +86,9 @@ func WithStrategyTimeout(du time.Duration) Option {
 		c.timeout = du
 	}
 }
+
+func WithAutomaticTarget(b bool) Option {
+	return func(c *Cerebro) {
+		c.automaticTarget = b
+	}
+}

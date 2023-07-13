@@ -26,12 +26,11 @@ import (
 
 func TestContainer_Add(t *testing.T) {
 	c := container{
-		Code:   "005930",
-		buffer: []Tick{},
-		mu:     sync.RWMutex{},
+		Code: "005930",
+		mu:   sync.RWMutex{},
 	}
 
-	c.AddTick(
+	c.add(
 		Tick{
 			Code:   "005930",
 			AskBid: Bid,

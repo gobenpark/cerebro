@@ -22,7 +22,6 @@ import (
 )
 
 type Container interface {
-	AddTick(tk ...Tick)
 	AddCandles(candleType CandleType, candles ...Candle)
 	Candle(candleType CandleType) Candles
 	Preload()
@@ -40,7 +39,7 @@ func (c *container) Preload() {
 	panic("implement me")
 }
 
-func (c *container) AddTick(tk ...Tick) {
+func (c *container) add(tk ...Tick) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if c.candles == nil {

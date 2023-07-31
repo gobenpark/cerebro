@@ -16,6 +16,8 @@
 
 package container
 
+import "math"
+
 type Candles []Candle
 
 func (c Candles) Len() int {
@@ -28,4 +30,21 @@ func (c Candles) Less(i, j int) bool {
 
 func (c Candles) Swap(i, j int) {
 	c[i], c[j] = c[j], c[i]
+}
+
+func (c Candles) Mean() float64 {
+	total := int64(0)
+	for i := range c {
+		total += c[i].Close
+	}
+	return float64(total) / float64(c.Len())
+}
+
+func (c Candles) StandardDeviation() float64 {
+	total := 0.0
+	for i := range c {
+		da := float64(c[i].Close) - c.Mean()
+		total += math.Pow(da, 2)
+	}
+	return math.Sqrt(total / float64(c.Mean()))
 }

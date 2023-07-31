@@ -16,47 +16,31 @@
 package indicators
 
 import (
-	"math"
-
 	"github.com/gobenpark/cerebro/container"
 )
 
-type BollingerBand struct {
-	period int
-	Top    []Indicate
-	Mid    []Indicate
-	Bottom []Indicate
-}
+func BollingerBand(period int, candles container.Candles) (mid []Indicate, top []Indicate, bottom []Indicate) {
 
-func NewBollingerBand(period int) *BollingerBand {
-	return &BollingerBand{period: period}
-}
+	mid = make([]Indicate, candles.Len())
+	top = make([]Indicate, candles.Len())
+	bottom = make([]Indicate, candles.Len())
+	candleLength := candles.Len()
+	queue := container.Candles{}
 
-func (b *BollingerBand) mean(data container.Candles) float64 {
-	total := 0.0
-	for _, i := range data {
-		total += i.Close
+	for i := range candles {
+		if i < period {
+			queue = append(queue, candles[i])
+			indicate := Indicate{
+				Data: 0,
+				Date: candles[i].Date,
+			}
+			mid[i], top[i], bottom[i] = indicate, indicate, indicate
+			continue
+		}
+
 	}
 
-	return total / float64(len(data))
-}
-
-func (b *BollingerBand) standardDeviation(mean float64, data []container.Candle) float64 {
-	total := 0.0
-	for _, i := range data {
-		da := i.Close - mean
-		total += math.Pow(da, 2)
-	}
-	return math.Sqrt(total / float64(len(data)))
-}
-
-func (b *BollingerBand) Calculate(candles []container.Candle) {
-
-	if len(candles) < b.period {
-		return
-	}
-
-	slice := len(candles) - b.period
+	slide := candleLength - period
 	for i := slice - 1; i >= 0; i-- {
 		mean := b.mean(candles[i : i+b.period])
 		sd := b.standardDeviation(mean, candles[i:i+b.period])
@@ -76,12 +60,5 @@ func (b *BollingerBand) Calculate(candles []container.Candle) {
 			Date: candles[i].Date,
 		}}, b.Bottom...)
 	}
-}
-
-func (b *BollingerBand) PeriodSatisfaction() bool {
-	return len(b.Mid) >= b.period
-}
-
-func (b *BollingerBand) Get() []Indicate {
-	return nil
+	return
 }

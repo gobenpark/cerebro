@@ -20,13 +20,12 @@ import (
 )
 
 func BollingerBand(period int, candles container.Candles) (mid []Indicate, top []Indicate, bottom []Indicate) {
-
-	mid = make([]Indicate, candles.Len())
-	top = make([]Indicate, candles.Len())
-	bottom = make([]Indicate, candles.Len())
 	candleLength := candles.Len()
-	queue := container.Candles{}
+	mid = make([]Indicate, candleLength)
+	top = make([]Indicate, candleLength)
+	bottom = make([]Indicate, candleLength)
 
+	queue := container.Candles{}
 	for i := range candles {
 		if i < period {
 			queue = append(queue, candles[i])
@@ -36,29 +35,22 @@ func BollingerBand(period int, candles container.Candles) (mid []Indicate, top [
 			}
 			mid[i], top[i], bottom[i] = indicate, indicate, indicate
 			continue
+		} else {
+			queue = append(queue, candles[i])
+			mean := queue.Mean()
+			sd := queue.StandardDeviation()
+			mid[i], top[i], bottom[i] = Indicate{
+				Data: 0,
+				Date: candles[i].Date,
+			}, Indicate{
+				Data: mean + (sd * 2),
+				Date: candles[i].Date,
+			}, Indicate{
+				Data: mean - (sd * 2),
+				Date: candles[i].Date,
+			}
+			queue = queue[1:]
 		}
-
-	}
-
-	slide := candleLength - period
-	for i := slice - 1; i >= 0; i-- {
-		mean := b.mean(candles[i : i+b.period])
-		sd := b.standardDeviation(mean, candles[i:i+b.period])
-
-		b.Mid = append([]Indicate{{
-			Data: mean,
-			Date: candles[i].Date,
-		}}, b.Mid...)
-
-		b.Top = append([]Indicate{{
-			Data: mean + (sd * 2),
-			Date: candles[i].Date,
-		}}, b.Top...)
-
-		b.Bottom = append([]Indicate{{
-			Data: mean - (sd * 2),
-			Date: candles[i].Date,
-		}}, b.Bottom...)
 	}
 	return
 }

@@ -1,0 +1,362 @@
+[
+  {
+    "ticker": "005930",
+    "high": 71200,
+    "low": 70000,
+    "close": 71100,
+    "open": 70100,
+    "accumulate_transaction_amount": 869662851033,
+    "date": "2023-08-01T12:08:00Z"
+  },
+  {
+    "ticker": "005930",
+    "high": 71000,
+    "low": 69800,
+    "close": 69800,
+    "open": 70900,
+    "accumulate_transaction_amount": 914993886320,
+    "date": "2023-07-31T12:07:00Z"
+  },
+  {
+    "ticker": "005930",
+    "high": 72400,
+    "low": 70100,
+    "close": 70600,
+    "open": 71800,
+    "accumulate_transaction_amount": 1374116836640,
+    "date": "2023-07-28T12:07:00Z"
+  },
+  {
+    "ticker": "005930",
+    "high": 71700,
+    "low": 69300,
+    "close": 71700,
+    "open": 69900,
+    "accumulate_transaction_amount": 1716358516901,
+    "date": "2023-07-27T12:07:00Z"
+  },
+  {
+    "ticker": "005930",
+    "high": 70600,
+    "low": 68100,
+    "close": 69800,
+    "open": 69800,
+    "accumulate_transaction_amount": 2074076087374,
+    "date": "2023-07-26T12:07:00Z"
+  },
+  {
+    "ticker": "005930",
+    "high": 70500,
+    "low": 69800,
+    "close": 70000,
+    "open": 70000,
+    "accumulate_transaction_amount": 1002552964539,
+    "date": "2023-07-25T12:07:00Z"
+  },
+  {
+    "ticker": "005930",
+    "high": 70900,
+    "low": 69900,
+    "close": 70400,
+    "open": 70100,
+    "accumulate_transaction_amount": 945209051900,
+    "date": "2023-07-24T12:07:00Z"
+  },
+  {
+    "ticker": "005930",
+    "high": 70400,
+    "low": 69400,
+    "close": 70300,
+    "open": 70400,
+    "accumulate_transaction_amount": 1155386360200,
+    "date": "2023-07-21T12:07:00Z"
+  },
+  {
+    "ticker": "005930",
+    "high": 71500,
+    "low": 70800,
+    "close": 71000,
+    "open": 71100,
+    "accumulate_transaction_amount": 692487601800,
+    "date": "2023-07-20T12:07:00Z"
+  },
+  {
+    "ticker": "005930",
+    "high": 72800,
+    "low": 71300,
+    "close": 71700,
+    "open": 72700,
+    "accumulate_transaction_amount": 782147498048,
+    "date": "2023-07-19T12:07:00Z"
+  },
+  {
+    "ticker": "005930",
+    "high": 73500,
+    "low": 72000,
+    "close": 72000,
+    "open": 73200,
+    "accumulate_transaction_amount": 847564074902,
+    "date": "2023-07-18T12:07:00Z"
+  },
+  {
+    "ticker": "005930",
+    "high": 73500,
+    "low": 72800,
+    "close": 73300,
+    "open": 73200,
+    "accumulate_transaction_amount": 736819227400,
+    "date": "2023-07-17T12:07:00Z"
+  },
+  {
+    "ticker": "005930",
+    "high": 73400,
+    "low": 72400,
+    "close": 73400,
+    "open": 72500,
+    "accumulate_transaction_amount": 1159932414471,
+    "date": "2023-07-14T12:07:00Z"
+  },
+  {
+    "ticker": "005930",
+    "high": 72600,
+    "low": 71900,
+    "close": 71900,
+    "open": 72400,
+    "accumulate_transaction_amount": 1041644744600,
+    "date": "2023-07-13T12:07:00Z"
+  },
+  {
+    "ticker": "005930",
+    "high": 72000,
+    "low": 71100,
+    "close": 71900,
+    "open": 71200,
+    "accumulate_transaction_amount": 742662492675,
+    "date": "2023-07-12T12:07:00Z"
+  },
+  {
+    "ticker": "005930",
+    "high": 71500,
+    "low": 70100,
+    "close": 71500,
+    "open": 70200,
+    "accumulate_transaction_amount": 863673766650,
+    "date": "2023-07-11T12:07:00Z"
+  },
+  {
+    "ticker": "005930",
+    "high": 70400,
+    "low": 69200,
+    "close": 69500,
+    "open": 70000,
+    "accumulate_transaction_amount": 816772079400,
+    "date": "2023-07-10T12:07:00Z"
+  },
+  {
+    "ticker": "005930",
+    "high": 71400,
+    "low": 69800,
+    "close": 69900,
+    "open": 71100,
+    "accumulate_transaction_amount": 1215404338500,
+    "date": "2023-07-07T12:07:00Z"
+  },
+  {
+    "ticker": "005930",
+    "high": 72400,
+    "low": 71500,
+    "close": 71600,
+    "open": 71900,
+    "accumulate_transaction_amount": 1061491980700,
+    "date": "2023-07-06T12:07:00Z"
+  },
+  {
+    "ticker": "005930",
+    "high": 73300,
+    "low": 71900,
+    "close": 72000,
+    "open": 73000,
+    "accumulate_transaction_amount": 889637363400,
+    "date": "2023-07-05T12:07:00Z"
+  },
+  {
+    "ticker": "005930",
+    "high": 73600,
+    "low": 72900,
+    "close": 73000,
+    "open": 73400,
+    "accumulate_transaction_amount": 747624440200,
+    "date": "2023-07-04T12:07:00Z"
+  },
+  {
+    "ticker": "005930",
+    "high": 73200,
+    "low": 72600,
+    "close": 73000,
+    "open": 72700,
+    "accumulate_transaction_amount": 782251095800,
+    "date": "2023-07-03T12:07:00Z"
+  },
+  {
+    "ticker": "005930",
+    "high": 72700,
+    "low": 71700,
+    "close": 72200,
+    "open": 72500,
+    "accumulate_transaction_amount": 844353820176,
+    "date": "2023-06-30T12:06:00Z"
+  },
+  {
+    "ticker": "005930",
+    "high": 73400,
+    "low": 72400,
+    "close": 72400,
+    "open": 73100,
+    "accumulate_transaction_amount": 891731369446,
+    "date": "2023-06-29T12:06:00Z"
+  },
+  {
+    "ticker": "005930",
+    "high": 72700,
+    "low": 72000,
+    "close": 72700,
+    "open": 72600,
+    "accumulate_transaction_amount": 635516679700,
+    "date": "2023-06-28T12:06:00Z"
+  },
+  {
+    "ticker": "005930",
+    "high": 72600,
+    "low": 72000,
+    "close": 72600,
+    "open": 72500,
+    "accumulate_transaction_amount": 683624715982,
+    "date": "2023-06-27T12:06:00Z"
+  },
+  {
+    "ticker": "005930",
+    "high": 72500,
+    "low": 71500,
+    "close": 72400,
+    "open": 71700,
+    "accumulate_transaction_amount": 761525382100,
+    "date": "2023-06-26T12:06:00Z"
+  },
+  {
+    "ticker": "005930",
+    "high": 72200,
+    "low": 71600,
+    "close": 71600,
+    "open": 72000,
+    "accumulate_transaction_amount": 885945930513,
+    "date": "2023-06-23T12:06:00Z"
+  },
+  {
+    "ticker": "005930",
+    "high": 71500,
+    "low": 70100,
+    "close": 71300,
+    "open": 70200,
+    "accumulate_transaction_amount": 811437978080,
+    "date": "2023-06-22T12:06:00Z"
+  },
+  {
+    "ticker": "005930",
+    "high": 71200,
+    "low": 70400,
+    "close": 70500,
+    "open": 70700,
+    "accumulate_transaction_amount": 752120696260,
+    "date": "2023-06-21T12:06:00Z"
+  },
+  {
+    "ticker": "005930",
+    "high": 71400,
+    "low": 70400,
+    "close": 71400,
+    "open": 70700,
+    "accumulate_transaction_amount": 820834326200,
+    "date": "2023-06-20T12:06:00Z"
+  },
+  {
+    "ticker": "005930",
+    "high": 71700,
+    "low": 70900,
+    "close": 71200,
+    "open": 71300,
+    "accumulate_transaction_amount": 789407044400,
+    "date": "2023-06-19T12:06:00Z"
+  },
+  {
+    "ticker": "005930",
+    "high": 71900,
+    "low": 70900,
+    "close": 71800,
+    "open": 71800,
+    "accumulate_transaction_amount": 1098192684298,
+    "date": "2023-06-16T12:06:00Z"
+  },
+  {
+    "ticker": "005930",
+    "high": 72300,
+    "low": 71300,
+    "close": 71500,
+    "open": 72100,
+    "accumulate_transaction_amount": 977638034140,
+    "date": "2023-06-15T12:06:00Z"
+  },
+  {
+    "ticker": "005930",
+    "high": 72200,
+    "low": 71100,
+    "close": 71900,
+    "open": 72100,
+    "accumulate_transaction_amount": 898255870000,
+    "date": "2023-06-14T12:06:00Z"
+  },
+  {
+    "ticker": "005930",
+    "high": 72200,
+    "low": 71600,
+    "close": 72000,
+    "open": 71700,
+    "accumulate_transaction_amount": 950995107900,
+    "date": "2023-06-13T12:06:00Z"
+  },
+  {
+    "ticker": "005930",
+    "high": 72400,
+    "low": 70800,
+    "close": 71000,
+    "open": 72100,
+    "accumulate_transaction_amount": 861581586290,
+    "date": "2023-06-12T12:06:00Z"
+  },
+  {
+    "ticker": "005930",
+    "high": 72300,
+    "low": 70800,
+    "close": 72000,
+    "open": 71100,
+    "accumulate_transaction_amount": 1080650065800,
+    "date": "2023-06-09T12:06:00Z"
+  },
+  {
+    "ticker": "005930",
+    "high": 70900,
+    "low": 70000,
+    "close": 70900,
+    "open": 70400,
+    "accumulate_transaction_amount": 1351298167000,
+    "date": "2023-06-08T12:06:00Z"
+  },
+  {
+    "ticker": "005930",
+    "high": 71600,
+    "low": 70800,
+    "close": 71000,
+    "open": 71300,
+    "accumulate_transaction_amount": 1052878137000,
+    "date": "2023-06-07T12:06:00Z"
+  }
+]

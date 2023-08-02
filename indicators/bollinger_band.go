@@ -16,41 +16,69 @@
 package indicators
 
 import (
+	"fmt"
+
 	"github.com/gobenpark/cerebro/container"
 )
 
 func BollingerBand(period int, candles container.Candles) (mid []Indicate, top []Indicate, bottom []Indicate) {
 	candleLength := candles.Len()
-	mid = make([]Indicate, candleLength)
-	top = make([]Indicate, candleLength)
-	bottom = make([]Indicate, candleLength)
+	if candleLength < period {
+		return
+	}
+	mid = make([]Indicate, candleLength-period)
+	top = make([]Indicate, candleLength-period)
+	bottom = make([]Indicate, candleLength-period)
 
-	queue := container.Candles{}
-	for i := range candles {
-		if i < period {
-			queue = append(queue, candles[i])
-			indicate := Indicate{
-				Data: 0,
-				Date: candles[i].Date,
-			}
-			mid[i], top[i], bottom[i] = indicate, indicate, indicate
-			continue
-		} else {
-			queue = append(queue, candles[i])
-			mean := queue.Mean()
-			sd := queue.StandardDeviation()
-			mid[i], top[i], bottom[i] = Indicate{
-				Data: 0,
-				Date: candles[i].Date,
-			}, Indicate{
-				Data: mean + (sd * 2),
-				Date: candles[i].Date,
-			}, Indicate{
-				Data: mean - (sd * 2),
-				Date: candles[i].Date,
-			}
-			queue = queue[1:]
+	for i := 0; i < candleLength-period; i++ {
+		mean := candles[i : i+period].Mean()
+		fmt.Printf("start: %v\n", candles[i].Date)
+		fmt.Println(mean)
+		fmt.Printf("end: %v\n", candles[i+period].Date)
+		sd := candles[i : i+period].StandardDeviation()
+		fmt.Println(i + period)
+		mid[i], top[i], bottom[i] = Indicate{
+			Data: mean,
+			Date: candles[i+period-1].Date,
+		}, Indicate{
+			Data: mean + (sd * 2),
+			Date: candles[i+period-1].Date,
+		}, Indicate{
+			Data: mean - (sd * 2),
+			Date: candles[i+period-1].Date,
 		}
 	}
+	//
+	//queue := container.Candles{}
+	//for i := range candles {
+	//	if i < period {
+	//		queue = append(queue, candles[i])
+	//		indicate := Indicate{
+	//			Data: 0,
+	//			Date: candles[i].Date,
+	//		}
+	//		mid[i], top[i], bottom[i] = indicate, indicate, indicate
+	//		continue
+	//	} else {
+	//		queue = append(queue, candles[i])
+	//		mean := queue.Mean()
+	//		sd := queue.StandardDeviation()
+	//		m := candles[i].Close + candles[i].Low + candles[i].High
+	//		m = m / 3
+	//		mid[i], top[i], bottom[i] = Indicate{
+	//			Data: mean,
+	//			Date: candles[i].Date,
+	//		}, Indicate{
+	//			Data: mean + (sd * 2),
+	//			Date: candles[i].Date,
+	//		}, Indicate{
+	//			Data: mean - (sd * 2),
+	//			Date: candles[i].Date,
+	//		}
+	//		queue = queue[1:]
+	//	}
+	//
+	//}
+
 	return
 }

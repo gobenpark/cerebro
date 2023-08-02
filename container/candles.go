@@ -16,7 +16,9 @@
 
 package container
 
-import "math"
+import (
+	"math"
+)
 
 type Candles []Candle
 
@@ -41,10 +43,12 @@ func (c Candles) Mean() float64 {
 }
 
 func (c Candles) StandardDeviation() float64 {
+	mean := c.Mean()
 	total := 0.0
 	for i := range c {
-		da := float64(c[i].Close) - c.Mean()
+		da := float64(c[i].Close) - mean
 		total += math.Pow(da, 2)
 	}
-	return math.Sqrt(total / float64(c.Mean()))
+	variance := total / float64(c.Len()-1)
+	return math.Sqrt(variance)
 }

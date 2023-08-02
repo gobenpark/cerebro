@@ -16,8 +16,6 @@
 package indicators
 
 import (
-	"fmt"
-
 	"github.com/gobenpark/cerebro/container"
 )
 
@@ -32,11 +30,7 @@ func BollingerBand(period int, candles container.Candles) (mid []Indicate, top [
 
 	for i := 0; i < candleLength-period; i++ {
 		mean := candles[i : i+period].Mean()
-		fmt.Printf("start: %v\n", candles[i].Date)
-		fmt.Println(mean)
-		fmt.Printf("end: %v\n", candles[i+period].Date)
 		sd := candles[i : i+period].StandardDeviation()
-		fmt.Println(i + period)
 		mid[i], top[i], bottom[i] = Indicate{
 			Data: mean,
 			Date: candles[i+period-1].Date,

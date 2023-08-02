@@ -46,8 +46,8 @@ func (c Candles) StandardDeviation() float64 {
 	mean := c.Mean()
 	total := 0.0
 	for i := range c {
-		da := float64(c[i].Close) - mean
-		total += math.Pow(da, 2)
+		diff := float64(c[i].Close) - mean
+		total += math.Pow(diff, 2)
 	}
 	variance := total / float64(c.Len()-1)
 	return math.Sqrt(variance)

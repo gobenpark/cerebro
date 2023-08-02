@@ -41,8 +41,8 @@ func Test_BollingerBand(t *testing.T) {
 	})
 
 	m, top, b := BollingerBand(20, candles)
-	for _, i := range m {
-		fmt.Println(i)
+	for k := range top {
+		fmt.Println(m[k].Data, top[k].Data, b[k].Data)
 	}
 
 	_, _ = top, b

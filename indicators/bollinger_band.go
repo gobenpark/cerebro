@@ -1,5 +1,5 @@
 /*
- *  Copyright 2021 The Trader Authors
+ *  Copyright 2021 The Cerebro Authors
  *
  *  Licensed under the GNU General Public License v3.0 (the "License");
  *  you may not use this file except in compliance with the License.
@@ -33,13 +33,13 @@ func BollingerBand(period int, candles container.Candles) (mid []Indicate, top [
 		sd := candles[i : i+period].StandardDeviation()
 		mid[i], top[i], bottom[i] = Indicate{
 			Data: mean,
-			Date: candles[i+period-1].Date,
+			Date: candles[i+period].Date,
 		}, Indicate{
 			Data: mean + (sd * 2),
-			Date: candles[i+period-1].Date,
+			Date: candles[i+period].Date,
 		}, Indicate{
 			Data: mean - (sd * 2),
-			Date: candles[i+period-1].Date,
+			Date: candles[i+period].Date,
 		}
 	}
 	return

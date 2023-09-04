@@ -75,6 +75,7 @@ type Order interface {
 	RemainPrice() float64
 	Copy() Order
 	Commission() float64
+	SetID(id string)
 }
 
 type order struct {
@@ -106,6 +107,12 @@ func NewOrder(code string, action Action, execType OrderType, size int64, price 
 		remainingSize: size,
 		commission:    commission,
 	}
+}
+
+func (o *order) SetID(id string) {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	o.uuid = id
 }
 
 func (o *order) Exec() OrderType {

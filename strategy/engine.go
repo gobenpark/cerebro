@@ -20,7 +20,10 @@ import (
 	"sync"
 	"time"
 
+	"github.com/dgraph-io/badger/v4"
+	"github.com/gobenpark/cerebro/item"
 	"github.com/gobenpark/cerebro/log"
+	"github.com/reactivex/rxgo/v2"
 
 	"github.com/gobenpark/cerebro/broker"
 	"github.com/gobenpark/cerebro/container"
@@ -36,14 +39,16 @@ type Engine struct {
 	preload bool
 	chs     []chan container.Container
 	timeout time.Duration
+	cache   *badger.DB
 }
 
-func NewEngine(log log.Logger, bk *broker.Broker, preload bool, timeout time.Duration) *Engine {
+func NewEngine(log log.Logger, bk *broker.Broker, preload bool, cache *badger.DB, timeout time.Duration) *Engine {
 	return &Engine{
 		broker:  bk,
 		log:     log,
 		preload: preload,
 		timeout: timeout,
+		cache:   cache,
 	}
 }
 
@@ -51,41 +56,30 @@ func (s *Engine) AddStrategy(sts ...Strategy) {
 	s.sts = append(s.sts, sts...)
 }
 
-func (s *Engine) Spawn(ctx context.Context, cont <-chan container.Container) error {
+func (s *Engine) Spawn(ctx context.Context, item []item.Item, observable rxgo.Observable) error {
 	s.log.Info("strategy engine start")
 
-	for _, i := range s.sts {
-		s.log.Debug("strategy added", "name", i.Name())
-		ch := make(chan container.Container, 1)
-		s.chs = append(s.chs, ch)
-		go func(st Strategy, c <-chan container.Container) {
-			for j := range c {
-				s.log.Debug("receive event", "strategy", st.Name())
-				if s.timeout == 0 {
-					ctx, cancel := context.WithTimeout(ctx, s.timeout)
-					if err := st.Next(ctx, s.broker, j); err != nil {
-						s.log.Error("error strategy engine", "err", err)
-						continue
-					}
-					cancel()
-					continue
-				}
+	for _, code := range item {
+		go func(code string) {
+			accVolume := int64(0)
+			<-observable.Filter(func(v interface{}) bool {
+				tk := v.(container.Tick)
+				return tk.Code == code
+			}).Map(func(ctx context.Context, i interface{}) (interface{}, error) {
+				tk := i.(container.Tick)
+				accVolume += tk.Volume
+				return container.Tick{
+					Code:      tk.Code,
+					Price:     tk.Price,
+					Volume:    tk.Volume,
+					AccVolume: accVolume,
+				}, nil
+			}).Filter(func(v interface{}) bool {
+				return true
+			}).DoOnNext(func(i interface{}) {
 
-				if err := st.Next(ctx, s.broker, j); err != nil {
-					s.log.Error("error strategy engine", "err", err)
-				}
-			}
-		}(i, ch)
-	}
-
-	for i := range cont {
-		for _, j := range s.chs {
-			j <- i
-		}
-	}
-
-	for i := range s.sts {
-		close(s.chs[i])
+			})
+		}(code.Code)
 	}
 	return nil
 }

@@ -37,8 +37,9 @@ const (
 )
 
 type Strategy interface {
-	CandleType() CandleType
-	Next(ctx context.Context, broker *broker.Broker, container container.Container) error
+	Next(ctx context.Context, broker *broker.Broker, c container.Container) error
+
+	Filter(ctx context.Context, c container.Container, tick container.Tick) string
 
 	//NotifyOrder is when event rise order then called
 	NotifyOrder(o order.Order)

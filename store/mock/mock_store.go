@@ -191,7 +191,7 @@ func (mr *MockStoreMockRecorder) TradeCommits(ctx, code interface{}) *gomock.Cal
 // Uid mocks base method.
 func (m *MockStore) Uid() string {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Uid")
+	ret := m.ctrl.Call(m, "UID")
 	ret0, _ := ret[0].(string)
 	return ret0
 }
@@ -199,5 +199,5 @@ func (m *MockStore) Uid() string {
 // Uid indicates an expected call of Uid.
 func (mr *MockStoreMockRecorder) Uid() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Uid", reflect.TypeOf((*MockStore)(nil).Uid))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UID", reflect.TypeOf((*MockStore)(nil).Uid))
 }

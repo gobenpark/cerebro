@@ -21,11 +21,11 @@ import (
 	"sync"
 	"time"
 
+	"github.com/dgraph-io/badger/v4"
 	"github.com/gobenpark/cerebro/analysis"
 	"github.com/gobenpark/cerebro/broker"
 	"github.com/gobenpark/cerebro/container"
 	"github.com/gobenpark/cerebro/event"
-	"github.com/gobenpark/cerebro/internal/pkg"
 	"github.com/gobenpark/cerebro/item"
 	"github.com/gobenpark/cerebro/log"
 	log2 "github.com/gobenpark/cerebro/log/v1"
@@ -33,7 +33,7 @@ import (
 	"github.com/gobenpark/cerebro/order"
 	"github.com/gobenpark/cerebro/store"
 	"github.com/gobenpark/cerebro/strategy"
-	"github.com/samber/lo"
+	"github.com/reactivex/rxgo/v2"
 	"go.uber.org/zap"
 )
 
@@ -54,7 +54,7 @@ type Cerebro struct {
 
 	strategies []strategy.Strategy `json:"strategies,omitempty"`
 
-	target []string `json:"target,omitempty"`
+	target []item.Item `json:"target,omitempty"`
 
 	controlPlane *container.ControlPlane `json:"control_plane,omitempty"`
 
@@ -84,6 +84,8 @@ type Cerebro struct {
 	mu sync.RWMutex `json:"mu"`
 
 	timeout time.Duration `json:"timeout,omitempty"`
+
+	cache *badger.DB `json:"cache,omitempty"`
 
 	automaticTarget bool
 }
@@ -118,7 +120,7 @@ func NewCerebro(opts ...Option) *Cerebro {
 	c.broker = broker.NewBroker(c.eventEngine, c.store, c.commision, c.cash, c.log)
 
 	if c.strategyEngine == nil {
-		c.strategyEngine = strategy.NewEngine(c.log, c.broker, c.preload, c.timeout)
+		c.strategyEngine = strategy.NewEngine(c.log, c.broker, c.preload, c.cache, c.timeout)
 	}
 
 	return c
@@ -142,14 +144,14 @@ func (c *Cerebro) Start(ctx context.Context) error {
 	}
 
 	if c.automaticTarget {
-		c.target = lo.Map[item.Item, string](c.store.MarketItems(ctx), func(item item.Item, index int) string {
-			return item.Code
-		})
+		//c.target = lo.Map[item.Item, string](c.store.MarketItems(ctx), func(item item.Item, index int) string {
+		//	return item.Code
+		//})
 	}
 
-	for _, i := range c.target {
-		c.tickCh[i] = make(chan container.Tick, 1)
-	}
+	//for _, i := range c.target {
+	//	c.tickCh[i] = make(chan container.Tick, 1)
+	//}
 
 	if c.preload {
 		//TODO: preload
@@ -163,9 +165,17 @@ func (c *Cerebro) Start(ctx context.Context) error {
 		return err
 	}
 
-	ch := c.controlPlane.Add(pkg.OrDone(ctx, tk))
+	//ch := c.controlPlane.Add(pkg.OrDone(ctx, tk))
 
-	if err := c.strategyEngine.Spawn(ctx, ch); err != nil {
+	rxch := make(chan rxgo.Item)
+	go func() {
+		for i := range tk {
+			rxch <- rxgo.Of(i)
+		}
+	}()
+
+	observer := rxgo.FromEventSource(rxch, rxgo.WithContext(ctx))
+	if err := c.strategyEngine.Spawn(ctx, c.target, observer); err != nil {
 		c.log.Error("spawn error", "err", err)
 		return err
 	}

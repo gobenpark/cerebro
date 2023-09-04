@@ -1,8 +1,15 @@
 package item
 
+type StockType int
+
+const (
+	KOSPI = iota + 1
+	KOSDAQ
+)
+
 type Item struct {
-	Code string `json:"code"`
-	Type string `json:"type"`
-	Name string `json:"name"`
-	Tag  string `json:"tag"`
+	Code string    `json:"code"`
+	Type StockType `json:"type"`
+	Name string    `json:"name"`
+	Tag  string    `json:"tag"`
 }

@@ -27,18 +27,13 @@ type Store interface {
 	//Candles get level(min) candles level only can be minute
 	Candles(ctx context.Context, code string, level time.Duration) (container.Candles, error)
 
-	TradeCommits(ctx context.Context, code string) ([]container.TradeHistory, error)
-
-	Tick(ctx context.Context, codes ...string) (<-chan container.Tick, error)
-	AllTick(ctx context.Context) (<-chan container.Tick, error)
+	Tick(ctx context.Context, item ...item.Item) (<-chan container.Tick, error)
 
 	Order(ctx context.Context, o order.Order) error
-
-	Cancel(id string) error
-	Uid() string
+	Cancel(o order.Order) error
+	UID() string
 	Cash() int64
 	Commission() float64
 	Positions() map[string]position.Position
 	//OrderState(ctx context.Context) (<-chan event.OrderEvent, error)
-	OrderInfo(id string) (order.Order, error)
 }

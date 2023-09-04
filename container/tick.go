@@ -28,11 +28,12 @@ const (
 )
 
 type Tick struct {
-	Code   string    `json:"code"`
-	AskBid Spread    `json:"askBid"`
-	Date   time.Time `json:"date"`
-	Price  int64     `json:"price"`
-	Volume int64     `json:"volume"`
+	Code      string    `json:"code"`
+	AskBid    Spread    `json:"askBid"`
+	Date      time.Time `json:"date"`
+	Price     int64     `json:"price"`
+	AccVolume int64     `json:"acc_volume"`
+	Volume    int64     `json:"volume"`
 }
 
 func (t *Tick) UnmarshalJSON(bytes []byte) error {

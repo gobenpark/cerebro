@@ -135,7 +135,7 @@ func (c *Cerebro) SetFilter(f Filter) {
 func (c *Cerebro) Start(ctx context.Context) error {
 	c.log.Debug("Cerebro starting ...")
 
-	if len(c.target) == 0 || !c.automaticTarget {
+	if len(c.target) == 0 {
 		return fmt.Errorf("error need target setting")
 	}
 
@@ -143,31 +143,15 @@ func (c *Cerebro) Start(ctx context.Context) error {
 		return fmt.Errorf("error empty strategies")
 	}
 
-	if c.automaticTarget {
-		//c.target = lo.Map[item.Item, string](c.store.MarketItems(ctx), func(item item.Item, index int) string {
-		//	return item.Code
-		//})
-	}
-
-	//for _, i := range c.target {
-	//	c.tickCh[i] = make(chan container.Tick, 1)
-	//}
-
-	if c.preload {
-		//TODO: preload
-	}
-
 	c.strategyEngine.AddStrategy(c.strategies...)
-
 	tk, err := c.store.Tick(ctx, c.target...)
 	if err != nil {
 		c.log.Error("store tick error", zap.Error(err))
 		return err
 	}
-
 	//ch := c.controlPlane.Add(pkg.OrDone(ctx, tk))
 
-	rxch := make(chan rxgo.Item)
+	rxch := make(chan rxgo.Item, 1)
 	go func() {
 		for i := range tk {
 			rxch <- rxgo.Of(i)

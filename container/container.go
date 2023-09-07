@@ -18,7 +18,8 @@ package container
 
 import (
 	"sort"
-	"sync"
+
+	"github.com/dgraph-io/badger/v4"
 )
 
 type Container interface {
@@ -28,15 +29,7 @@ type Container interface {
 }
 
 type container struct {
-	Code    string
-	tick    []Tick
-	candles map[CandleType]Candles
-	mu      sync.RWMutex
-}
-
-func (c *container) Preload() {
-	//TODO implement me
-	panic("implement me")
+	cache *badger.DB
 }
 
 func (c *container) add(tk ...Tick) {

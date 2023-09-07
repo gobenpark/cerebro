@@ -61,23 +61,22 @@ func (s *Engine) Spawn(ctx context.Context, item []item.Item, observable rxgo.Ob
 
 	for _, code := range item {
 		go func(code string) {
-			accVolume := int64(0)
-			<-observable.Filter(func(v interface{}) bool {
+			observable.Filter(func(v interface{}) bool {
 				tk := v.(container.Tick)
 				return tk.Code == code
 			}).Map(func(ctx context.Context, i interface{}) (interface{}, error) {
 				tk := i.(container.Tick)
-				accVolume += tk.Volume
 				return container.Tick{
 					Code:      tk.Code,
 					Price:     tk.Price,
 					Volume:    tk.Volume,
-					AccVolume: accVolume,
+					AccVolume: tk.AccVolume,
 				}, nil
-			}).Filter(func(v interface{}) bool {
-				return true
 			}).DoOnNext(func(i interface{}) {
-
+				//tk := i.(container.Tick)
+				for _, st := range s.sts {
+					st.Next(ctx, s.broker, nil)
+				}
 			})
 		}(code.Code)
 	}

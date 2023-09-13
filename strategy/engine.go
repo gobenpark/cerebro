@@ -74,7 +74,7 @@ func (s *Engine) Spawn(ctx context.Context, item []item.Item, observable rxgo.Ob
 			}).DoOnNext(func(i interface{}) {
 				cd.Calculate(i.(container.Tick))
 				for _, st := range s.sts {
-					st.Next(ctx, s.broker, nil)
+					st.Next(ctx, s.broker, cd)
 				}
 			})
 		}(code.Code)

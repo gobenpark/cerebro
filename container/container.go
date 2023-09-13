@@ -33,18 +33,20 @@ type Container interface {
 }
 
 type container struct {
-	cache *badger.DB
-	mu    sync.Mutex
-	Code  string
-	buf   []Tick
-	off   int
+	cache       *badger.DB
+	mu          sync.Mutex
+	Code        string
+	buf         []Tick
+	off         int
+	bufferCount int
 }
 
-func NewContainer(cache *badger.DB, code string) Container {
+// NewContainer creates a new container length is the buffer length
+func NewContainer(cache *badger.DB, code string, length int) Container {
 	return &container{
 		cache: cache,
 		Code:  code,
-		buf:   make([]Tick, 100),
+		buf:   make([]Tick, length),
 	}
 }
 
@@ -57,7 +59,7 @@ func (c *container) Preload() {
 }
 
 func (c *container) Calculate(tick Tick) {
-	if c.off != 100 {
+	if c.off != len(c.buf) {
 		c.buf[c.off] = tick
 		c.off += 1
 		return
@@ -69,7 +71,6 @@ func (c *container) Calculate(tick Tick) {
 	defer txn.Discard()
 
 	var bt []byte
-
 	it, err := txn.Get(currentTick(c.Code))
 	if err != nil && errors.Is(err, badger.ErrKeyNotFound) {
 		bt, err = json.Marshal(cd[0])
@@ -94,6 +95,8 @@ func (c *container) Calculate(tick Tick) {
 	if err := json.Unmarshal(bt, &tk); err != nil {
 		fmt.Println(err)
 	}
+
+	fmt.Printf("%#v\n", cd)
 
 	switch len(cd) {
 	case 1:

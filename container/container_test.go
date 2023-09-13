@@ -17,61 +17,110 @@
 package container
 
 import (
-	"sync"
 	"testing"
 	"time"
 
+	"github.com/dgraph-io/badger/v4"
 	"github.com/stretchr/testify/require"
 )
 
 func TestContainer_Add(t *testing.T) {
-	c := container{
-		Code: "005930",
-		mu:   sync.RWMutex{},
-	}
+	cache, err := badger.Open(badger.DefaultOptions("").WithInMemory(true))
+	require.NoError(t, err)
+	c := NewContainer(cache, "005930", 5)
 
-	c.add(
-		Tick{
-			Code:   "005930",
-			AskBid: Bid,
-			Date:   time.Now().Add(time.Second),
-			Price:  10000,
-			Volume: 10,
-		},
-		Tick{
-			Code:   "005930",
-			AskBid: Ask,
-			Date:   time.Now().Add(2 * time.Second),
-			Price:  10002,
-			Volume: 2,
-		},
-		Tick{
-			Code:   "005930",
-			AskBid: Ask,
-			Date:   time.Now().Add(3 * time.Second),
-			Price:  10003,
-			Volume: 2,
-		},
-		Tick{
-			Code:   "005930",
-			AskBid: Ask,
-			Date:   time.Now().Add(4 * time.Second),
-			Price:  10043,
-			Volume: 2,
-		},
-		Tick{
-			Code:   "005930",
-			AskBid: Ask,
-			Date:   time.Now().Add(4 * time.Second),
-			Price:  10023,
-			Volume: 2,
-		},
-	)
-	result := c.Candle(Day)
-	require.Len(t, result, 1)
+	c.Calculate(Tick{
+		Code:   "005930",
+		AskBid: "ask",
+		Date:   time.Now().Add(time.Second),
+		Price:  100,
+		Volume: 100,
+	})
 
-	require.Equal(t, result[0].Open, int64(10000))
-	require.Equal(t, result[0].High, int64(10043))
-	require.Equal(t, result[0].Open, int64(10000))
-	require.Equal(t, result[0].Close, int64(10023))
+	c.Calculate(Tick{
+		Code:   "005930",
+		AskBid: "ask",
+		Date:   time.Now().Add(3 * time.Second),
+		Price:  200,
+		Volume: 200,
+	})
+
+	c.Calculate(Tick{
+		Code:   "005930",
+		AskBid: "ask",
+		Date:   time.Now().Add(2 * time.Second),
+		Price:  300,
+		Volume: 300,
+	})
+
+	c.Calculate(Tick{
+		Code:   "005930",
+		AskBid: "ask",
+		Date:   time.Now().Add(5 * time.Second),
+		Price:  400,
+		Volume: 400,
+	})
+
+	c.Calculate(Tick{
+		Code:   "005930",
+		AskBid: "ask",
+		Date:   time.Now().Add(time.Minute),
+		Price:  500,
+		Volume: 500,
+	})
+	c.Calculate(Tick{
+		Code:   "005930",
+		AskBid: "ask",
+		Date:   time.Now().Add(2 * time.Minute),
+		Price:  600,
+		Volume: 600,
+	})
+
+	time.Sleep(10 * time.Second)
+	c.Calculate(Tick{
+		Code:   "005930",
+		AskBid: "ask",
+		Date:   time.Now().Add(time.Second),
+		Price:  100,
+		Volume: 100,
+	})
+
+	c.Calculate(Tick{
+		Code:   "005930",
+		AskBid: "ask",
+		Date:   time.Now().Add(3 * time.Second),
+		Price:  200,
+		Volume: 200,
+	})
+
+	c.Calculate(Tick{
+		Code:   "005930",
+		AskBid: "ask",
+		Date:   time.Now().Add(2 * time.Second),
+		Price:  300,
+		Volume: 300,
+	})
+
+	c.Calculate(Tick{
+		Code:   "005930",
+		AskBid: "ask",
+		Date:   time.Now().Add(5 * time.Second),
+		Price:  400,
+		Volume: 400,
+	})
+
+	c.Calculate(Tick{
+		Code:   "005930",
+		AskBid: "ask",
+		Date:   time.Now().Add(time.Minute),
+		Price:  500,
+		Volume: 500,
+	})
+	c.Calculate(Tick{
+		Code:   "005930",
+		AskBid: "ask",
+		Date:   time.Now().Add(2 * time.Minute),
+		Price:  600,
+		Volume: 600,
+	})
 }

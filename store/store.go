@@ -23,7 +23,6 @@ const (
 type Store interface {
 	//GetMarketItems get all market item
 	MarketItems(ctx context.Context) []item.Item
-
 	//Candles get level(min) candles level only can be minute
 	Candles(ctx context.Context, code string, level time.Duration) (container.Candles, error)
 

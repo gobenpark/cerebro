@@ -50,13 +50,13 @@ type Cerebro struct {
 	// broker buy, sell and manage order
 	broker *broker.Broker `validate:"required" json:"broker,omitempty"`
 
+	inmemory bool `json:"inmemory,omitempty"`
+
 	filters []Filter `json:"filters,omitempty"`
 
 	strategies []strategy.Strategy `json:"strategies,omitempty"`
 
 	target []item.Item `json:"target,omitempty"`
-
-	controlPlane *container.ControlPlane `json:"control_plane,omitempty"`
 
 	store          store.Store      `json:"store,omitempty"`
 	strategyEngine *strategy.Engine `json:"strategy_engine,omitempty"`
@@ -104,6 +104,30 @@ func NewCerebro(opts ...Option) *Cerebro {
 		opt(c)
 	}
 
+	db, err := badger.Open(func() badger.Options {
+		if c.inmemory {
+			return badger.DefaultOptions("").WithInMemory(true)
+		} else {
+			return badger.DefaultOptions("cerebro")
+		}
+	}())
+	if err != nil {
+		panic(err)
+	}
+	c.cache = db
+
+	//go func() {
+	//	ticker := time.NewTicker(5 * time.Minute)
+	//	defer ticker.Stop()
+	//	for range ticker.C {
+	//	again:
+	//		err := db.RunValueLogGC(0.7)
+	//		if err == nil {
+	//			goto again
+	//		}
+	//	}
+	//}()
+
 	if c.log == nil {
 		if c.logLevel == 0 {
 			c.logLevel = log.InfoLevel
@@ -115,7 +139,6 @@ func NewCerebro(opts ...Option) *Cerebro {
 		}
 		c.log = logger
 	}
-	c.controlPlane = container.NewControlPlane(c.log)
 
 	c.broker = broker.NewBroker(c.eventEngine, c.store, c.commision, c.cash, c.log)
 

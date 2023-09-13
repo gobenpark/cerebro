@@ -17,47 +17,88 @@
 package container
 
 import (
-	"sort"
+	"errors"
+	"fmt"
+	"sync"
+	"time"
 
 	"github.com/dgraph-io/badger/v4"
+	jsoniter "github.com/json-iterator/go"
 )
 
+var json = jsoniter.ConfigCompatibleWithStandardLibrary
+
 type Container interface {
-	AddCandles(candleType CandleType, candles ...Candle)
-	Candle(candleType CandleType) Candles
-	Preload()
+	Calculate(tick Tick)
 }
 
 type container struct {
 	cache *badger.DB
+	mu    sync.Mutex
+	Code  string
+	buf   []Tick
+	off   int
 }
 
-func (c *container) add(tk ...Tick) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	if c.candles == nil {
-		c.candles = map[CandleType]Candles{
-			Min: {}, Min3: {}, Min5: {}, Min15: {}, Min60: {}, Day: {},
+func NewContainer(cache *badger.DB, code string) Container {
+	return &container{
+		cache: cache,
+		Code:  code,
+		buf:   make([]Tick, 100),
+	}
+}
+
+func currentTick(code string) []byte {
+	return []byte(fmt.Sprintf("%s:tick", code))
+}
+
+func (c *container) Preload() {
+
+}
+
+func (c *container) Calculate(tick Tick) {
+	if c.off != 100 {
+		c.buf[c.off] = tick
+		c.off += 1
+		return
+	}
+
+	c.off = 0
+	cd := Resample(c.buf, time.Minute)
+	txn := c.cache.NewTransaction(true)
+	defer txn.Discard()
+
+	var bt []byte
+
+	it, err := txn.Get(currentTick(c.Code))
+	if err != nil && errors.Is(err, badger.ErrKeyNotFound) {
+		bt, err = json.Marshal(cd[0])
+		if err != nil {
+			fmt.Println(err)
+			return
 		}
-	}
-	for k, v := range c.candles {
-		c.candles[k] = ResampleCandle(v, k.Duration(), tk...)
-	}
-}
-
-func (c *container) AddCandles(candleType CandleType, candles ...Candle) {
-	sort.Sort(sort.Reverse(Candles(candles)))
-	if c.candles == nil {
-		c.candles = map[CandleType]Candles{
-			Min: {}, Min3: {}, Min5: {}, Min15: {}, Min60: {}, Day: {},
+		if err := txn.Set(currentTick(c.Code), bt); err != nil {
+			fmt.Println(err)
+			return
 		}
+	} else if err != nil {
+		fmt.Println(err)
+	} else {
+		it.Value(func(val []byte) error {
+			bt = val
+			return nil
+		})
 	}
-	c.candles[candleType] = candles
-}
 
-// 0 index is closed now
-func (c *container) Candle(candleType CandleType) Candles {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	return c.candles[candleType]
+	var tk Tick
+	if err := json.Unmarshal(bt, &tk); err != nil {
+		fmt.Println(err)
+	}
+
+	switch len(cd) {
+	case 1:
+
+	case 2:
+
+	}
 }

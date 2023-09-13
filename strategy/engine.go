@@ -21,34 +21,34 @@ import (
 	"time"
 
 	"github.com/dgraph-io/badger/v4"
-	"github.com/gobenpark/cerebro/item"
-	"github.com/gobenpark/cerebro/log"
-	"github.com/reactivex/rxgo/v2"
-
 	"github.com/gobenpark/cerebro/broker"
 	"github.com/gobenpark/cerebro/container"
 	"github.com/gobenpark/cerebro/event"
+	"github.com/gobenpark/cerebro/item"
+	"github.com/gobenpark/cerebro/log"
 	"github.com/gobenpark/cerebro/order"
+	"github.com/reactivex/rxgo/v2"
 )
 
 type Engine struct {
-	mu      sync.Mutex
-	broker  *broker.Broker
-	sts     []Strategy
-	log     log.Logger
-	preload bool
-	chs     []chan container.Container
-	timeout time.Duration
-	cache   *badger.DB
+	mu         sync.Mutex
+	broker     *broker.Broker
+	sts        []Strategy
+	log        log.Logger
+	preload    bool
+	containers map[string]container.Container
+	timeout    time.Duration
+	cache      *badger.DB
 }
 
 func NewEngine(log log.Logger, bk *broker.Broker, preload bool, cache *badger.DB, timeout time.Duration) *Engine {
 	return &Engine{
-		broker:  bk,
-		log:     log,
-		preload: preload,
-		timeout: timeout,
-		cache:   cache,
+		broker:     bk,
+		log:        log,
+		preload:    preload,
+		timeout:    timeout,
+		cache:      cache,
+		containers: map[string]container.Container{},
 	}
 }
 
@@ -61,19 +61,18 @@ func (s *Engine) Spawn(ctx context.Context, item []item.Item, observable rxgo.Ob
 
 	for _, code := range item {
 		go func(code string) {
+			s.mu.Lock()
+			if _, ok := s.containers[code]; !ok {
+				s.containers[code] = container.NewContainer(s.cache, code)
+			}
+			cd := s.containers[code]
+			s.mu.Unlock()
+
 			observable.Filter(func(v interface{}) bool {
 				tk := v.(container.Tick)
 				return tk.Code == code
-			}).Map(func(ctx context.Context, i interface{}) (interface{}, error) {
-				tk := i.(container.Tick)
-				return container.Tick{
-					Code:      tk.Code,
-					Price:     tk.Price,
-					Volume:    tk.Volume,
-					AccVolume: tk.AccVolume,
-				}, nil
 			}).DoOnNext(func(i interface{}) {
-				//tk := i.(container.Tick)
+				cd.Calculate(i.(container.Tick))
 				for _, st := range s.sts {
 					st.Next(ctx, s.broker, nil)
 				}

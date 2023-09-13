@@ -94,3 +94,9 @@ func WithAutomaticTarget(b bool) Option {
 		c.automaticTarget = b
 	}
 }
+
+func WithInmemory(b bool) Option {
+	return func(c *Cerebro) {
+		c.inmemory = b
+	}
+}

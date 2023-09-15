@@ -63,7 +63,7 @@ func (s *Engine) Spawn(ctx context.Context, item []item.Item, observable rxgo.Ob
 		go func(code string) {
 			s.mu.Lock()
 			if _, ok := s.containers[code]; !ok {
-				s.containers[code] = container.NewContainer(s.cache, code)
+				s.containers[code] = container.NewContainer(s.cache, code, 100)
 			}
 			cd := s.containers[code]
 			s.mu.Unlock()

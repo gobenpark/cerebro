@@ -17,6 +17,7 @@
 package container
 
 import (
+	"fmt"
 	"sort"
 	"time"
 
@@ -131,4 +132,34 @@ func ResampleCandle(cds Candles, compress time.Duration, tk ...Tick) Candles {
 		}
 	}
 	return cds
+}
+
+func CalculateCandle(source Candles, compress time.Duration, target Candles) Candles {
+	sort.Slice(source, func(i, j int) bool {
+		return source[i].Date.Before(source[j].Date)
+	})
+	if len(source) == 0 {
+		return target
+	}
+
+	last := source[len(source)-1]
+	for i := range target {
+		if target[i].Date.Equal(last.Date) {
+			if last.High < target[i].High {
+				last.High = target[i].High
+			}
+
+			if last.Low > target[i].Low {
+				last.Low = target[i].Low
+			}
+			last.Close = target[i].Close
+			last.Volume += target[i].Volume
+		
+			source[len(source)-1] = last
+		} else {
+			source = append(source, target[i])
+			last = target[i]
+		}
+	}
+	return source
 }

@@ -17,6 +17,7 @@
 package container
 
 import (
+	"errors"
 	"fmt"
 
 	"sync"
@@ -28,27 +29,33 @@ import (
 
 var json = jsoniter.ConfigCompatibleWithStandardLibrary
 
+var (
+	ErrNotExist = errors.New("candle does not exist")
+)
+
 type Container interface {
 	Calculate(tick Tick)
 }
 
 type container struct {
-	cache       *badger.DB
-	mu          sync.Mutex
-	Code        string
-	buf         []Tick
-	off         int
-	bufferCount int
-	candles     Candles
+	cache        *badger.DB
+	mu           sync.Mutex
+	Code         string
+	buf          []Tick
+	off          int
+	bufferCount  int
+	baseCandles  Candles
+	candles      map[time.Duration]Candles
+	candleOffset map[time.Duration]int
 }
 
 // NewContainer creates a new container length is the buffer length
 func NewContainer(cache *badger.DB, code string, length int) Container {
 	return &container{
-		cache:   cache,
-		Code:    code,
-		buf:     make([]Tick, length),
-		candles: Candles{},
+		cache:       cache,
+		Code:        code,
+		buf:         make([]Tick, length),
+		baseCandles: Candles{},
 	}
 }
 
@@ -69,6 +76,29 @@ func (c *container) Calculate(tick Tick) {
 
 	c.off = 0
 	cd := Resample(c.buf, time.Minute)
-	c.candles = CalculateCandle(c.candles, time.Minute, cd)
-	fmt.Println(c.candles)
+
+	c.baseCandles = CalculateCandle(c.baseCandles, time.Minute, cd)
+	c.postHook()
+}
+
+func (c *container) Preload(candles Candles) {
+	c.baseCandles = candles
+}
+
+func (c *container) Candle(duration time.Duration, index int) (Candle, error) {
+	if v, ok := c.candles[duration]; ok {
+		idx := (v.Len() - index) - 1
+		return v[idx], nil
+	}
+	return Candle{}, ErrNotExist
+}
+
+// generate other candle
+func (c *container) postHook() {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	for k, v := range c.candles {
+		c.candles[k] = CalculateCandle(v, k, c.baseCandles[c.candleOffset[k]:])
+		c.candleOffset[k] = c.baseCandles.Len() - 1
+	}
 }

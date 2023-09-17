@@ -17,7 +17,6 @@
 package container
 
 import (
-	"fmt"
 	"sort"
 	"time"
 

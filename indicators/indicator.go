@@ -15,26 +15,30 @@
  */
 package indicators
 
-import (
-	"time"
+import ()
 
-	"github.com/gobenpark/cerebro/container"
-)
+// type Indicator interface {
+// 	Calculate(candles container.Candles)
+// 	Get() []Indicate
+// }
 
-type IndicatorType string
+// type Indicate struct {
+// 	Data float64
+// 	Date time.Time
+// }
 
-const (
-	BollingerBandType IndicatorType = "bollinger_band"
-	RsiType           IndicatorType = "rsi"
-)
+// func (i *Indicators) ClosePrice() *Indicators{
+// 	return &Indicators{}
+// }
 
-type Indicator interface {
-	Calculate(candles container.Candles)
-	Get() []Indicate
-	PeriodSatisfaction() bool
-}
+// func (i *Indicators) Volume() *Indicators {
+// 	return &Indicators{}
+// }
 
-type Indicate struct {
-	Data float64
-	Date time.Time
-}
+// func (i *Indicators) BollingerBand(period int) *Indicators {
+// 	return &Indicators{}
+// }
+
+// func (i *Indicators) Rsi(period int) *Indicators {
+// 	return &Indicators{}
+// }

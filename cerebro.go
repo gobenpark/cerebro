@@ -24,8 +24,8 @@ import (
 	"github.com/dgraph-io/badger/v4"
 	"github.com/gobenpark/cerebro/analysis"
 	"github.com/gobenpark/cerebro/broker"
-	"github.com/gobenpark/cerebro/container"
 	"github.com/gobenpark/cerebro/event"
+	"github.com/gobenpark/cerebro/indicators"
 	"github.com/gobenpark/cerebro/item"
 	"github.com/gobenpark/cerebro/log"
 	log2 "github.com/gobenpark/cerebro/log/v1"
@@ -33,8 +33,6 @@ import (
 	"github.com/gobenpark/cerebro/order"
 	"github.com/gobenpark/cerebro/store"
 	"github.com/gobenpark/cerebro/strategy"
-	"github.com/reactivex/rxgo/v2"
-	"go.uber.org/zap"
 )
 
 type Filter func(item item.Item) string
@@ -70,12 +68,9 @@ type Cerebro struct {
 	// eventEngine engine of management all event
 	eventEngine *event.Engine `json:"event_engine,omitempty"`
 
-	// dataCh all data container channel
-	dataCh chan container.Container `json:"data_ch,omitempty"`
-
 	o observer.Observer `json:"o,omitempty"`
 
-	tickCh map[string]chan container.Tick `json:"tick_ch,omitempty"`
+	tickCh map[string]chan indicators.Tick `json:"tick_ch,omitempty"`
 
 	commision float64 `json:"commision,omitempty"`
 
@@ -94,10 +89,9 @@ type Cerebro struct {
 func NewCerebro(opts ...Option) *Cerebro {
 	c := &Cerebro{
 		order:       make(chan order.Order, 1),
-		dataCh:      make(chan container.Container, 1),
 		eventEngine: event.NewEventEngine(),
 		//chart:        chart.NewTraderChart(),
-		tickCh: make(map[string]chan container.Tick),
+		tickCh: make(map[string]chan indicators.Tick),
 	}
 
 	for _, opt := range opts {
@@ -116,18 +110,6 @@ func NewCerebro(opts ...Option) *Cerebro {
 	}
 	c.cache = db
 
-	//go func() {
-	//	ticker := time.NewTicker(5 * time.Minute)
-	//	defer ticker.Stop()
-	//	for range ticker.C {
-	//	again:
-	//		err := db.RunValueLogGC(0.7)
-	//		if err == nil {
-	//			goto again
-	//		}
-	//	}
-	//}()
-
 	if c.log == nil {
 		if c.logLevel == 0 {
 			c.logLevel = log.InfoLevel
@@ -143,7 +125,7 @@ func NewCerebro(opts ...Option) *Cerebro {
 	c.broker = broker.NewBroker(c.eventEngine, c.store, c.commision, c.cash, c.log)
 
 	if c.strategyEngine == nil {
-		c.strategyEngine = strategy.NewEngine(c.log, c.broker, c.preload, c.cache, c.timeout)
+		c.strategyEngine = strategy.NewEngine(c.log, c.broker, c.preload, c.store, c.cache, c.timeout)
 	}
 
 	return c
@@ -167,22 +149,7 @@ func (c *Cerebro) Start(ctx context.Context) error {
 	}
 
 	c.strategyEngine.AddStrategy(c.strategies...)
-	tk, err := c.store.Tick(ctx, c.target...)
-	if err != nil {
-		c.log.Error("store tick error", zap.Error(err))
-		return err
-	}
-	//ch := c.controlPlane.Add(pkg.OrDone(ctx, tk))
-
-	rxch := make(chan rxgo.Item, 1)
-	go func() {
-		for i := range tk {
-			rxch <- rxgo.Of(i)
-		}
-	}()
-
-	observer := rxgo.FromEventSource(rxch, rxgo.WithContext(ctx))
-	if err := c.strategyEngine.Spawn(ctx, c.target, observer); err != nil {
+	if err := c.strategyEngine.Spawn(ctx, c.preload, c.target); err != nil {
 		c.log.Error("spawn error", "err", err)
 		return err
 	}

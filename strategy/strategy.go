@@ -21,7 +21,6 @@ import (
 	"context"
 
 	"github.com/gobenpark/cerebro/broker"
-	"github.com/gobenpark/cerebro/container"
 	"github.com/gobenpark/cerebro/order"
 )
 
@@ -37,10 +36,9 @@ const (
 )
 
 type Strategy interface {
-	Next(ctx context.Context, broker *broker.Broker, c container.Container) error
-
-	Filter(ctx context.Context, c container.Container, tick container.Tick) string
-
+	Next(ctx context.Context, broker *broker.Broker, c Container) error
+	// Filter is when pass or not for strategy if true then pass else not pass
+	Filter(ctx context.Context, code string) bool
 	//NotifyOrder is when event rise order then called
 	NotifyOrder(o order.Order)
 	NotifyTrade()

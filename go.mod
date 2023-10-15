@@ -1,6 +1,6 @@
 module github.com/gobenpark/cerebro
 
-go 1.20
+go 1.21
 
 require (
 	github.com/go-echarts/go-echarts/v2 v2.2.7

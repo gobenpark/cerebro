@@ -22,15 +22,27 @@ package indicators
 //	limit     int
 //}
 //
-//func NewSma(period int, limit int) Indicator {
+//func NewSMA(period int, limit int) Indicator {
 //	return &sma{period: period, limit: limit}
 //}
 //
-//func (s *sma) Calculate(candles container.Candles) {
+//func (s *sma) Calculate(candles Candles) {
 //
-//	sort.Sort(candles)
+//	U := []int{}
+//	D := []int{}
+//
+//	for i := 0; i < candles.Len()-1; i++ {
+//		diff := candles[i+1].Close - candles[i].Close
+//		if diff > 0 {
+//			U = append(U, candles[i+1].Close-candles[i].Close)
+//			D = append(D, 0)
+//		} else {
+//			U = append(U, 0)
+//			D = append(D, candles[i+1].Close-candles[i].Close)
+//		}
+//	}
+//
 //	size := candles.Len()
-//	var indicates []Indicate
 //	if size >= s.period {
 //		slide := (size - s.period)
 //
@@ -52,12 +64,4 @@ package indicators
 //		}
 //		s.indicates = append(indicates, s.indicates...)
 //	}
-//}
-//
-//func (s *sma) Get() []Indicate {
-//	return s.indicates
-//}
-//
-//func (s *sma) PeriodSatisfaction() bool {
-//	return len(s.indicates) >= s.period
 //}

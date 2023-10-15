@@ -17,34 +17,27 @@
 package indicators
 
 import (
-	"encoding/json"
-	"fmt"
-	"sort"
-	"testing"
-
-	"github.com/gobenpark/cerebro/container"
-	"github.com/stretchr/testify/require"
-
 	_ "embed"
 )
 
-//go:embed candle.json
-var data []byte
-
-func Test_BollingerBand(t *testing.T) {
-	var candles container.Candles
-	err := json.Unmarshal(data, &candles)
-	require.NoError(t, err)
-
-	sort.Slice(candles, func(i, j int) bool {
-		return candles[i].Date.Before(candles[j].Date)
-	})
-
-	m, top, b := BollingerBand(20, candles)
-	for k := range top {
-		fmt.Println(m[k].Data, top[k].Data, b[k].Data)
-	}
-
-	_, _ = top, b
-
-}
+//
+////go:embed candle.json
+//var data []byte
+//
+//func Test_BollingerBand(t *testing.T) {
+//	var candles container.Candles
+//	err := json.Unmarshal(data, &candles)
+//	require.NoError(t, err)
+//
+//	sort.Slice(candles, func(i, j int) bool {
+//		return candles[i].Date.Before(candles[j].Date)
+//	})
+//
+//	m, top, b := BollingerBand(20, candles)
+//	for k := range top {
+//		fmt.Println(m[k].Data, top[k].Data, b[k].Data)
+//	}
+//
+//	_, _ = top, b
+//
+//}

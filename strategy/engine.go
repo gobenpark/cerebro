@@ -22,12 +22,12 @@ import (
 
 	"github.com/dgraph-io/badger/v4"
 	"github.com/gobenpark/cerebro/broker"
-	"github.com/gobenpark/cerebro/container"
 	"github.com/gobenpark/cerebro/event"
+	"github.com/gobenpark/cerebro/indicators"
 	"github.com/gobenpark/cerebro/item"
 	"github.com/gobenpark/cerebro/log"
 	"github.com/gobenpark/cerebro/order"
-	"github.com/reactivex/rxgo/v2"
+	"github.com/gobenpark/cerebro/store"
 )
 
 type Engine struct {
@@ -35,20 +35,21 @@ type Engine struct {
 	broker     *broker.Broker
 	sts        []Strategy
 	log        log.Logger
-	preload    bool
-	containers map[string]container.Container
+	containers []*container
+	store      store.Store
 	timeout    time.Duration
 	cache      *badger.DB
+	channels   map[string]chan indicators.Tick
 }
 
-func NewEngine(log log.Logger, bk *broker.Broker, preload bool, cache *badger.DB, timeout time.Duration) *Engine {
+func NewEngine(log log.Logger, bk *broker.Broker, preload bool, store store.Store, cache *badger.DB, timeout time.Duration) *Engine {
 	return &Engine{
-		broker:     bk,
-		log:        log,
-		preload:    preload,
-		timeout:    timeout,
-		cache:      cache,
-		containers: map[string]container.Container{},
+		broker:   bk,
+		log:      log,
+		store:    store,
+		timeout:  timeout,
+		cache:    cache,
+		channels: map[string]chan indicators.Tick{},
 	}
 }
 
@@ -56,29 +57,39 @@ func (s *Engine) AddStrategy(sts ...Strategy) {
 	s.sts = append(s.sts, sts...)
 }
 
-func (s *Engine) Spawn(ctx context.Context, item []item.Item, observable rxgo.Observable) error {
+func (s *Engine) Spawn(ctx context.Context, preload bool, item []item.Item) error {
 	s.log.Info("strategy engine start")
+	tk, err := s.store.Tick(ctx, item...)
+	if err != nil {
+		s.log.Error("store tick error", "error", err)
+		return err
+	}
 
 	for _, code := range item {
-		go func(code string) {
-			s.mu.Lock()
-			if _, ok := s.containers[code]; !ok {
-				s.containers[code] = container.NewContainer(s.cache, code, 100)
-			}
-			cd := s.containers[code]
-			s.mu.Unlock()
+		s.log.Info("strategy engine spawn", "code", code.Code)
+		codech := make(chan indicators.Tick, 1000)
+		s.channels[code.Code] = codech
 
-			observable.Filter(func(v interface{}) bool {
-				tk := v.(container.Tick)
-				return tk.Code == code
-			}).DoOnNext(func(i interface{}) {
-				cd.Calculate(i.(container.Tick))
+		c := &container{code.Code, s.store, s.cache, indicators.Tick{}}
+		go func(code string, ch <-chan indicators.Tick, sts []Strategy, c *container) {
+			for i := range ch {
+				c.UpdateTick(i)
 				for _, st := range s.sts {
-					st.Next(ctx, s.broker, cd)
+					st.Next(ctx, s.broker, c)
 				}
-			})
-		}(code.Code)
+			}
+		}(code.Code, codech, s.sts, c)
 	}
+
+	go func() {
+		for i := range tk {
+			s.channels[i.Code] <- i
+		}
+
+		for i := range s.channels {
+			close(s.channels[i])
+		}
+	}()
 	return nil
 }
 

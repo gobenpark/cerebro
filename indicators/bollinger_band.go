@@ -15,32 +15,32 @@
  */
 package indicators
 
-import (
-	"github.com/gobenpark/cerebro/container"
-)
+// import (
+// 	"github.com/gobenpark/cerebro/container"
+// )
 
-func BollingerBand(period int, candles container.Candles) (mid []Indicate, top []Indicate, bottom []Indicate) {
-	candleLength := candles.Len()
-	if candleLength < period {
-		return
-	}
-	mid = make([]Indicate, candleLength-period)
-	top = make([]Indicate, candleLength-period)
-	bottom = make([]Indicate, candleLength-period)
+// func BollingerBand(period int, candles container.Candles) (mid []Indicate, top []Indicate, bottom []Indicate) {
+// 	candleLength := candles.Len()
+// 	if candleLength < period {
+// 		return
+// 	}
+// 	mid = make([]Indicate, candleLength-period)
+// 	top = make([]Indicate, candleLength-period)
+// 	bottom = make([]Indicate, candleLength-period)
 
-	for i := 0; i < candleLength-period; i++ {
-		mean := candles[i : i+period].Mean()
-		sd := candles[i : i+period].StandardDeviation()
-		mid[i], top[i], bottom[i] = Indicate{
-			Data: mean,
-			Date: candles[i+period].Date,
-		}, Indicate{
-			Data: mean + (sd * 2),
-			Date: candles[i+period].Date,
-		}, Indicate{
-			Data: mean - (sd * 2),
-			Date: candles[i+period].Date,
-		}
-	}
-	return
-}
+// 	for i := 0; i < candleLength-period; i++ {
+// 		mean := candles[i : i+period].Mean()
+// 		sd := candles[i : i+period].StandardDeviation()
+// 		mid[i], top[i], bottom[i] = Indicate{
+// 			Data: mean,
+// 			Date: candles[i+period].Date,
+// 		}, Indicate{
+// 			Data: mean + (sd * 2),
+// 			Date: candles[i+period].Date,
+// 		}, Indicate{
+// 			Data: mean - (sd * 2),
+// 			Date: candles[i+period].Date,
+// 		}
+// 	}
+// 	return
+// }

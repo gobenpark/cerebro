@@ -15,8 +15,8 @@
  */
 package observer
 
-import "github.com/gobenpark/cerebro/indicators"
+import "github.com/gobenpark/cerebro/indicator"
 
 type Observer interface {
-	Next(tick indicators.Tick)
+	Next(tick indicator.Tick)
 }

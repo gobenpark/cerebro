@@ -23,7 +23,7 @@ import (
 	"github.com/dgraph-io/badger/v4"
 	"github.com/gobenpark/cerebro/broker"
 	"github.com/gobenpark/cerebro/event"
-	"github.com/gobenpark/cerebro/indicators"
+	"github.com/gobenpark/cerebro/indicator"
 	"github.com/gobenpark/cerebro/item"
 	"github.com/gobenpark/cerebro/log"
 	"github.com/gobenpark/cerebro/order"
@@ -39,7 +39,7 @@ type Engine struct {
 	store      store.Store
 	timeout    time.Duration
 	cache      *badger.DB
-	channels   map[string]chan indicators.Tick
+	channels   map[string]chan indicator.Tick
 }
 
 func NewEngine(log log.Logger, bk *broker.Broker, preload bool, store store.Store, cache *badger.DB, timeout time.Duration) *Engine {
@@ -49,7 +49,7 @@ func NewEngine(log log.Logger, bk *broker.Broker, preload bool, store store.Stor
 		store:    store,
 		timeout:  timeout,
 		cache:    cache,
-		channels: map[string]chan indicators.Tick{},
+		channels: map[string]chan indicator.Tick{},
 	}
 }
 
@@ -67,18 +67,18 @@ func (s *Engine) Spawn(ctx context.Context, preload bool, item []item.Item) erro
 
 	for _, code := range item {
 		s.log.Info("strategy engine spawn", "code", code.Code)
-		codech := make(chan indicators.Tick, 1000)
+		codech := make(chan indicator.Tick, 1000)
 		s.channels[code.Code] = codech
 
-		c := &container{code.Code, s.store, s.cache, indicators.Tick{}}
-		go func(code string, ch <-chan indicators.Tick, sts []Strategy, c *container) {
+		c := &container{code.Code, s.store, s.cache, indicator.Tick{}}
+		go func(ch <-chan indicator.Tick, sts []Strategy, c *container) {
 			for i := range ch {
 				c.UpdateTick(i)
 				for _, st := range s.sts {
 					st.Next(ctx, s.broker, c)
 				}
 			}
-		}(code.Code, codech, s.sts, c)
+		}(codech, s.sts, c)
 	}
 
 	go func() {

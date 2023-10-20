@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package indicators
+package indicator
 
 import (
 	_ "embed"

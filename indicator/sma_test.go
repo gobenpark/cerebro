@@ -13,32 +13,22 @@
  *  See the License for the specific language governing permissions and
  *  limitations under the License.
  */
-package indicators
 
-import ()
+package indicator
 
-// type Indicator interface {
-// 	Calculate(candles container.Candles)
-// 	Get() []Indicate
-// }
+import (
+	_ "embed"
+)
 
-// type Indicate struct {
-// 	Data float64
-// 	Date time.Time
-// }
-
-// func (i *Indicators) ClosePrice() *Indicators{
-// 	return &Indicators{}
-// }
-
-// func (i *Indicators) Volume() *Indicators {
-// 	return &Indicators{}
-// }
-
-// func (i *Indicators) BollingerBand(period int) *Indicators {
-// 	return &Indicators{}
-// }
-
-// func (i *Indicators) Rsi(period int) *Indicators {
-// 	return &Indicators{}
-// }
+//
+////go:embed "candle.json"
+//var samplejson []byte
+//
+//func TestSma_Calculate(t *testing.T) {
+//	var data container.Candles
+//	err := json.Unmarshal(samplejson, &data)
+//	require.NoError(t, err)
+//
+//	sort.Sort(data)
+//	fmt.Println(data)
+//}

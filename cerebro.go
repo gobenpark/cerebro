@@ -25,7 +25,7 @@ import (
 	"github.com/gobenpark/cerebro/analysis"
 	"github.com/gobenpark/cerebro/broker"
 	"github.com/gobenpark/cerebro/event"
-	"github.com/gobenpark/cerebro/indicators"
+	"github.com/gobenpark/cerebro/indicator"
 	"github.com/gobenpark/cerebro/item"
 	"github.com/gobenpark/cerebro/log"
 	log2 "github.com/gobenpark/cerebro/log/v1"
@@ -70,7 +70,7 @@ type Cerebro struct {
 
 	o observer.Observer `json:"o,omitempty"`
 
-	tickCh map[string]chan indicators.Tick `json:"tick_ch,omitempty"`
+	tickCh map[string]chan indicator.Tick `json:"tick_ch,omitempty"`
 
 	commision float64 `json:"commision,omitempty"`
 
@@ -91,7 +91,7 @@ func NewCerebro(opts ...Option) *Cerebro {
 		order:       make(chan order.Order, 1),
 		eventEngine: event.NewEventEngine(),
 		//chart:        chart.NewTraderChart(),
-		tickCh: make(map[string]chan indicators.Tick),
+		tickCh: make(map[string]chan indicator.Tick),
 	}
 
 	for _, opt := range opts {

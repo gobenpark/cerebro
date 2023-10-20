@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/dgraph-io/badger/v4"
-	"github.com/gobenpark/cerebro/indicators"
+	"github.com/gobenpark/cerebro/indicator"
 	"github.com/gobenpark/cerebro/store"
 	jsoniter "github.com/json-iterator/go"
 )
@@ -14,24 +14,24 @@ import (
 var json = jsoniter.ConfigCompatibleWithStandardLibrary
 
 type Container interface {
-	Candle(du time.Duration) (indicators.Candles, error)
-	Tick() indicators.Tick
-	UpdateTick(tick indicators.Tick)
+	Candle(du time.Duration) (indicator.Candles, error)
+	Tick() indicator.Tick
+	UpdateTick(tick indicator.Tick)
 }
 
 type container struct {
 	Code string
 	store.Store
 	cache *badger.DB
-	tick  indicators.Tick
+	tick  indicator.Tick
 }
 
-func (c *container) UpdateTick(tick indicators.Tick) {
+func (c *container) UpdateTick(tick indicator.Tick) {
 	c.tick = tick
 }
 
-func (c *container) Candle(du time.Duration) (indicators.Candles, error) {
-	var candles indicators.Candles
+func (c *container) Candle(du time.Duration) (indicator.Candles, error) {
+	var candles indicator.Candles
 	if err := c.cache.Update(func(txn *badger.Txn) error {
 		it, err := txn.Get([]byte(CandleKey(c.Code, du.String())))
 		if err != nil && errors.Is(err, badger.ErrKeyNotFound) {
@@ -58,6 +58,14 @@ func (c *container) Candle(du time.Duration) (indicators.Candles, error) {
 	return candles, nil
 }
 
-func (c *container) Tick() indicators.Tick {
+func (c *container) Tick() indicator.Tick {
 	return c.tick
+}
+
+type Sampler struct {
+	tick []indicator.Tick
+}
+
+func (s *Sampler) UpdateTick(tick indicator.Tick) {
+	s.tick = append(s.tick, tick)
 }

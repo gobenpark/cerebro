@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/dgraph-io/badger/v4"
-	"github.com/gobenpark/cerebro/indicators"
+	"github.com/gobenpark/cerebro/indicator"
 )
 
 func TestTick(t *testing.T) {
@@ -16,7 +16,7 @@ func TestTick(t *testing.T) {
 		cache: &badger.DB{},
 	}
 
-	container.UpdateTick(indicators.Tick{
+	container.UpdateTick(indicator.Tick{
 		DiffRate:  10,
 		Code:      "005930",
 		AskBid:    "ask",

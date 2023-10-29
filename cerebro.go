@@ -33,6 +33,7 @@ import (
 	"github.com/gobenpark/cerebro/order"
 	"github.com/gobenpark/cerebro/store"
 	"github.com/gobenpark/cerebro/strategy"
+	"github.com/samber/lo"
 )
 
 type Filter func(item item.Item) string
@@ -148,8 +149,15 @@ func (c *Cerebro) Start(ctx context.Context) error {
 		return fmt.Errorf("error empty strategies")
 	}
 
+	tk, err := c.store.Tick(ctx, c.target...)
+	if err != nil {
+		c.log.Error("store tick error", "error", err)
+		return err
+	}
+
+	tks := lo.FanOut(2, 1, tk)
 	c.strategyEngine.AddStrategy(c.strategies...)
-	if err := c.strategyEngine.Spawn(ctx, c.preload, c.target); err != nil {
+	if err := c.strategyEngine.Spawn(ctx, tks[0], c.target); err != nil {
 		c.log.Error("spawn error", "err", err)
 		return err
 	}

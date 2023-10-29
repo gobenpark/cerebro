@@ -22,6 +22,7 @@ import (
 
 	"github.com/dgraph-io/badger/v4"
 	"github.com/gobenpark/cerebro/broker"
+	"github.com/gobenpark/cerebro/engine"
 	"github.com/gobenpark/cerebro/event"
 	"github.com/gobenpark/cerebro/indicator"
 	"github.com/gobenpark/cerebro/item"
@@ -42,7 +43,7 @@ type Engine struct {
 	channels   map[string]chan indicator.Tick
 }
 
-func NewEngine(log log.Logger, bk *broker.Broker, preload bool, store store.Store, cache *badger.DB, timeout time.Duration) *Engine {
+func NewEngine(log log.Logger, bk *broker.Broker, preload bool, store store.Store, cache *badger.DB, timeout time.Duration) engine.Engine {
 	return &Engine{
 		broker:   bk,
 		log:      log,
@@ -57,14 +58,8 @@ func (s *Engine) AddStrategy(sts ...Strategy) {
 	s.sts = append(s.sts, sts...)
 }
 
-func (s *Engine) Spawn(ctx context.Context, preload bool, item []item.Item) error {
+func (s *Engine) Spawn(ctx context.Context, tk <-chan indicator.Tick, item []item.Item) error {
 	s.log.Info("strategy engine start")
-	tk, err := s.store.Tick(ctx, item...)
-	if err != nil {
-		s.log.Error("store tick error", "error", err)
-		return err
-	}
-
 	for _, code := range item {
 		s.log.Info("strategy engine spawn", "code", code.Code)
 		codech := make(chan indicator.Tick, 1000)

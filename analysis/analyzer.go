@@ -15,8 +15,29 @@
  */
 package analysis
 
-import "github.com/gobenpark/cerebro/event"
+import (
+	"context"
+	"time"
+
+	"github.com/dgraph-io/badger/v4"
+	"github.com/gobenpark/cerebro/broker"
+	"github.com/gobenpark/cerebro/event"
+	"github.com/gobenpark/cerebro/indicator"
+	"github.com/gobenpark/cerebro/item"
+	"github.com/gobenpark/cerebro/store"
+)
 
 type Analyzer interface {
 	event.Listener
+}
+
+type Engine struct {
+}
+
+func NewEngine(log log.Logger, bk *broker.Broker, preload bool, store store.Store, cache *badger.DB, timeout time.Duration) *Engine {
+	return &Engine{}
+}
+
+func (a *Engine) Spawn(ctx context.Context, tk <-chan indicator.Tick, item []item.Item) error {
+
 }

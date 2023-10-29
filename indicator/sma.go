@@ -15,6 +15,8 @@
  */
 package indicator
 
+//func SMA(c)
+
 //
 //type sma struct {
 //	period    int

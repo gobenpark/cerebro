@@ -43,7 +43,7 @@ type Engine struct {
 	channels   map[string]chan indicator.Tick
 }
 
-func NewEngine(log log.Logger, bk *broker.Broker, preload bool, store store.Store, cache *badger.DB, timeout time.Duration) engine.Engine {
+func NewEngine(log log.Logger, bk *broker.Broker, st []Strategy, store store.Store, cache *badger.DB, timeout time.Duration) engine.Engine {
 	return &Engine{
 		broker:   bk,
 		log:      log,
@@ -51,11 +51,8 @@ func NewEngine(log log.Logger, bk *broker.Broker, preload bool, store store.Stor
 		timeout:  timeout,
 		cache:    cache,
 		channels: map[string]chan indicator.Tick{},
+		sts:      st,
 	}
-}
-
-func (s *Engine) AddStrategy(sts ...Strategy) {
-	s.sts = append(s.sts, sts...)
 }
 
 func (s *Engine) Spawn(ctx context.Context, tk <-chan indicator.Tick, item []item.Item) error {

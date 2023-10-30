@@ -24,6 +24,7 @@ import (
 	"github.com/dgraph-io/badger/v4"
 	"github.com/gobenpark/cerebro/analysis"
 	"github.com/gobenpark/cerebro/broker"
+	"github.com/gobenpark/cerebro/engine"
 	"github.com/gobenpark/cerebro/event"
 	"github.com/gobenpark/cerebro/indicator"
 	"github.com/gobenpark/cerebro/item"
@@ -31,6 +32,7 @@ import (
 	log2 "github.com/gobenpark/cerebro/log/v1"
 	"github.com/gobenpark/cerebro/observer"
 	"github.com/gobenpark/cerebro/order"
+	"github.com/gobenpark/cerebro/signals"
 	"github.com/gobenpark/cerebro/store"
 	"github.com/gobenpark/cerebro/strategy"
 	"github.com/samber/lo"
@@ -57,8 +59,8 @@ type Cerebro struct {
 
 	target []item.Item `json:"target,omitempty"`
 
-	store          store.Store      `json:"store,omitempty"`
-	strategyEngine *strategy.Engine `json:"strategy_engine,omitempty"`
+	store          store.Store   `json:"store,omitempty"`
+	strategyEngine engine.Engine `json:"strategy_engine,omitempty"`
 
 	log log.Logger `validate:"required" json:"log,omitempty"`
 
@@ -84,6 +86,8 @@ type Cerebro struct {
 	cache *badger.DB `json:"cache,omitempty"`
 
 	automaticTarget bool
+
+	signalEngine engine.Engine
 }
 
 // NewCerebro generate new cerebro with cerebro option
@@ -125,8 +129,10 @@ func NewCerebro(opts ...Option) *Cerebro {
 
 	c.broker = broker.NewBroker(c.eventEngine, c.store, c.commision, c.cash, c.log)
 
+	c.signalEngine = signals.NewEngine()
+
 	if c.strategyEngine == nil {
-		c.strategyEngine = strategy.NewEngine(c.log, c.broker, c.preload, c.store, c.cache, c.timeout)
+		c.strategyEngine = strategy.NewEngine(c.log, c.broker, c.strategies, c.store, c.cache, c.timeout)
 	}
 
 	return c
@@ -156,7 +162,7 @@ func (c *Cerebro) Start(ctx context.Context) error {
 	}
 
 	tks := lo.FanOut(2, 1, tk)
-	c.strategyEngine.AddStrategy(c.strategies...)
+
 	if err := c.strategyEngine.Spawn(ctx, tks[0], c.target); err != nil {
 		c.log.Error("spawn error", "err", err)
 		return err

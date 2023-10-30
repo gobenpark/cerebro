@@ -21,6 +21,10 @@ const (
 type Engine struct {
 }
 
+func (e2 *Engine) Listen(e interface{}) {
+	panic("implement me")
+}
+
 func NewEngine() engine.Engine {
 	return &Engine{}
 }

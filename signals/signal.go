@@ -18,25 +18,50 @@ const (
 	Price
 )
 
+type Signal interface {
+	Target(ctx context.Context, value SignalValue)
+	Action(ctx context.Context)
+}
+
 type Engine struct {
+	sg []Signal
 }
 
 func (e2 *Engine) Listen(e interface{}) {
 	panic("implement me")
 }
 
-func NewEngine() engine.Engine {
-	return &Engine{}
+func NewEngine(sg ...Signal) engine.Engine {
+	return &Engine{sg: sg}
 }
 
-func (e *Engine) Spawn(ctx context.Context, tick <-chan indicator.Tick, item []item.Item) error {
+func (e *Engine) Spawn(ctx context.Context, tick <-chan indicator.Tick, it []item.Item) error {
+	chans := map[string]chan indicator.Tick{}
+	for _, i := range it {
+		chans[i.Code] = make(chan indicator.Tick, 1)
+	}
 
+	go func() {
+		for i := range tick {
+			chans[i.Code] <- i
+		}
+
+		//수정 필요함.
+		for i := range e.sg {
+			e.sg[i].Target(ctx, NewSignalValue(chans[i.Code]))
+		}
+
+		for k, v := range chans {
+			close(v)
+			delete(chans, k)
+		}
+	}()
 	return nil
 }
 
-type Signal interface {
-	Volume() SignalValue
-	Price() SignalValue
+type SignalValue interface {
+	Volume() SignalAction
+	Price() SignalAction
 }
 
 type signal struct {
@@ -45,7 +70,7 @@ type signal struct {
 	mu    sync.RWMutex
 }
 
-func NewSignal(tick <-chan indicator.Tick) Signal {
+func NewSignalValue(tick <-chan indicator.Tick) SignalValue {
 	sg := &signal{tk: tick}
 	go func() {
 		for t := range tick {
@@ -63,7 +88,7 @@ func NewSignal(tick <-chan indicator.Tick) Signal {
 	return sg
 }
 
-func (s *signal) Volume() SignalValue {
+func (s *signal) Volume() SignalAction {
 	childTk := make(chan indicator.Tick, 1)
 	downstream := make(chan float64, 1)
 	s.mu.Lock()
@@ -75,10 +100,10 @@ func (s *signal) Volume() SignalValue {
 			downstream <- float64(msg.Volume)
 		}
 	}()
-	return SignalValue{downstream}
+	return SignalAction{downstream}
 }
 
-func (s *signal) Price() SignalValue {
+func (s *signal) Price() SignalAction {
 	childTk := make(chan indicator.Tick, 1)
 	downstream := make(chan float64, 1)
 	s.mu.Lock()
@@ -90,14 +115,14 @@ func (s *signal) Price() SignalValue {
 			downstream <- float64(msg.Price)
 		}
 	}()
-	return SignalValue{downstream}
+	return SignalAction{downstream}
 }
 
-type SignalValue struct {
+type SignalAction struct {
 	value <-chan float64
 }
 
-func (s SignalValue) Mean(d time.Duration) SignalValue {
+func (s SignalAction) Mean(d time.Duration) SignalAction {
 	downstream := make(chan float64, 1)
 	tk := []float64{}
 	ticker := time.NewTicker(d)
@@ -124,13 +149,13 @@ func (s SignalValue) Mean(d time.Duration) SignalValue {
 			}
 		}
 	}()
-	return SignalValue{value: downstream}
+	return SignalAction{value: downstream}
 }
 
 // Roi is rate of increase or decrease per duration
 // Roi is calculated by (end - start) / start * 100 (%)
 // return every tick
-func (s SignalValue) ROI(d time.Duration) SignalValue {
+func (s SignalAction) ROI(d time.Duration) SignalAction {
 	downstream := make(chan float64, 1)
 	start := float64(0)
 	end := float64(0)
@@ -161,5 +186,9 @@ func (s SignalValue) ROI(d time.Duration) SignalValue {
 			}
 		}
 	}()
-	return SignalValue{value: downstream}
+	return SignalAction{value: downstream}
+}
+
+func (s SignalAction) Greater(then SignalAction) bool {
+	return false
 }

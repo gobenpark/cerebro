@@ -32,45 +32,42 @@ import (
 )
 
 type Engine struct {
-	mu         sync.Mutex
-	broker     *broker.Broker
-	sts        []Strategy
-	log        log.Logger
-	containers []*container
-	store      store.Store
-	timeout    time.Duration
-	cache      *badger.DB
-	channels   map[string]chan indicator.Tick
+	mu          sync.Mutex
+	broker      *broker.Broker
+	sts         []Strategy
+	log         log.Logger
+	containers  []*container
+	store       store.Store
+	timeout     time.Duration
+	cache       *badger.DB
+	eventEngine *event.Engine
+	channels    map[string]chan indicator.Tick
 }
 
-func NewEngine(log log.Logger, bk *broker.Broker, st []Strategy, store store.Store, cache *badger.DB, timeout time.Duration) engine.Engine {
+func NewEngine(log log.Logger, eventEngine *event.Engine, bk *broker.Broker, st []Strategy, store store.Store, cache *badger.DB, timeout time.Duration) engine.Engine {
 	return &Engine{
-		broker:   bk,
-		log:      log,
-		store:    store,
-		timeout:  timeout,
-		cache:    cache,
-		channels: map[string]chan indicator.Tick{},
-		sts:      st,
+		broker:      bk,
+		log:         log,
+		store:       store,
+		timeout:     timeout,
+		cache:       cache,
+		eventEngine: eventEngine,
+		channels:    map[string]chan indicator.Tick{},
+		sts:         st,
 	}
 }
 
-func (s *Engine) Spawn(ctx context.Context, tk <-chan indicator.Tick, item []item.Item) error {
-	s.log.Info("strategy engine start")
-	for _, code := range item {
+func (s *Engine) Spawn(ctx context.Context, tk <-chan indicator.Tick, it []item.Item) error {
+	for _, code := range it {
 		s.log.Info("strategy engine spawn", "code", code.Code)
-		codech := make(chan indicator.Tick, 1000)
+		codech := make(chan indicator.Tick, 1)
 		s.channels[code.Code] = codech
+		v := indicator.NewValue()
 
-		c := &container{code.Code, s.store, s.cache, indicator.Tick{}}
-		go func(ch <-chan indicator.Tick, sts []Strategy, c *container) {
-			for i := range ch {
-				c.UpdateTick(i)
-				for _, st := range s.sts {
-					st.Next(ctx, s.broker, c)
-				}
-			}
-		}(codech, s.sts, c)
+		for _, st := range s.sts {
+			st.Next(v.Copy())
+		}
+		v.Start(codech)
 	}
 
 	go func() {

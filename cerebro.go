@@ -132,7 +132,7 @@ func NewCerebro(opts ...Option) *Cerebro {
 	c.signalEngine = signals.NewEngine()
 
 	if c.strategyEngine == nil {
-		c.strategyEngine = strategy.NewEngine(c.log, c.broker, c.strategies, c.store, c.cache, c.timeout)
+		c.strategyEngine = strategy.NewEngine(c.log, c.eventEngine, c.broker, c.strategies, c.store, c.cache, c.timeout)
 	}
 
 	return c

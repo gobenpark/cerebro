@@ -60,9 +60,13 @@ func TestFilter(t *testing.T) {
 	tk := make(chan Tick, 1)
 	sg := NewValue(tk)
 
-	value := sg.Filter(func(tick Tick) bool {
+	data := sg.Filter(func(tick Tick) bool {
 		return tick.AskBid == "ask"
-	}).Price().Mean(3 * time.Second)
+	})
+
+	value := data.Price()
+
+	vvalue := data.Volume()
 
 	go func() {
 		var initvalue int64 = 0
@@ -70,11 +74,9 @@ func TestFilter(t *testing.T) {
 		for {
 			time.Sleep(500 * time.Millisecond)
 			if initvalue%2 == 0 {
-				fmt.Println("ask")
-				tk <- Tick{AskBid: "ask", Price: initvalue}
+				tk <- Tick{AskBid: "ask", Price: initvalue, Volume: initvalue * 2}
 			} else {
-				fmt.Println("bid")
-				tk <- Tick{AskBid: "bid", Price: initvalue}
+				tk <- Tick{AskBid: "bid", Price: initvalue, Volume: initvalue * 2}
 			}
 			initvalue++
 
@@ -85,7 +87,15 @@ func TestFilter(t *testing.T) {
 		}
 	}()
 
-	for i := range value.value {
-		fmt.Println("mean", i)
-	}
+	go func() {
+		for i := range value.value {
+			fmt.Println("price", i)
+		}
+	}()
+	go func() {
+		for i := range vvalue.value {
+			fmt.Println("volume", i)
+		}
+	}()
+	time.Sleep(time.Hour)
 }

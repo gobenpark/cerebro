@@ -7,10 +7,16 @@ import (
 	"github.com/samber/lo" //nolint:depguard
 )
 
+type Starter interface {
+	Value
+	Start(tick <-chan Tick)
+}
+
 type Value interface {
 	Volume() Indicator
 	Price() Indicator
 	Filter(f func(Tick) bool) Value
+	Copy() Value
 }
 
 type value struct {
@@ -19,8 +25,11 @@ type value struct {
 	mu     sync.RWMutex
 }
 
-func NewValue(tick <-chan Tick) Value {
-	sg := &value{tk: tick}
+func NewValue() Starter {
+	return &value{}
+}
+
+func (v *value) Start(tick <-chan Tick) {
 	go func() {
 		for {
 			select {
@@ -28,19 +37,40 @@ func NewValue(tick <-chan Tick) Value {
 				if !ok {
 					return
 				}
-				for i := range sg.childs {
-					sg.childs[i] <- t
+				for i := range v.childs {
+					v.childs[i] <- t
 				}
-
+			default:
 			}
 		}
 
-		for i := range sg.childs {
-			close(sg.childs[i])
+		for i := range v.childs {
+			close(v.childs[i])
+		}
+	}()
+}
+
+func (s *value) Copy() Value {
+	childTk := make(chan Tick, 1)
+	downstream := make(chan Tick, 1)
+	s.mu.Lock()
+	s.childs = append(s.childs, childTk)
+	s.mu.Unlock()
+
+	v := value{
+		tk:     downstream,
+		childs: []chan Tick{},
+	}
+
+	go func() {
+		for tk := range childTk {
+			for i := range v.childs {
+				v.childs[i] <- tk
+			}
 		}
 	}()
 
-	return sg
+	return &v
 }
 
 func (s *value) Volume() Indicator {

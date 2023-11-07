@@ -20,7 +20,7 @@ package strategy
 import (
 	"context"
 
-	"github.com/gobenpark/cerebro/broker"
+	"github.com/gobenpark/cerebro/indicator"
 	"github.com/gobenpark/cerebro/order"
 )
 
@@ -36,7 +36,7 @@ const (
 )
 
 type Strategy interface {
-	Next(ctx context.Context, broker *broker.Broker, c Container) error
+	Next(indicator indicator.Value)
 	// Filter is when pass or not for strategy if true then pass else not pass
 	Filter(ctx context.Context, code string) bool
 	//NotifyOrder is when event rise order then called

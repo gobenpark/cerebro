@@ -18,7 +18,6 @@ package cerebro
 import (
 	"context"
 	"fmt"
-	"sync"
 	"time"
 
 	"github.com/dgraph-io/badger/v4"
@@ -53,8 +52,6 @@ type Cerebro struct {
 
 	filters []strategy.Filter `json:"filters,omitempty"`
 
-	strategies []strategy.Strategy `json:"strategies,omitempty"`
-
 	target []item.Item `json:"target,omitempty"`
 
 	store          store.Store   `json:"store,omitempty"`
@@ -68,8 +65,6 @@ type Cerebro struct {
 
 	signalEngine engine.Engine
 	// broker buy, sell and manage order
-	broker *broker.Broker `validate:"required" json:"broker,omitempty"`
-
 	order chan order.Order `json:"order,omitempty"`
 
 	// eventEngine engine of management all event
@@ -79,25 +74,13 @@ type Cerebro struct {
 
 	cache *badger.DB `json:"cache,omitempty"`
 
-	filters []Filter `json:"filters,omitempty"`
-
 	strategies []strategy.Strategy `json:"strategies,omitempty"`
-
-	target []item.Item `json:"target,omitempty"`
-
-	logLevel log.Level `json:"log_level,omitempty"`
 
 	commision float64 `json:"commision,omitempty"`
 
 	cash int64 `json:"cash,omitempty"`
 
 	timeout time.Duration `json:"timeout,omitempty"`
-
-	isLive bool `json:"is_live,omitempty"`
-	// preload bool value, decide use candle history
-	preload bool `json:"preload,omitempty"`
-
-	inmemory bool `json:"inmemory,omitempty"`
 
 	automaticTarget bool
 }

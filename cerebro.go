@@ -38,8 +38,6 @@ import (
 	"github.com/samber/lo"
 )
 
-type Filter func(item item.Item) string
-
 // Cerebro head of trading system
 // make all dependency manage
 type Cerebro struct {
@@ -53,7 +51,7 @@ type Cerebro struct {
 
 	inmemory bool `json:"inmemory,omitempty"`
 
-	filters []Filter `json:"filters,omitempty"`
+	filters []strategy.Filter `json:"filters,omitempty"`
 
 	strategies []strategy.Strategy `json:"strategies,omitempty"`
 
@@ -139,7 +137,7 @@ func NewCerebro(opts ...Option) *Cerebro {
 }
 
 // SetFilter for filter market codes
-func (c *Cerebro) SetFilter(f Filter) {
+func (c *Cerebro) SetFilter(f strategy.Filter) {
 	c.filters = append(c.filters, f)
 }
 
@@ -153,6 +151,22 @@ func (c *Cerebro) Start(ctx context.Context) error {
 
 	if c.strategies == nil {
 		return fmt.Errorf("error empty strategies")
+	}
+
+	if c.filters == nil {
+		for i := range c.target {
+			candles, err := c.store.Candles(ctx, c.target[i].Code, 24*time.Hour)
+			if err != nil {
+				return err
+			}
+			newItems := []item.Item{}
+			for j := range c.filters {
+				if c.filters[j].Pass(c.target[i], candles) {
+					newItems = append(newItems, c.target[i])
+				}
+			}
+			c.target = newItems
+		}
 	}
 
 	tk, err := c.store.Tick(ctx, c.target...)

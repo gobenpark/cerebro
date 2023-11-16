@@ -16,16 +16,7 @@
 package analysis
 
 import (
-	"context"
-	"time"
-
-	"github.com/dgraph-io/badger/v4"
-	"github.com/gobenpark/cerebro/broker"
 	"github.com/gobenpark/cerebro/event"
-	"github.com/gobenpark/cerebro/indicator"
-	"github.com/gobenpark/cerebro/item"
-	"github.com/gobenpark/cerebro/log"
-	"github.com/gobenpark/cerebro/store"
 )
 
 type Analyzer interface {
@@ -35,10 +26,10 @@ type Analyzer interface {
 type Engine struct {
 }
 
-func NewEngine(log log.Logger, bk *broker.Broker, preload bool, store store.Store, cache *badger.DB, timeout time.Duration) *Engine {
-	return &Engine{}
-}
-
-func (a *Engine) Spawn(ctx context.Context, tk <-chan indicator.Tick, item []item.Item) error {
-	return nil
-}
+//func NewEngine(log log.Logger, bk *broker.Broker, preload bool, store store.Store, cache *badger.DB, timeout time.Duration) *Engine {
+//	return &Engine{}
+//}
+//
+//func (a *Engine) Spawn(ctx context.Context, tk <-chan indicator.Tick, item []item.Item) error {
+//
+//}

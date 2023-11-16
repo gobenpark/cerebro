@@ -12,7 +12,8 @@
  *  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  *  See the License for the specific language governing permissions and
  *  limitations under the License.
- */package cerebro
+ */
+package cerebro
 
 import (
 	"context"
@@ -37,11 +38,25 @@ import (
 	"github.com/samber/lo"
 )
 
-type Filter func(item item.Item) string
-
 // Cerebro head of trading system
 // make all dependency manage
 type Cerebro struct {
+	logLevel log.Level `json:"log_level,omitempty"`
+
+	isLive bool `json:"is_live,omitempty"`
+	// preload bool value, decide use candle history
+	preload bool `json:"preload,omitempty"`
+	// broker buy, sell and manage order
+	broker *broker.Broker `validate:"required" json:"broker,omitempty"`
+
+	inmemory bool `json:"inmemory,omitempty"`
+
+	filters []strategy.Filter `json:"filters,omitempty"`
+
+	strategies []strategy.Strategy `json:"strategies,omitempty"`
+
+	target []item.Item `json:"target,omitempty"`
+
 	store          store.Store   `json:"store,omitempty"`
 	strategyEngine engine.Engine `json:"strategy_engine,omitempty"`
 
@@ -77,8 +92,6 @@ type Cerebro struct {
 	cash int64 `json:"cash,omitempty"`
 
 	timeout time.Duration `json:"timeout,omitempty"`
-
-	mu sync.RWMutex `json:"mu"`
 
 	isLive bool `json:"is_live,omitempty"`
 	// preload bool value, decide use candle history
@@ -138,7 +151,7 @@ func NewCerebro(opts ...Option) *Cerebro {
 }
 
 // SetFilter for filter market codes
-func (c *Cerebro) SetFilter(f Filter) {
+func (c *Cerebro) SetFilter(f strategy.Filter) {
 	c.filters = append(c.filters, f)
 }
 
@@ -152,6 +165,22 @@ func (c *Cerebro) Start(ctx context.Context) error {
 
 	if c.strategies == nil {
 		return fmt.Errorf("error empty strategies")
+	}
+
+	if c.filters == nil {
+		for i := range c.target {
+			candles, err := c.store.Candles(ctx, c.target[i].Code, 24*time.Hour)
+			if err != nil {
+				return err
+			}
+			newItems := []item.Item{}
+			for j := range c.filters {
+				if c.filters[j].Pass(c.target[i], candles) {
+					newItems = append(newItems, c.target[i])
+				}
+			}
+			c.target = newItems
+		}
 	}
 
 	tk, err := c.store.Tick(ctx, c.target...)

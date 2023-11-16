@@ -8,8 +8,8 @@ const (
 )
 
 type Item struct {
-	Code string            `json:"code"`
-	Type StockType         `json:"type"`
-	Name string            `json:"name"`
 	Tag  map[string]string `json:"other"`
+	Code string            `json:"code"`
+	Name string            `json:"name"`
+	Type StockType         `json:"type"`
 }

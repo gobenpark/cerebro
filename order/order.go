@@ -79,18 +79,18 @@ type Order interface {
 }
 
 type order struct {
-	status        Status `json:"status,omitempty"`
-	action        Action `json:"action,omitempty"`
+	createdAt     time.Time `json:"createdAt" form:"created_at" json:"created_at"`
+	updatedAt     time.Time `json:"updatedAt" form:"updated_at" json:"updated_at"`
+	code          string    `json:"code" form:"code" json:"code,omitempty"`
+	uuid          string    `json:"uuid" form:"uuid" json:"uuid,omitempty"`
+	action        Action    `json:"action,omitempty"`
 	OrderType     `json:"exec_type,omitempty"`
 	commission    float64      `json:"commission,omitempty"`
-	code          string       `json:"code" form:"code" json:"code,omitempty"`
-	uuid          string       `json:"uuid" form:"uuid" json:"uuid,omitempty"`
 	size          int64        `json:"size" form:"size" json:"size,omitempty"`
 	price         float64      `json:"price" form:"price" json:"price,omitempty"`
-	createdAt     time.Time    `json:"createdAt" form:"created_at" json:"created_at"`
-	updatedAt     time.Time    `json:"updatedAt" form:"updated_at" json:"updated_at"`
-	mu            sync.RWMutex `json:"-"`
 	remainingSize int64        `json:"remaining_size,omitempty"`
+	mu            sync.RWMutex `json:"-"`
+	status        Status       `json:"status,omitempty"`
 }
 
 func NewOrder(code string, action Action, execType OrderType, size int64, price float64, commission float64) Order {

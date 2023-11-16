@@ -21,9 +21,9 @@ import (
 
 type Position struct {
 	Code  string  `json:"code"`
+	Name  string  `json:"name"`
 	Size  int64   `json:"size"`
 	Price float64 `json:"price"`
-	Name  string  `json:"name"`
 }
 
 func NewPosition(o order.Order) Position {

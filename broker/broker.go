@@ -12,8 +12,7 @@
  *  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  *  See the License for the specific language governing permissions and
  *  limitations under the License.
- */
-package broker
+ */package broker
 
 import (
 	"context"
@@ -39,16 +38,16 @@ import (
 //}
 
 type Broker struct {
-	orders           []order.Order
-	mu               sync.RWMutex
 	EventEngine      event.Broadcaster
-	positions        []position.Position
 	store            store.Store
-	cashValueChanged bool
 	logger           log.Logger
 	orderState       map[string]bool
+	orders           []order.Order
+	positions        []position.Position
 	commission       float64
 	cash             int64
+	mu               sync.RWMutex
+	cashValueChanged bool
 }
 
 func NewBroker(eventEngine event.Broadcaster, store store.Store, commission float64, cash int64, logger log.Logger) *Broker {

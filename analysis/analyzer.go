@@ -24,6 +24,7 @@ import (
 	"github.com/gobenpark/cerebro/event"
 	"github.com/gobenpark/cerebro/indicator"
 	"github.com/gobenpark/cerebro/item"
+	"github.com/gobenpark/cerebro/log"
 	"github.com/gobenpark/cerebro/store"
 )
 
@@ -39,5 +40,5 @@ func NewEngine(log log.Logger, bk *broker.Broker, preload bool, store store.Stor
 }
 
 func (a *Engine) Spawn(ctx context.Context, tk <-chan indicator.Tick, item []item.Item) error {
-
+	return nil
 }

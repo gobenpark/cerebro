@@ -64,25 +64,25 @@ func (c CandleType) Duration() time.Duration {
 const maxInt = int(^uint(0) >> 1)
 
 type Candle struct {
-	Type          CandleType `gorm:"-"`
+	Date          time.Time  `json:"date"`
 	Code          string     `json:"code"`
+	Type          CandleType `gorm:"-"`
 	Open          int64      `json:"open"`
 	High          int64      `json:"high"`
 	Low           int64      `json:"low"`
 	Close         int64      `json:"close"`
 	Volume        int64      `json:"volume"`
 	IndicateValue int64      `json:"indicateValue"`
-	Date          time.Time  `json:"date"`
 }
 
 type TradeHistory struct {
+	Date        time.Time `json:"date"`
 	Code        string    `json:"code"`
+	ASKBID      string    `json:"askbid"`
 	Price       float64   `json:"price"`
 	Volume      float64   `json:"volume"`
 	PrevPrice   float64   `json:"prevPrice"`
 	ChangePrice float64   `json:"changePrice"`
-	ASKBID      string    `json:"askbid"`
-	Date        time.Time `json:"date"`
 	ID          int64     `json:"id"`
 }
 

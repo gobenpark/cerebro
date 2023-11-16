@@ -12,8 +12,7 @@
  *  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  *  See the License for the specific language governing permissions and
  *  limitations under the License.
- */
-package cerebro
+ */package cerebro
 
 import (
 	"context"
@@ -43,22 +42,6 @@ type Filter func(item item.Item) string
 // Cerebro head of trading system
 // make all dependency manage
 type Cerebro struct {
-	logLevel log.Level `json:"log_level,omitempty"`
-
-	isLive bool `json:"is_live,omitempty"`
-	// preload bool value, decide use candle history
-	preload bool `json:"preload,omitempty"`
-	// broker buy, sell and manage order
-	broker *broker.Broker `validate:"required" json:"broker,omitempty"`
-
-	inmemory bool `json:"inmemory,omitempty"`
-
-	filters []Filter `json:"filters,omitempty"`
-
-	strategies []strategy.Strategy `json:"strategies,omitempty"`
-
-	target []item.Item `json:"target,omitempty"`
-
 	store          store.Store   `json:"store,omitempty"`
 	strategyEngine engine.Engine `json:"strategy_engine,omitempty"`
 
@@ -66,28 +49,44 @@ type Cerebro struct {
 
 	analyzer analysis.Analyzer `json:"analyzer,omitempty"`
 
+	o observer.Observer `json:"o,omitempty"`
+
+	signalEngine engine.Engine
+	// broker buy, sell and manage order
+	broker *broker.Broker `validate:"required" json:"broker,omitempty"`
+
 	order chan order.Order `json:"order,omitempty"`
 
 	// eventEngine engine of management all event
 	eventEngine *event.Engine `json:"event_engine,omitempty"`
 
-	o observer.Observer `json:"o,omitempty"`
-
 	tickCh map[string]chan indicator.Tick `json:"tick_ch,omitempty"`
+
+	cache *badger.DB `json:"cache,omitempty"`
+
+	filters []Filter `json:"filters,omitempty"`
+
+	strategies []strategy.Strategy `json:"strategies,omitempty"`
+
+	target []item.Item `json:"target,omitempty"`
+
+	logLevel log.Level `json:"log_level,omitempty"`
 
 	commision float64 `json:"commision,omitempty"`
 
 	cash int64 `json:"cash,omitempty"`
 
-	mu sync.RWMutex `json:"mu"`
-
 	timeout time.Duration `json:"timeout,omitempty"`
 
-	cache *badger.DB `json:"cache,omitempty"`
+	mu sync.RWMutex `json:"mu"`
+
+	isLive bool `json:"is_live,omitempty"`
+	// preload bool value, decide use candle history
+	preload bool `json:"preload,omitempty"`
+
+	inmemory bool `json:"inmemory,omitempty"`
 
 	automaticTarget bool
-
-	signalEngine engine.Engine
 }
 
 // NewCerebro generate new cerebro with cerebro option

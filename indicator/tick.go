@@ -16,6 +16,7 @@
 package indicator
 
 import (
+	"math"
 	"time"
 )
 
@@ -27,30 +28,49 @@ const (
 )
 
 type Tick struct {
-	DiffRate  float64   `json:"diffRate"`
-	Code      string    `json:"code"`
-	AskBid    Spread    `json:"askBid"`
-	Date      time.Time `json:"date"`
-	Price     int64     `json:"price"`
-	AccVolume int64     `json:"accVolume"`
-	Volume    int64     `json:"volume"`
+	Date      time.Time         `json:"date"`
+	Code      string            `json:"code"`
+	AskBid    Spread            `json:"askBid"`
+	DiffRate  float64           `json:"diffRate"`
+	Price     int64             `json:"price"`
+	AccVolume int64             `json:"accVolume"`
+	Volume    int64             `json:"volume"`
+	Metadata  map[string]string `json:"metadata"`
 }
 
-//func (t *Tick) UnmarshalJSON(bytes []byte) error {
-//	var data map[string]interface{}
-//	err := json.Unmarshal(bytes, &data)
-//	if err != nil {
-//		return err
-//	}
-//	t.Code = data["code"].(string)
-//	ti, err := time.Parse("2006-01-02T15:04:05", data["dt"].(string))
-//	if err != nil {
-//		return err
-//	}
-//
-//	t.Date = ti
-//	t.AskBid = data["askBid"].(Spread)
-//	t.Price = data["price"].(int64)
-//	t.Volume = data["volume"].(int64)
-//	return nil
-//}
+type Ticks []Tick
+
+func (t Ticks) Len() int {
+	return len(t)
+}
+
+func (t Ticks) Less(i, j int) bool {
+	return t[i].Date.Before(t[j].Date)
+}
+
+func (t Ticks) Swap(i, j int) {
+	t[i], t[j] = t[j], t[i]
+}
+
+func (t Ticks) Mean() float64 {
+	if t.Len() == 0 {
+		return 0
+	}
+	var sum float64
+	for _, v := range t {
+		sum += float64(v.Price)
+	}
+
+	return sum / float64(t.Len())
+}
+
+func (t Ticks) StandardDeviation() float64 {
+	mean := t.Mean()
+	total := 0.0
+	for i := range t {
+		diff := float64(t[i].Price) - mean
+		total += math.Pow(diff, 2)
+	}
+	variance := total / float64(t.Len()-1)
+	return math.Sqrt(variance)
+}

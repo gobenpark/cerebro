@@ -4,7 +4,6 @@ package store
 
 import (
 	"context"
-	"time"
 
 	"github.com/gobenpark/cerebro/indicator"
 	"github.com/gobenpark/cerebro/item"
@@ -15,16 +14,20 @@ import (
 type CandleType int
 
 const (
-	MIN CandleType = iota
-	DAY
-	WEEK
+	Min CandleType = iota + 1
+	Min2
+	Min3
+	Min4
+	Min5
+	Day
+	Week
 )
 
 type Store interface {
 	//GetMarketItems get all market item
 	MarketItems(ctx context.Context) []item.Item
 	//Candles get level(min) candles level only can be minute
-	Candles(ctx context.Context, code string, level time.Duration) (indicator.Candles, error)
+	Candles(ctx context.Context, code string, level CandleType) (indicator.Candles, error)
 
 	Tick(ctx context.Context, item ...item.Item) (<-chan indicator.Tick, error)
 

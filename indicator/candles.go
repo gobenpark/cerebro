@@ -52,3 +52,77 @@ func (c Candles) StandardDeviation() float64 {
 	variance := total / float64(c.Len()-1)
 	return math.Sqrt(variance)
 }
+
+// calculate bollinger band with candle
+// period is the number of candles to calculate the mean and standard deviation of the candle
+// period must be greater than 1 and day
+func (c Candles) BollingerBand(period int) (bottom []Indicate[float64], mid []Indicate[float64], top []Indicate[float64]) {
+	candleLength := c.Len()
+	if candleLength < period {
+		return
+	}
+	mid = make([]Indicate[float64], candleLength)
+	top = make([]Indicate[float64], candleLength)
+	bottom = make([]Indicate[float64], candleLength)
+
+	for i := 0; i < candleLength; i++ {
+		if i < period {
+			bottom[i], mid[i], top[i] = Indicate[float64]{}, Indicate[float64]{}, Indicate[float64]{}
+			continue
+		}
+		mean := c[i-period : i+1].Mean()
+		sd := c[i-period : i+1].StandardDeviation()
+		mid[i], top[i], bottom[i] = Indicate[float64]{
+			Data: mean,
+			Date: c[i].Date,
+		}, Indicate[float64]{
+			Data: math.Round(mean + (sd * 2)),
+			Date: c[i].Date,
+		}, Indicate[float64]{
+			Data: math.Round(mean - (sd * 2)),
+			Date: c[i].Date,
+		}
+	}
+	return
+}
+
+func (c Candles) VolumeRatio(nday int) []Indicate[float64] {
+
+	vr := func(cds Candles) float64 {
+		up := 0.0
+		down := 0.0
+		for i := 1; i < cds.Len(); i++ {
+			switch {
+			case cds[i-1].Close < cds[i].Close:
+				up += float64(cds[i].Volume)
+			case cds[i-1].Close > cds[i].Close:
+				down += float64(cds[i].Volume)
+			case cds[i-1].Close == cds[i].Close:
+				up += float64(cds[i].Volume) / 2
+				down += float64(cds[i].Volume) / 2
+			}
+		}
+		return (up / down) * 100.0
+	}
+
+	value := make([]Indicate[float64], c.Len())
+	candleLength := c.Len()
+	if candleLength < nday {
+		return nil
+	}
+
+	for i := 0; i < candleLength; i++ {
+		if i < nday {
+			value[i] = Indicate[float64]{
+				Data: 0,
+				Date: c[i].Date,
+			}
+			continue
+		}
+		value[i] = Indicate[float64]{
+			Data: vr(c[i-nday : i+1]),
+			Date: c[i].Date,
+		}
+	}
+	return value
+}

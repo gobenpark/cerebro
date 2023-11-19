@@ -25,5 +25,9 @@ func ParseCandles(t *testing.T) Candles {
 func TestStandardDeviation(t *testing.T) {
 	candles := ParseCandles(t)
 	fmt.Println(candles)
+}
 
+func TestBollingerBand(t *testing.T) {
+	candles := ParseCandles(t)
+	candles.BollingerBand(20)
 }

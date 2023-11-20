@@ -15,8 +15,6 @@
  */
 package indicator
 
-import "fmt"
-
 type rsiIndicator struct {
 	period int
 }
@@ -57,11 +55,6 @@ func (r *rsiIndicator) Calculate(candles Candles) {
 	for i := 0; i < len(rsi); i++ {
 		rsi[i] = 100 - (100 / (1 + meanGains[i]/meanLosses[i]))
 	}
-
-	for _, i := range rsi {
-		fmt.Println(i)
-	}
-
 }
 
 func Rma(period int, values []float64) []float64 {

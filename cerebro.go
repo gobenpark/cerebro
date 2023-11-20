@@ -50,8 +50,6 @@ type Cerebro struct {
 
 	inmemory bool `json:"inmemory,omitempty"`
 
-	filters []strategy.Filter `json:"filters,omitempty"`
-
 	target []item.Item `json:"target,omitempty"`
 
 	store          store.Store   `json:"store,omitempty"`
@@ -133,11 +131,6 @@ func NewCerebro(opts ...Option) *Cerebro {
 	return c
 }
 
-// SetFilter for filter market codes
-func (c *Cerebro) SetFilter(f strategy.Filter) {
-	c.filters = append(c.filters, f)
-}
-
 // Start run cerebro
 func (c *Cerebro) Start(ctx context.Context) error {
 	c.log.Debug("Cerebro starting ...")
@@ -150,31 +143,24 @@ func (c *Cerebro) Start(ctx context.Context) error {
 		return fmt.Errorf("error empty strategies")
 	}
 
-	if c.filters == nil {
-		for i := range c.target {
-			candles, err := c.store.Candles(ctx, c.target[i].Code, 24*time.Hour)
-			if err != nil {
-				return err
+	filtered := []item.Item{}
+	for _, st := range c.strategies {
+		for _, tg := range c.target {
+			prd := strategy.NewCandleProvider(c.store, tg)
+			if !st.Filter(tg, prd) {
+				filtered = append(filtered, tg)
 			}
-			newItems := []item.Item{}
-			for j := range c.filters {
-				if c.filters[j].Pass(c.target[i], candles) {
-					newItems = append(newItems, c.target[i])
-				}
-			}
-			c.target = newItems
 		}
 	}
 
-	tk, err := c.store.Tick(ctx, c.target...)
+	tk, err := c.store.Tick(ctx, filtered...)
 	if err != nil {
 		c.log.Error("store tick error", "error", err)
 		return err
 	}
 
 	tks := lo.FanOut(2, 1, tk)
-
-	if err := c.strategyEngine.Spawn(ctx, tks[0], c.target); err != nil {
+	if err := c.strategyEngine.Spawn(ctx, tks[0], filtered); err != nil {
 		c.log.Error("spawn error", "err", err)
 		return err
 	}

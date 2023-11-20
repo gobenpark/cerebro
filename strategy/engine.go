@@ -12,7 +12,8 @@
  *  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  *  See the License for the specific language governing permissions and
  *  limitations under the License.
- */package strategy
+ */
+package strategy
 
 import (
 	"context"
@@ -38,7 +39,6 @@ type Engine struct {
 	eventEngine *event.Engine
 	channels    map[string]chan indicator.Tick
 	sts         []Strategy
-	containers  []*container
 	timeout     time.Duration
 	mu          sync.Mutex
 }
@@ -57,15 +57,13 @@ func NewEngine(log log.Logger, eventEngine *event.Engine, bk *broker.Broker, st 
 }
 
 func (s *Engine) Spawn(ctx context.Context, tk <-chan indicator.Tick, it []item.Item) error {
-	for _, code := range it {
-		s.log.Info("strategy engine spawn", "code", code.Code)
+
+	for i := range it {
+		s.log.Info("strategy engine spawn", "code", it[i].Code)
 		codech := make(chan indicator.Tick, 1)
-		s.channels[code.Code] = codech
-		candles, err := s.store.Candles(ctx, code.Code, 24*time.Hour)
-		if err != nil {
-			return err
-		}
-		v := indicator.NewValue(candles)
+		s.channels[it[i].Code] = codech
+
+		v := indicator.NewValue()
 		for _, st := range s.sts {
 			st.Next(v.Copy())
 		}

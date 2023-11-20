@@ -21,14 +21,13 @@ type Value interface {
 }
 
 type value struct {
-	tk      <-chan Tick
-	childs  []chan Tick
-	mu      sync.RWMutex
-	candles Candles
+	tk     <-chan Tick
+	childs []chan Tick
+	mu     sync.RWMutex
 }
 
-func NewValue(candles Candles) InternalIndicator {
-	return &value{candles: candles}
+func NewValue() InternalIndicator {
+	return &value{}
 }
 
 func (v *value) Start(tick <-chan Tick) {
@@ -87,7 +86,7 @@ func (s *value) Volume() Indicator {
 			downstream <- float64(msg.Volume)
 		}
 	}()
-	return Indicator{downstream, s.candles}
+	return Indicator{downstream}
 }
 
 func (s *value) Price() Indicator {
@@ -102,7 +101,7 @@ func (s *value) Price() Indicator {
 			downstream <- float64(msg.Price)
 		}
 	}()
-	return Indicator{downstream, s.candles}
+	return Indicator{downstream}
 }
 
 func (s *value) Filter(f func(Tick) bool) Value {
@@ -131,8 +130,7 @@ func (s *value) Filter(f func(Tick) bool) Value {
 }
 
 type Indicator struct {
-	value   <-chan float64
-	candles Candles
+	value <-chan float64
 }
 
 // Mean is average of tick
@@ -163,7 +161,7 @@ func (s Indicator) Mean(d time.Duration) Indicator {
 			}
 		}
 	}()
-	return Indicator{value: downstream, candles: s.candles}
+	return Indicator{value: downstream}
 }
 
 // Roi is rate of increase or decrease per duration
@@ -200,19 +198,20 @@ func (s Indicator) ROI(d time.Duration) Indicator {
 			}
 		}
 	}()
-	return Indicator{value: downstream, candles: s.candles}
+	return Indicator{value: downstream}
 }
 
-func (s Indicator) BollingerBand(period int, f func(p float64, t, m, b []Indicate[float64]) bool) Indicator {
-	downstream := make(chan float64, 1)
-	go func() {
-		defer close(downstream)
-		for v := range s.value {
-			t, m, b := BollingerBand(period, s.candles)
-			if f(v, t, m, b) {
-				downstream <- v
-			}
-		}
-	}()
-	return Indicator{value: downstream, candles: s.candles}
-}
+//
+//func (s Indicator) BollingerBand(period int, f func(p float64, t, m, b []Indicate[float64]) bool) Indicator {
+//	downstream := make(chan float64, 1)
+//	go func() {
+//		defer close(downstream)
+//		for v := range s.value {
+//			t, m, b := BollingerBand(period, s.p)
+//			if f(v, t, m, b) {
+//				downstream <- v
+//			}
+//		}
+//	}()
+//	return Indicator{value: downstream, candles: s.candles}
+//}

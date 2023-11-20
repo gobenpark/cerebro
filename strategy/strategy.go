@@ -19,6 +19,7 @@ package strategy
 
 import (
 	"github.com/gobenpark/cerebro/indicator"
+	"github.com/gobenpark/cerebro/item"
 	"github.com/gobenpark/cerebro/order"
 )
 
@@ -35,7 +36,9 @@ const (
 
 type Strategy interface {
 	Next(indicator indicator.Value)
+
 	// Filter is when pass or not for strategy if true then pass else not pass
+	Filter(itm item.Item, c CandleProvider) bool
 	//NotifyOrder is when event rise order then called
 	NotifyOrder(o order.Order)
 	NotifyTrade()

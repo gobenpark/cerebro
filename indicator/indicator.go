@@ -201,17 +201,28 @@ func (s Indicator) ROI(d time.Duration) Indicator {
 	return Indicator{value: downstream}
 }
 
-//
-//func (s Indicator) BollingerBand(period int, f func(p float64, t, m, b []Indicate[float64]) bool) Indicator {
-//	downstream := make(chan float64, 1)
-//	go func() {
-//		defer close(downstream)
-//		for v := range s.value {
-//			t, m, b := BollingerBand(period, s.p)
-//			if f(v, t, m, b) {
-//				downstream <- v
-//			}
-//		}
-//	}()
-//	return Indicator{value: downstream, candles: s.candles}
-//}
+func (s Indicator) LargeThen(i Indicator) {
+	downstream := make(chan float64, 1)
+	var mu sync.RWMutex
+
+	go func() {
+		defer close(downstream)
+		var value float64 = 0
+
+		go func() {
+			for upstream := range s.value {
+				mu.RLock()
+				if upstream > value {
+					downstream <- upstream
+				}
+				mu.RUnlock()
+			}
+		}()
+
+		for upstream := range i.value {
+			mu.Lock()
+			value = upstream
+			mu.Unlock()
+		}
+	}()
+}

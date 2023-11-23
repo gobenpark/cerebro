@@ -4,6 +4,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/gobenpark/cerebro/broker"
 	"github.com/samber/lo" //nolint:depguard
 )
 
@@ -225,4 +226,10 @@ func (s Indicator) LargeThen(i Indicator) {
 			mu.Unlock()
 		}
 	}()
+}
+
+func (s Indicator) Transaction(f func(value float64, b *broker.Broker)) {
+	for i := range s.value {
+		f(i, s.b)
+	}
 }

@@ -204,6 +204,32 @@ func (s Indicator) ROI(d time.Duration) Indicator {
 	return Indicator{value: downstream, b: s.b}
 }
 
+func (s Indicator) LargeThen(i Indicator) {
+	downstream := make(chan float64, 1)
+	var mu sync.RWMutex
+
+	go func() {
+		defer close(downstream)
+		var value float64 = 0
+
+		go func() {
+			for upstream := range s.value {
+				mu.RLock()
+				if upstream > value {
+					downstream <- upstream
+				}
+				mu.RUnlock()
+			}
+		}()
+
+		for upstream := range i.value {
+			mu.Lock()
+			value = upstream
+			mu.Unlock()
+		}
+	}()
+}
+
 func (s Indicator) Transaction(f func(value float64, b *broker.Broker)) {
 	for i := range s.value {
 		f(i, s.b)

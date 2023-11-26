@@ -8,7 +8,7 @@ import (
 
 func TestMean(t *testing.T) {
 	tk := make(chan Tick, 1)
-	sg := NewValue()
+	sg := NewValue(nil)
 
 	value := sg.Volume().Mean(3 * time.Second)
 
@@ -33,7 +33,7 @@ func TestMean(t *testing.T) {
 
 func TestROI(t *testing.T) {
 	tk := make(chan Tick, 1)
-	sg := NewValue()
+	sg := NewValue(nil)
 
 	value := sg.Volume().ROI(6 * time.Second)
 
@@ -58,7 +58,7 @@ func TestROI(t *testing.T) {
 
 func TestFilter(t *testing.T) {
 	tk := make(chan Tick, 1)
-	sg := NewValue()
+	sg := NewValue(nil)
 
 	data := sg.Filter(func(tick Tick) bool {
 		return tick.AskBid == "ask"

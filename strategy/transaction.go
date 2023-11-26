@@ -14,30 +14,20 @@
  * limitations under the License.
  */
 
-package indicator
+package strategy
 
-import (
-	_ "embed"
-)
+import "github.com/gobenpark/cerebro/broker"
 
-//
-////go:embed candle.json
-//var data []byte
-//
-//func Test_BollingerBand(t *testing.T) {
-//	var candles container.Candles
-//	err := json.Unmarshal(data, &candles)
-//	require.NoError(t, err)
-//
-//	sort.Slice(candles, func(i, j int) bool {
-//		return candles[i].Date.Before(candles[j].Date)
-//	})
-//
-//	m, top, b := BollingerBand(20, candles)
-//	for k := range top {
-//		fmt.Println(m[k].Data, top[k].Data, b[k].Data)
-//	}
-//
-//	_, _ = top, b
-//
-//}
+type Transaction interface {
+	Transact(f func(b *broker.Broker))
+}
+
+type transaction struct {
+}
+
+func NewTransaction() Transaction {
+	return nil
+}
+
+func (t *transaction) Transact(f func(b *broker.Broker)) {
+}

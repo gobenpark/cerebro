@@ -25,18 +25,8 @@ import (
 
 type CandleType int
 
-const (
-	Min1 CandleType = iota + 1
-	Min3
-	Min5
-	Min15
-	Min60
-	Day
-)
-
 type Strategy interface {
 	Next(indicator indicator.Value)
-
 	// Filter is when pass or not for strategy if true then pass else not pass
 	Filter(itm item.Item, c CandleProvider) bool
 	//NotifyOrder is when event rise order then called

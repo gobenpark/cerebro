@@ -4,6 +4,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/gobenpark/cerebro/broker"
 	"github.com/samber/lo" //nolint:depguard
 )
 
@@ -24,10 +25,11 @@ type value struct {
 	tk     <-chan Tick
 	childs []chan Tick
 	mu     sync.RWMutex
+	b      *broker.Broker
 }
 
-func NewValue() InternalIndicator {
-	return &value{}
+func NewValue(b *broker.Broker) InternalIndicator {
+	return &value{b: b}
 }
 
 func (v *value) Start(tick <-chan Tick) {
@@ -86,7 +88,7 @@ func (s *value) Volume() Indicator {
 			downstream <- float64(msg.Volume)
 		}
 	}()
-	return Indicator{downstream}
+	return Indicator{downstream, s.b}
 }
 
 func (s *value) Price() Indicator {
@@ -101,7 +103,7 @@ func (s *value) Price() Indicator {
 			downstream <- float64(msg.Price)
 		}
 	}()
-	return Indicator{downstream}
+	return Indicator{downstream, s.b}
 }
 
 func (s *value) Filter(f func(Tick) bool) Value {
@@ -131,6 +133,7 @@ func (s *value) Filter(f func(Tick) bool) Value {
 
 type Indicator struct {
 	value <-chan float64
+	b     *broker.Broker
 }
 
 // Mean is average of tick
@@ -161,7 +164,7 @@ func (s Indicator) Mean(d time.Duration) Indicator {
 			}
 		}
 	}()
-	return Indicator{value: downstream}
+	return Indicator{value: downstream, b: s.b}
 }
 
 // Roi is rate of increase or decrease per duration
@@ -198,20 +201,11 @@ func (s Indicator) ROI(d time.Duration) Indicator {
 			}
 		}
 	}()
-	return Indicator{value: downstream}
+	return Indicator{value: downstream, b: s.b}
 }
 
-//
-//func (s Indicator) BollingerBand(period int, f func(p float64, t, m, b []Indicate[float64]) bool) Indicator {
-//	downstream := make(chan float64, 1)
-//	go func() {
-//		defer close(downstream)
-//		for v := range s.value {
-//			t, m, b := BollingerBand(period, s.p)
-//			if f(v, t, m, b) {
-//				downstream <- v
-//			}
-//		}
-//	}()
-//	return Indicator{value: downstream, candles: s.candles}
-//}
+func (s Indicator) Transaction(f func(value float64, b *broker.Broker)) {
+	for i := range s.value {
+		f(i, s.b)
+	}
+}

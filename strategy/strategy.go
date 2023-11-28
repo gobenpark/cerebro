@@ -18,6 +18,7 @@ package strategy
 //go:generate mockgen -source=./strategy.go -destination=./mock/mock_strategy.go
 
 import (
+	"github.com/gobenpark/cerebro/broker"
 	"github.com/gobenpark/cerebro/indicator"
 	"github.com/gobenpark/cerebro/item"
 	"github.com/gobenpark/cerebro/order"
@@ -26,7 +27,7 @@ import (
 type CandleType int
 
 type Strategy interface {
-	Next(indicator indicator.Value)
+	Next(indicator indicator.Value, b *broker.Broker)
 	// Filter is when pass or not for strategy if true then pass else not pass
 	Filter(itm item.Item, c CandleProvider) bool
 	//NotifyOrder is when event rise order then called

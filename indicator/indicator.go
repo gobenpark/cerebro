@@ -4,7 +4,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gobenpark/cerebro/broker"
 	"github.com/samber/lo" //nolint:depguard
 )
 
@@ -25,11 +24,10 @@ type value struct {
 	tk     <-chan Tick
 	childs []chan Tick
 	mu     sync.RWMutex
-	b      *broker.Broker
 }
 
-func NewValue(b *broker.Broker) InternalIndicator {
-	return &value{b: b}
+func NewValue() InternalIndicator {
+	return &value{}
 }
 
 func (v *value) Start(tick <-chan Tick) {
@@ -88,7 +86,7 @@ func (s *value) Volume() Indicator {
 			downstream <- float64(msg.Volume)
 		}
 	}()
-	return Indicator{downstream, s.b}
+	return Indicator{downstream}
 }
 
 func (s *value) Price() Indicator {
@@ -103,7 +101,7 @@ func (s *value) Price() Indicator {
 			downstream <- float64(msg.Price)
 		}
 	}()
-	return Indicator{downstream, s.b}
+	return Indicator{downstream}
 }
 
 func (s *value) Filter(f func(Tick) bool) Value {
@@ -133,7 +131,6 @@ func (s *value) Filter(f func(Tick) bool) Value {
 
 type Indicator struct {
 	value <-chan float64
-	b     *broker.Broker
 }
 
 // Mean is average of tick
@@ -164,7 +161,7 @@ func (s Indicator) Mean(d time.Duration) Indicator {
 			}
 		}
 	}()
-	return Indicator{value: downstream, b: s.b}
+	return Indicator{value: downstream}
 }
 
 // Roi is rate of increase or decrease per duration
@@ -201,7 +198,7 @@ func (s Indicator) ROI(d time.Duration) Indicator {
 			}
 		}
 	}()
-	return Indicator{value: downstream, b: s.b}
+	return Indicator{value: downstream}
 }
 
 func (s Indicator) LargeThen(i Indicator) {
@@ -230,8 +227,10 @@ func (s Indicator) LargeThen(i Indicator) {
 	}()
 }
 
-func (s Indicator) Transaction(f func(value float64, b *broker.Broker)) {
-	for i := range s.value {
-		f(i, s.b)
-	}
+func (s Indicator) Transaction(f func(v float64)) {
+	go func() {
+		for v := range s.value {
+			f(v)
+		}
+	}()
 }

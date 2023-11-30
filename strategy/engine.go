@@ -1,5 +1,5 @@
 /*
- *  Copyright 2021 The Trader Authors
+ *  Copyright 2021 The Cerebro Authors
  *
  *  Licensed under the GNU General Public License v3.0 (the "License");
  *  you may not use this file except in compliance with the License.
@@ -20,73 +20,65 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gobenpark/cerebro/log"
-
+	"github.com/dgraph-io/badger/v4"
 	"github.com/gobenpark/cerebro/broker"
-	"github.com/gobenpark/cerebro/container"
+	"github.com/gobenpark/cerebro/engine"
 	"github.com/gobenpark/cerebro/event"
+	"github.com/gobenpark/cerebro/indicator"
+	"github.com/gobenpark/cerebro/item"
+	"github.com/gobenpark/cerebro/log"
 	"github.com/gobenpark/cerebro/order"
+	"github.com/gobenpark/cerebro/store"
 )
 
 type Engine struct {
-	mu      sync.Mutex
-	broker  *broker.Broker
-	sts     []Strategy
-	log     log.Logger
-	preload bool
-	chs     []chan container.Container
-	timeout time.Duration
+	log         log.Logger
+	store       store.Store
+	broker      *broker.Broker
+	cache       *badger.DB
+	eventEngine *event.Engine
+	channels    map[string]chan indicator.Tick
+	sts         []Strategy
+	timeout     time.Duration
+	mu          sync.Mutex
 }
 
-func NewEngine(log log.Logger, bk *broker.Broker, preload bool, timeout time.Duration) *Engine {
+func NewEngine(log log.Logger, eventEngine *event.Engine, bk *broker.Broker, st []Strategy, store store.Store, cache *badger.DB, timeout time.Duration) engine.Engine {
 	return &Engine{
-		broker:  bk,
-		log:     log,
-		preload: preload,
-		timeout: timeout,
+		broker:      bk,
+		log:         log,
+		store:       store,
+		timeout:     timeout,
+		cache:       cache,
+		eventEngine: eventEngine,
+		channels:    map[string]chan indicator.Tick{},
+		sts:         st,
 	}
 }
 
-func (s *Engine) AddStrategy(sts ...Strategy) {
-	s.sts = append(s.sts, sts...)
-}
+func (s *Engine) Spawn(ctx context.Context, tk <-chan indicator.Tick, it []item.Item) error {
 
-func (s *Engine) Spawn(ctx context.Context, cont <-chan container.Container) error {
-	s.log.Info("strategy engine start")
+	for i := range it {
+		s.log.Info("strategy engine spawn", "code", it[i].Code)
+		codech := make(chan indicator.Tick, 1)
+		s.channels[it[i].Code] = codech
 
-	for _, i := range s.sts {
-		s.log.Debug("strategy added", "name", i.Name())
-		ch := make(chan container.Container, 1)
-		s.chs = append(s.chs, ch)
-		go func(st Strategy, c <-chan container.Container) {
-			for j := range c {
-				s.log.Debug("receive event", "strategy", st.Name())
-				if s.timeout == 0 {
-					ctx, cancel := context.WithTimeout(ctx, s.timeout)
-					if err := st.Next(ctx, s.broker, j); err != nil {
-						s.log.Error("error strategy engine", "err", err)
-						continue
-					}
-					cancel()
-					continue
-				}
-
-				if err := st.Next(ctx, s.broker, j); err != nil {
-					s.log.Error("error strategy engine", "err", err)
-				}
-			}
-		}(i, ch)
-	}
-
-	for i := range cont {
-		for _, j := range s.chs {
-			j <- i
+		v := indicator.NewValue()
+		for _, st := range s.sts {
+			st.Next(v.Copy(), s.broker)
 		}
+		v.Start(codech)
 	}
 
-	for i := range s.sts {
-		close(s.chs[i])
-	}
+	go func() {
+		for i := range tk {
+			s.channels[i.Code] <- i
+		}
+
+		for i := range s.channels {
+			close(s.channels[i])
+		}
+	}()
 	return nil
 }
 

@@ -1,5 +1,5 @@
 /*
- *  Copyright 2021 The Trader Authors
+ *  Copyright 2021 The Cerebro Authors
  *
  *  Licensed under the GNU General Public License v3.0 (the "License");
  *  you may not use this file except in compliance with the License.
@@ -15,8 +15,21 @@
  */
 package analysis
 
-import "github.com/gobenpark/cerebro/event"
+import (
+	"github.com/gobenpark/cerebro/event"
+)
 
 type Analyzer interface {
 	event.Listener
 }
+
+type Engine struct {
+}
+
+//func NewEngine(log log.Logger, bk *broker.Broker, preload bool, store store.Store, cache *badger.DB, timeout time.Duration) *Engine {
+//	return &Engine{}
+//}
+//
+//func (a *Engine) Spawn(ctx context.Context, tk <-chan indicator.Tick, item []item.Item) error {
+//
+//}

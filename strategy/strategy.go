@@ -1,5 +1,5 @@
 /*
- *  Copyright 2021 The Trader Authors
+ *  Copyright 2021 The Cerebro Authors
  *
  *  Licensed under the GNU General Public License v3.0 (the "License");
  *  you may not use this file except in compliance with the License.
@@ -18,28 +18,18 @@ package strategy
 //go:generate mockgen -source=./strategy.go -destination=./mock/mock_strategy.go
 
 import (
-	"context"
-
 	"github.com/gobenpark/cerebro/broker"
-	"github.com/gobenpark/cerebro/container"
+	"github.com/gobenpark/cerebro/indicator"
+	"github.com/gobenpark/cerebro/item"
 	"github.com/gobenpark/cerebro/order"
 )
 
 type CandleType int
 
-const (
-	Min1 CandleType = iota + 1
-	Min3
-	Min5
-	Min15
-	Min60
-	Day
-)
-
 type Strategy interface {
-	CandleType() CandleType
-	Next(ctx context.Context, broker *broker.Broker, container container.Container) error
-
+	Next(indicator indicator.Value, b *broker.Broker)
+	// Filter is when pass or not for strategy if true then pass else not pass
+	Pass(itm item.Item, c CandleProvider) bool
 	//NotifyOrder is when event rise order then called
 	NotifyOrder(o order.Order)
 	NotifyTrade()

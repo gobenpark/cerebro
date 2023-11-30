@@ -1,21 +1,22 @@
 /*
- *                     GNU GENERAL PUBLIC LICENSE
- *                        Version 3, 29 June 2007
+ *  Copyright 2021 The Cerebro Authors
  *
- *  Copyright (C) 2007 Free Software Foundation, Inc. <https://fsf.org/>
- *  Everyone is permitted to copy and distribute verbatim copies
- *  of this license document, but changing it is not allowed.
+ *  Licensed under the GNU General Public License v3.0 (the "License");
+ *  you may not use this file except in compliance with the License.
+ *  You may obtain a copy of the License at
  *
- *                             Preamble
+ *      <https:fsf.org/>
  *
- *   The GNU General Public License is a free, copyleft license for
- * software and other kinds of works.
+ *  Unless required by applicable law or agreed to in writing, software
+ *  distributed under the License is distributed on an "AS IS" BASIS,
+ *  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ *  See the License for the specific language governing permissions and
+ *  limitations under the License.
  */
-
 package observer
 
-import "github.com/gobenpark/cerebro/container"
+import "github.com/gobenpark/cerebro/indicator"
 
 type Observer interface {
-	Next(tick container.Tick)
+	Next(tick indicator.Tick)
 }

@@ -1,5 +1,5 @@
 /*
- *  Copyright 2021 The Trader Authors
+ *  Copyright 2021 The Cerebro Authors
  *
  *  Licensed under the GNU General Public License v3.0 (the "License");
  *  you may not use this file except in compliance with the License.
@@ -38,7 +38,7 @@ func NewLogger(lvl log.Level) (log.Logger, error) {
 		"stderr",
 	}
 
-	l, err := conf.Build(zap.AddCallerSkip(1))
+	l, err := conf.Build(zap.AddCallerSkip(2))
 	if err != nil {
 		return nil, err
 	}

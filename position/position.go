@@ -1,5 +1,5 @@
 /*
- *  Copyright 2021 The Trader Authors
+ *  Copyright 2021 The Cerebro Authors
  *
  *  Licensed under the GNU General Public License v3.0 (the "License");
  *  you may not use this file except in compliance with the License.
@@ -16,23 +16,20 @@
 package position
 
 import (
-	"time"
-
 	"github.com/gobenpark/cerebro/order"
 )
 
 type Position struct {
-	Code      string    `json:"code"`
-	Size      int64     `json:"size"`
-	Price     float64   `json:"price"`
-	CreatedAt time.Time `json:"createdAt"`
+	Code  string  `json:"code"`
+	Name  string  `json:"name"`
+	Size  int64   `json:"size"`
+	Price float64 `json:"price"`
 }
 
 func NewPosition(o order.Order) Position {
 	return Position{
-		Code:      o.Code(),
-		Size:      o.Size(),
-		Price:     o.Price(),
-		CreatedAt: time.Now(),
+		Code:  o.Code(),
+		Size:  o.Size(),
+		Price: o.Price(),
 	}
 }

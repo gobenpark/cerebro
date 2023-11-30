@@ -1,5 +1,5 @@
 /*
- *  Copyright 2021 The Trader Authors
+ *  Copyright 2021 The Cerebro Authors
  *
  *  Licensed under the GNU General Public License v3.0 (the "License");
  *  you may not use this file except in compliance with the License.
@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"github.com/gobenpark/cerebro/analysis"
+	"github.com/gobenpark/cerebro/item"
 	"github.com/gobenpark/cerebro/log"
 	"github.com/gobenpark/cerebro/observer"
 	"github.com/gobenpark/cerebro/store"
@@ -45,7 +46,7 @@ func WithStore(s store.Store) Option {
 	}
 }
 
-func WithTargetItem(codes ...string) Option {
+func WithTargetItem(codes ...item.Item) Option {
 	return func(c *Cerebro) {
 		c.target = codes
 	}
@@ -63,9 +64,10 @@ func WithAnalyzer(analyzer analysis.Analyzer) Option {
 	}
 }
 
-func WithCommision(com float64) Option {
+// Commision percent
+func WithCommision(commision float64) Option {
 	return func(c *Cerebro) {
-		c.commision = com
+		c.commision = commision
 	}
 }
 
@@ -84,5 +86,17 @@ func WithStrategy(st ...strategy.Strategy) Option {
 func WithStrategyTimeout(du time.Duration) Option {
 	return func(c *Cerebro) {
 		c.timeout = du
+	}
+}
+
+func WithAutomaticTarget(b bool) Option {
+	return func(c *Cerebro) {
+		c.automaticTarget = b
+	}
+}
+
+func WithInmemory(b bool) Option {
+	return func(c *Cerebro) {
+		c.inmemory = b
 	}
 }

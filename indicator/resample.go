@@ -1,5 +1,5 @@
 /*
- *  Copyright 2021 The Trader Authors
+ *  Copyright 2021 The Cerebro Authors
  *
  *  Licensed under the GNU General Public License v3.0 (the "License");
  *  you may not use this file except in compliance with the License.
@@ -14,10 +14,11 @@
  *  limitations under the License.
  */
 
-package container
+package indicator
 
 import (
 	"sort"
+	"sync"
 	"time"
 
 	e "github.com/gobenpark/cerebro/error"
@@ -43,6 +44,41 @@ func Resampler(last *Candle, tk Tick, compress time.Duration) error {
 		last.High = tk.Price
 	}
 	return nil
+}
+
+func ResampleCandle(compress time.Duration, tick ...Tick) Candle {
+	one := sync.Once{}
+	candle := Candle{}
+
+	for i := range tick {
+		one.Do(func() {
+			candle = Candle{
+				Type:   0,
+				Open:   tick[i].Price,
+				High:   tick[i].Price,
+				Low:    tick[i].Price,
+				Close:  tick[i].Price,
+				Volume: tick[i].Volume,
+				Date:   tick[i].Date.Truncate(compress),
+			}
+		})
+
+		if candle.Open == 0 {
+			candle.Open = tick[i].Price
+		}
+		candle.Date = tick[i].Date.Truncate(compress)
+		if candle.Low > tick[i].Price {
+			candle.Low = tick[i].Price
+		}
+
+		if candle.High < tick[i].Price {
+			candle.High = tick[i].Price
+		}
+
+		candle.Close = tick[i].Price
+		candle.Volume += tick[i].Volume
+	}
+	return candle
 }
 
 func Resample(tk []Tick, compress time.Duration) Candles {
@@ -85,49 +121,6 @@ func Resample(tk []Tick, compress time.Duration) Candles {
 				Date:   tk[i].Date.Truncate(compress),
 				Volume: tk[i].Volume,
 			})
-		}
-	}
-	return cds
-}
-
-func ResampleCandle(cds Candles, compress time.Duration, tk ...Tick) Candles {
-	for i := range tk {
-		if len(cds) == 0 {
-			cds = append(cds, Candle{
-				Open:   tk[i].Price,
-				High:   tk[i].Price,
-				Low:    tk[i].Price,
-				Close:  tk[i].Price,
-				Date:   tk[i].Date.Truncate(compress),
-				Volume: tk[i].Volume,
-			})
-			continue
-		}
-		last := cds[0]
-		edge := last.Date.Add(compress).Truncate(compress)
-		if tk[i].Date.Before(edge) {
-			last.Close = tk[i].Price
-			last.Volume += tk[i].Volume
-
-			if last.Low > tk[i].Price {
-				last.Low = tk[i].Price
-			}
-
-			if last.High < tk[i].Price {
-				last.High = tk[i].Price
-			}
-			cds[0] = last
-		} else {
-			cds = append([]Candle{
-				{
-					Open:   tk[i].Price,
-					High:   tk[i].Price,
-					Low:    tk[i].Price,
-					Close:  tk[i].Price,
-					Date:   tk[i].Date.Truncate(compress),
-					Volume: tk[i].Volume,
-				},
-			}, cds...)
 		}
 	}
 	return cds

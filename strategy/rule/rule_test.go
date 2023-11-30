@@ -14,7 +14,14 @@
  * limitations under the License.
  */
 
-package database
+package rule
 
-type Database interface {
+import (
+	"testing"
+)
+
+func TestRule(t *testing.T) {
+
+	And()
+
 }

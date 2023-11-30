@@ -1,5 +1,5 @@
 /*
- *  Copyright 2021 The Trader Authors
+ *  Copyright 2021 The Cerebro Authors
  *
  *  Licensed under the GNU General Public License v3.0 (the "License");
  *  you may not use this file except in compliance with the License.
@@ -14,27 +14,21 @@
  *  limitations under the License.
  */
 
-package indicators
+package indicator
 
 import (
 	_ "embed"
-	"encoding/json"
-	"fmt"
-	"sort"
-	"testing"
-
-	"github.com/gobenpark/cerebro/container"
-	"github.com/stretchr/testify/require"
 )
 
-//go:embed "sample.json"
-var samplejson []byte
-
-func TestSma_Calculate(t *testing.T) {
-	var data container.Candles
-	err := json.Unmarshal(samplejson, &data)
-	require.NoError(t, err)
-
-	sort.Sort(data)
-	fmt.Println(data)
-}
+//
+////go:embed "candle.json"
+//var samplejson []byte
+//
+//func TestSma_Calculate(t *testing.T) {
+//	var data container.Candles
+//	err := json.Unmarshal(samplejson, &data)
+//	require.NoError(t, err)
+//
+//	sort.Sort(data)
+//	fmt.Println(data)
+//}

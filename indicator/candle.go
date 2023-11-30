@@ -1,5 +1,5 @@
 /*
- *  Copyright 2021 The Trader Authors
+ *  Copyright 2021 The Cerebro Authors
  *
  *  Licensed under the GNU General Public License v3.0 (the "License");
  *  you may not use this file except in compliance with the License.
@@ -13,7 +13,7 @@
  *  See the License for the specific language governing permissions and
  *  limitations under the License.
  */
-package container
+package indicator
 
 import (
 	"errors"
@@ -64,24 +64,25 @@ func (c CandleType) Duration() time.Duration {
 const maxInt = int(^uint(0) >> 1)
 
 type Candle struct {
-	Type   CandleType
-	Code   string    `json:"code"`
-	Open   int64     `json:"open"`
-	High   int64     `json:"high"`
-	Low    int64     `json:"low"`
-	Close  int64     `json:"close"`
-	Volume int64     `json:"volume"`
-	Date   time.Time `json:"date"`
+	Date          time.Time  `json:"date"`
+	Code          string     `json:"code"`
+	Type          CandleType `gorm:"-"`
+	Open          int64      `json:"open"`
+	High          int64      `json:"high"`
+	Low           int64      `json:"low"`
+	Close         int64      `json:"close"`
+	Volume        int64      `json:"volume"`
+	IndicateValue int64      `json:"indicateValue"`
 }
 
 type TradeHistory struct {
+	Date        time.Time `json:"date"`
 	Code        string    `json:"code"`
+	ASKBID      string    `json:"askbid"`
 	Price       float64   `json:"price"`
 	Volume      float64   `json:"volume"`
 	PrevPrice   float64   `json:"prevPrice"`
 	ChangePrice float64   `json:"changePrice"`
-	ASKBID      string    `json:"askbid"`
-	Date        time.Time `json:"date"`
 	ID          int64     `json:"id"`
 }
 
@@ -93,6 +94,14 @@ type CandleBuffer struct {
 
 func NewCandleBuffer(c []Candle) *CandleBuffer {
 	return &CandleBuffer{buf: c}
+}
+
+func (c *CandleBuffer) Less(i, j int) bool {
+	return c.buf[i].Date.Before(c.buf[j].Date)
+}
+
+func (c *CandleBuffer) Swap(i, j int) {
+	c.buf[i], c.buf[j] = c.buf[j], c.buf[i]
 }
 
 func (c *CandleBuffer) empty() bool {
@@ -138,7 +147,7 @@ func makeSlice(n int) []Candle {
 	// If the make fails, give a known error.
 	defer func() {
 		if recover() != nil {
-			panic(errors.New("Candle Buffer: too large"))
+			panic(errors.New("candle Buffer: too large"))
 		}
 	}()
 	return make([]Candle, n)
@@ -174,7 +183,7 @@ func (c *CandleBuffer) grow(n int) int {
 		// don't spend all our time copying.
 		copy(c.buf, c.buf[c.off:])
 	} else if b > maxInt-b-n {
-		panic(errors.New("Candle Buffer: too large"))
+		panic(errors.New("candle Buffer: too large"))
 	} else {
 		// Not enough space anywhere, we need to allocate.
 		buf := makeSlice(2*b + n)

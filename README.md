@@ -1,5 +1,8 @@
 ## Live Trader
 
+> This project is still in progress and is not a full version.
+
+
 golang live trading framework
 ---
 [![made-with-Go](https://img.shields.io/badge/Made%20with-Go-1f425f.svg)](http://golang.org)

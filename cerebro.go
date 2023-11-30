@@ -147,7 +147,7 @@ func (c *Cerebro) Start(ctx context.Context) error {
 	for _, st := range c.strategies {
 		for _, tg := range c.target {
 			prd := strategy.NewCandleProvider(c.store, tg)
-			if !st.Filter(tg, prd) {
+			if st.Pass(tg, prd) {
 				filtered = append(filtered, tg)
 			}
 		}

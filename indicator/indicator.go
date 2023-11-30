@@ -41,7 +41,6 @@ func (v *value) Start(tick <-chan Tick) {
 				for i := range v.childs {
 					v.childs[i] <- t
 				}
-			default:
 			}
 		}
 

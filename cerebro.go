@@ -34,7 +34,6 @@ import (
 	"github.com/gobenpark/cerebro/signals"
 	"github.com/gobenpark/cerebro/store"
 	"github.com/gobenpark/cerebro/strategy"
-	"github.com/samber/lo"
 )
 
 // Cerebro head of trading system
@@ -159,8 +158,8 @@ func (c *Cerebro) Start(ctx context.Context) error {
 		return err
 	}
 
-	tks := lo.FanOut(2, 1, tk)
-	if err := c.strategyEngine.Spawn(ctx, tks[0], filtered); err != nil {
+	//tks := lo.FanOut(2, 1, tk)
+	if err := c.strategyEngine.Spawn(ctx, tk, filtered); err != nil {
 		c.log.Error("spawn error", "err", err)
 		return err
 	}

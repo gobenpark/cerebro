@@ -65,7 +65,7 @@ func (s *Engine) Spawn(ctx context.Context, tk <-chan indicator.Tick, it []item.
 
 		v := indicator.NewValue()
 		for _, st := range s.sts {
-			st.Next(v.Copy(), s.broker)
+			st.Next(it[i], v.Copy(), s.broker)
 		}
 		v.Start(codech)
 	}

@@ -7,6 +7,11 @@ import (
 	"github.com/samber/lo" //nolint:depguard
 )
 
+type Packet struct {
+	Tick  Tick
+	Value float64
+}
+
 // InternalIndicator only for internal use
 type InternalIndicator interface {
 	Value
@@ -75,14 +80,17 @@ func (s *value) Copy() Value {
 
 func (s *value) Volume() Indicator {
 	childTk := make(chan Tick, 1)
-	downstream := make(chan float64, 1)
+	downstream := make(chan Packet, 1)
 	s.mu.Lock()
 	s.childs = append(s.childs, childTk)
 	s.mu.Unlock()
 	go func() {
 		defer close(downstream)
 		for msg := range childTk {
-			downstream <- float64(msg.Volume)
+			downstream <- Packet{
+				Value: float64(msg.Volume),
+				Tick:  msg,
+			}
 		}
 	}()
 	return Indicator{downstream}
@@ -90,14 +98,17 @@ func (s *value) Volume() Indicator {
 
 func (s *value) Price() Indicator {
 	childTk := make(chan Tick, 1)
-	downstream := make(chan float64, 1)
+	downstream := make(chan Packet, 1)
 	s.mu.Lock()
 	s.childs = append(s.childs, childTk)
 	s.mu.Unlock()
 	go func() {
 		defer close(downstream)
 		for msg := range childTk {
-			downstream <- float64(msg.Price)
+			downstream <- Packet{
+				Value: float64(msg.Price),
+				Tick:  msg,
+			}
 		}
 	}()
 	return Indicator{downstream}
@@ -129,14 +140,15 @@ func (s *value) Filter(f func(Tick) bool) Value {
 }
 
 type Indicator struct {
-	value <-chan float64
+	value <-chan Packet
 }
 
 // Mean is average of tick
 func (s Indicator) Mean(d time.Duration) Indicator {
-	downstream := make(chan float64, 1)
+	downstream := make(chan Packet, 1)
 	tk := []float64{}
 	ticker := time.NewTicker(d)
+	rawdata := Tick{}
 
 	go func() {
 		defer close(downstream)
@@ -146,17 +158,34 @@ func (s Indicator) Mean(d time.Duration) Indicator {
 			case <-ticker.C:
 				sum := lo.Sum(tk)
 				if sum == 0 || len(tk) == 0 {
-					downstream <- 0
+					downstream <- Packet{}
 					continue
 				}
 				value := sum / float64(len(tk))
-				downstream <- value
+				downstream <- Packet{
+					Value: value,
+					Tick:  rawdata,
+				}
 				tk = []float64{}
 			case tick, ok := <-s.value:
 				if !ok {
 					break Done
 				}
-				tk = append(tk, tick)
+				rawdata = tick.Tick
+				tk = append(tk, tick.Value)
+			}
+		}
+	}()
+	return Indicator{value: downstream}
+}
+
+func (s Indicator) Filter(f func(value Packet) bool) Indicator {
+	downstream := make(chan Packet, 1)
+	go func() {
+		defer close(downstream)
+		for msg := range s.value {
+			if f(msg) {
+				downstream <- msg
 			}
 		}
 	}()
@@ -167,7 +196,7 @@ func (s Indicator) Mean(d time.Duration) Indicator {
 // Roi is calculated by (end - start) / start * 100 (%)
 // return every tick
 func (s Indicator) ROI(d time.Duration) Indicator {
-	downstream := make(chan float64, 1)
+	downstream := make(chan Packet, 1)
 	start := float64(0)
 	end := float64(0)
 	ticker := time.NewTicker(d)
@@ -183,17 +212,20 @@ func (s Indicator) ROI(d time.Duration) Indicator {
 				if !ok {
 					break Done
 				}
-				end = v
-				if v == 0 {
+				end = v.Value
+				if v.Value == 0 {
 					continue
 				}
 
 				if start == 0 {
-					start = v
+					start = v.Value
 					continue
 				}
 
-				downstream <- (end - start) / start * 100
+				downstream <- Packet{
+					Value: (end - start) / start * 100,
+					Tick:  v.Tick,
+				}
 			}
 		}
 	}()
@@ -201,7 +233,7 @@ func (s Indicator) ROI(d time.Duration) Indicator {
 }
 
 func (s Indicator) LargeThen(i Indicator) {
-	downstream := make(chan float64, 1)
+	downstream := make(chan Packet, 1)
 	var mu sync.RWMutex
 
 	go func() {
@@ -211,7 +243,7 @@ func (s Indicator) LargeThen(i Indicator) {
 		go func() {
 			for upstream := range s.value {
 				mu.RLock()
-				if upstream > value {
+				if upstream.Value > value {
 					downstream <- upstream
 				}
 				mu.RUnlock()
@@ -220,16 +252,40 @@ func (s Indicator) LargeThen(i Indicator) {
 
 		for upstream := range i.value {
 			mu.Lock()
-			value = upstream
+			value = upstream.Value
 			mu.Unlock()
 		}
 	}()
 }
 
-func (s Indicator) Transaction(f func(v float64)) {
+func (s Indicator) Transaction(f func(v Packet)) {
 	go func() {
 		for v := range s.value {
 			f(v)
 		}
 	}()
+}
+
+func CombineWithF(a Indicator, b Indicator, f func(a, b float64) float64) Indicator {
+	downstream := make(chan Packet, 1)
+	go func() {
+		defer close(downstream)
+		for {
+			select {
+			case a, ok := <-a.value:
+				if !ok {
+					return
+				}
+				b, ok := <-b.value
+				if !ok {
+					return
+				}
+				downstream <- Packet{
+					Tick:  a.Tick,
+					Value: f(a.Value, b.Value),
+				}
+			}
+		}
+	}()
+	return Indicator{value: downstream}
 }

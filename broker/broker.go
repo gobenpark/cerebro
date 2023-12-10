@@ -70,13 +70,13 @@ func (b *Broker) Setcommission(percent float64) {
 
 // TODO: impelement
 // OrderCash broker do buy/sell order from how much value and automatically calculate size
-func (b *Broker) OrderCash(ctx context.Context, code string, amount float64, currentPrice float64, action order.Action, exec order.OrderType) error {
+func (b *Broker) OrderCash(ctx context.Context, code string, amount float64, currentPrice int64, action order.Action, exec order.OrderType) error {
 
-	size := amount / currentPrice
+	size := amount / float64(currentPrice)
 	return b.Order(ctx, code, int64(size), currentPrice, action, exec)
 }
 
-func (b *Broker) Order(ctx context.Context, code string, size int64, price float64, action order.Action, ot order.OrderType) error {
+func (b *Broker) Order(ctx context.Context, code string, size int64, price int64, action order.Action, ot order.OrderType) error {
 
 	b.mu.Lock()
 	defer b.mu.Unlock()
@@ -85,6 +85,10 @@ func (b *Broker) Order(ctx context.Context, code string, size int64, price float
 	}
 
 	b.orderState[code] = true
+
+	if price == 0 && ot != order.Market {
+		return ErrPriceIsZero
+	}
 
 	o := order.NewOrder(code, action, ot, size, price, b.commission)
 
@@ -96,7 +100,6 @@ func (b *Broker) Order(ctx context.Context, code string, size int64, price float
 			return ErrNotEnoughCash
 		}
 	case order.Sell:
-
 		order, ok := lo.Find(b.positions, func(item position.Position) bool {
 			return item.Code == o.Code()
 		})

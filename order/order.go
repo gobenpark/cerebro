@@ -87,13 +87,13 @@ type order struct {
 	OrderType     `json:"exec_type,omitempty"`
 	commission    float64      `json:"commission,omitempty"`
 	size          int64        `json:"size" form:"size" json:"size,omitempty"`
-	price         float64      `json:"price" form:"price" json:"price,omitempty"`
+	price         int64        `json:"price" form:"price" json:"price,omitempty"`
 	remainingSize int64        `json:"remaining_size,omitempty"`
 	mu            sync.RWMutex `json:"-"`
 	status        Status       `json:"status,omitempty"`
 }
 
-func NewOrder(code string, action Action, execType OrderType, size int64, price float64, commission float64) Order {
+func NewOrder(code string, action Action, execType OrderType, size int64, price int64, commission float64) Order {
 	return &order{
 		status:        Created,
 		action:        action,
@@ -200,7 +200,7 @@ func (o *order) Status() Status {
 func (o *order) OrderPrice() float64 {
 	o.mu.Lock()
 	defer o.mu.Unlock()
-	return o.price * float64(o.size)
+	return float64(o.price) * float64(o.size)
 }
 
 func (o *order) Commission() float64 {
@@ -215,13 +215,13 @@ func (o *order) Commission() float64 {
 func (o *order) RemainPrice() float64 {
 	o.mu.Lock()
 	defer o.mu.Unlock()
-	return o.price * float64(o.remainingSize)
+	return float64(o.price) * float64(o.remainingSize)
 }
 
 func (o *order) Price() float64 {
 	o.mu.Lock()
 	defer o.mu.Unlock()
-	return o.price
+	return float64(o.price)
 }
 
 func (o *order) Size() int64 {

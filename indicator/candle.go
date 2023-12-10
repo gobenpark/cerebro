@@ -72,6 +72,7 @@ type Candle struct {
 	Low           int64      `json:"low"`
 	Close         int64      `json:"close"`
 	Volume        int64      `json:"volume"`
+	Amount        int64      `json:"amount"`
 	IndicateValue int64      `json:"indicateValue"`
 }
 

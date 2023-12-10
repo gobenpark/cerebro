@@ -19,6 +19,7 @@ package indicator
 import "time"
 
 type Indicate[T comparable] struct {
-	Data T
-	Date time.Time
+	Data    T
+	Date    time.Time
+	RawData float64 `json:"rawData,omitempty"`
 }

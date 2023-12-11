@@ -64,13 +64,6 @@ func WithAnalyzer(analyzer analysis.Analyzer) Option {
 	}
 }
 
-// Commision percent
-func WithCommision(commision float64) Option {
-	return func(c *Cerebro) {
-		c.commision = commision
-	}
-}
-
 func WithLogLevel(lvl log.Level) Option {
 	return func(c *Cerebro) {
 		c.logLevel = lvl

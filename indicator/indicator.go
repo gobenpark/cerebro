@@ -2,6 +2,7 @@ package indicator
 
 import (
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/samber/lo" //nolint:depguard
@@ -266,26 +267,40 @@ func (s Indicator) Transaction(f func(v Packet)) {
 	}()
 }
 
-func CombineWithF(a Indicator, b Indicator, f func(a, b float64) float64) Indicator {
+func CombineWithF(f func(v ...float64) float64, indicators ...Indicator) Indicator {
 	downstream := make(chan Packet, 1)
 	go func() {
-		defer close(downstream)
-		for {
-			select {
-			case a, ok := <-a.value:
-				if !ok {
-					return
+		var wg sync.WaitGroup
+		size := uint32(len(indicators))
+		var counter uint32
+		mutex := sync.Mutex{}
+		s := make([]float64, size)
+
+		handler := func(i Indicator, idx int) {
+			for v := range i.value {
+
+				if s[idx] == 0 {
+					atomic.AddUint32(&counter, 1)
 				}
-				b, ok := <-b.value
-				if !ok {
-					return
+
+				mutex.Lock()
+				s[idx] = v.Value
+				if atomic.LoadUint32(&counter) == size {
+					downstream <- Packet{Value: f(s...), Tick: v.Tick}
+					atomic.StoreUint32(&counter, 0)
+					s = make([]float64, size)
 				}
-				downstream <- Packet{
-					Tick:  a.Tick,
-					Value: f(a.Value, b.Value),
-				}
+				mutex.Unlock()
 			}
+			wg.Done()
 		}
+
+		for i := range indicators {
+			wg.Add(1)
+			go handler(indicators[i], i)
+		}
+		wg.Wait()
+		defer close(downstream)
 	}()
 	return Indicator{value: downstream}
 }

@@ -73,8 +73,6 @@ type Cerebro struct {
 
 	strategies []strategy.Strategy `json:"strategies,omitempty"`
 
-	commision float64 `json:"commision,omitempty"`
-
 	cash int64 `json:"cash,omitempty"`
 
 	timeout time.Duration `json:"timeout,omitempty"`
@@ -119,7 +117,7 @@ func NewCerebro(opts ...Option) *Cerebro {
 		c.log = logger
 	}
 
-	c.broker = broker.NewBroker(c.eventEngine, c.store, c.commision, c.cash, c.log)
+	c.broker = broker.NewBroker(c.eventEngine, c.store, c.log)
 
 	c.signalEngine = signals.NewEngine()
 
@@ -167,7 +165,7 @@ func (c *Cerebro) Start(ctx context.Context) error {
 	// event engine settings
 	go c.eventEngine.Start(ctx)
 	c.eventEngine.Register <- c.strategyEngine
-	c.eventEngine.Register <- c.analyzer
+	//c.eventEngine.Register <- c.analyzer
 
 	return nil
 }

@@ -45,12 +45,16 @@ Done:
 			break Done
 		case evt := <-e.broadcast:
 			for c := range e.childEvent {
-				go c.Listen(evt)
+				c.Listen(evt)
 			}
 		case cli := <-e.Register:
-			e.childEvent[cli] = true
+			if cli != nil {
+				e.childEvent[cli] = true
+			}
 		case cli := <-e.Unregister:
-			delete(e.childEvent, cli)
+			if cli != nil {
+				delete(e.childEvent, cli)
+			}
 		}
 	}
 }

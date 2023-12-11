@@ -64,6 +64,7 @@ type Order interface {
 	Cancel()
 	Margin()
 	Submit()
+	Accept()
 	Partial(size int64)
 	Complete()
 	Status() Status
@@ -107,6 +108,13 @@ func NewOrder(code string, action Action, execType OrderType, size int64, price 
 		remainingSize: size,
 		commission:    commission,
 	}
+}
+
+func (o *order) Accept() {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	o.status = Accepted
+	o.updatedAt = time.Now()
 }
 
 func (o *order) SetID(id string) {

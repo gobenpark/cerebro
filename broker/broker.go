@@ -50,7 +50,7 @@ type Broker struct {
 	cashValueChanged bool
 }
 
-func NewBroker(eventEngine event.Broadcaster, store store.Store, commission float64, cash int64, logger log.Logger) *Broker {
+func NewBroker(eventEngine event.Broadcaster, store store.Store, logger log.Logger) *Broker {
 	return &Broker{
 		orders:           []order.Order{},
 		EventEngine:      eventEngine,
@@ -59,8 +59,8 @@ func NewBroker(eventEngine event.Broadcaster, store store.Store, commission floa
 		cashValueChanged: false,
 		logger:           logger,
 		orderState:       map[string]bool{},
-		commission:       commission,
-		cash:             cash,
+		commission:       store.Commission(),
+		cash:             store.Cash(),
 	}
 }
 
@@ -127,7 +127,8 @@ func (b *Broker) submit(ctx context.Context, o order.Order) {
 		b.notifyOrder(o.Copy())
 		return
 	}
-
+	o.Accept()
+	b.notifyOrder(o.Copy())
 	o.Complete()
 	b.notifyOrder(o.Copy())
 

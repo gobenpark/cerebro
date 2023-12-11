@@ -133,11 +133,10 @@ func TestCombineF(t *testing.T) {
 			}
 		}
 	}()
-
-	CombineWithF(value, vvalue, func(price, volume float64) float64 {
-		fmt.Println("price", price, "volume", volume)
-		return volume * price
-	}).Filter(func(value Packet) bool {
+	CombineWithF(func(v ...float64) float64 {
+		fmt.Println("price", v[0], "volume", v[1])
+		return v[0] * v[1]
+	}, value, vvalue).Filter(func(value Packet) bool {
 		return (int64(value.Value) % 2) == 0
 	}).Transaction(func(v Packet) {
 		fmt.Println(v)

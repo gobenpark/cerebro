@@ -72,9 +72,10 @@ func (s *Engine) Spawn(ctx context.Context, tk <-chan indicator.Tick, it []item.
 
 	go func() {
 		for i := range tk {
-			s.channels[i.Code] <- i
+			if c, ok := s.channels[i.Code]; ok {
+				c <- i
+			}
 		}
-
 		for i := range s.channels {
 			close(s.channels[i])
 		}

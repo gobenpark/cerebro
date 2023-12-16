@@ -23,7 +23,6 @@ import (
 	"github.com/gobenpark/cerebro/order"
 	"github.com/gobenpark/cerebro/position"
 	"github.com/gobenpark/cerebro/store"
-	"github.com/samber/lo"
 	"go.uber.org/zap"
 )
 
@@ -43,7 +42,7 @@ type Broker struct {
 	logger           log.Logger
 	orderState       map[string]bool
 	orders           []order.Order
-	positions        []position.Position
+	positions        map[string]position.Position
 	commission       float64
 	cash             int64
 	mu               sync.RWMutex
@@ -54,7 +53,7 @@ func NewBroker(eventEngine event.Broadcaster, store store.Store, logger log.Logg
 	return &Broker{
 		orders:           []order.Order{},
 		EventEngine:      eventEngine,
-		positions:        []position.Position{},
+		positions:        map[string]position.Position{},
 		store:            store,
 		cashValueChanged: false,
 		logger:           logger,
@@ -100,16 +99,7 @@ func (b *Broker) Order(ctx context.Context, code string, size int64, price int64
 			return ErrNotEnoughCash
 		}
 	case order.Sell:
-		order, ok := lo.Find(b.positions, func(item position.Position) bool {
-			return item.Code == o.Code()
-		})
-		if !ok {
-			return ErrPositionNotExists
-		}
 
-		if order.Size > o.Size() {
-			return ErrLowSizeThenPosition
-		}
 	}
 
 	go b.submit(ctx, o)
@@ -136,48 +126,13 @@ func (b *Broker) submit(ctx context.Context, o order.Order) {
 		b.mu.Lock()
 		b.cash += int64(o.OrderPrice() - (o.OrderPrice() * (b.commission / 100)))
 		b.mu.Unlock()
-		b.deletePosition(o)
 	} else {
 		b.mu.Lock()
 		b.cash -= int64(o.OrderPrice() + (o.OrderPrice() * (b.commission / 100)))
 		b.mu.Unlock()
-		b.appendPosition(o)
 	}
 	zap.L().Debug("cash size change", zap.Int64("start", start), zap.Int64("end", b.cash))
 	b.notifyCash(o.Copy())
-
-	b.mu.Lock()
-	b.orderState[o.Code()] = false
-	b.mu.Unlock()
-}
-
-func (b *Broker) appendPosition(o order.Order) {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-
-	preOrder, index, ok := lo.FindIndexOf(b.positions, func(item position.Position) bool {
-		return item.Code == o.Code()
-	})
-	if ok {
-		b.positions[index] = position.Position{
-			Code:  o.Code(),
-			Size:  preOrder.Size + o.Size(),
-			Price: ((float64(preOrder.Size) * preOrder.Price) + o.OrderPrice()) / float64(preOrder.Size+o.Size()),
-		}
-	}
-	b.positions = append(b.positions, position.NewPosition(o))
-}
-
-func (b *Broker) deletePosition(o order.Order) {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-
-	_, index, ok := lo.FindIndexOf(b.positions, func(item position.Position) bool {
-		return item.Code == o.Code()
-	})
-	if ok {
-		b.positions = lo.Drop(b.positions, index)
-	}
 }
 
 func (b *Broker) notifyOrder(o order.Order) {
@@ -210,21 +165,21 @@ func (b *Broker) Position(code string) (position.Position, bool) {
 	b.mu.RLock()
 	defer b.mu.RUnlock()
 
-	return lo.Find(b.positions, func(item position.Position) bool {
-		return item.Code == code
-	})
+	if p, ok := b.positions[code]; ok {
+		return p, true
+	}
+	return position.Position{}, false
 }
 
-// TODO: test
 func (b *Broker) Listen(e interface{}) {
+	if o, ok := e.(order.Order); ok {
+		switch o.Status() {
+		case order.Rejected, order.Accepted, order.Canceled, order.Completed, order.Expired:
+			b.mu.Lock()
+			b.orderState[o.Code()] = false
+			b.mu.Unlock()
+		}
 
-	//if evt, ok := e.(event.OrderEvent); ok {
-	//	switch evt.State {
-	//	case "cancel":
-	//	case "done":
-	//	case "wait":
-	//		fmt.Println(b.positions)
-	//		fmt.Println("wait")
-	//	}
-	//}
+		b.positions = b.store.Positions()
+	}
 }

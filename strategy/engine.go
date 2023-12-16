@@ -62,8 +62,11 @@ func (s *Engine) Spawn(ctx context.Context, tk <-chan indicator.Tick, it []item.
 		s.log.Info("strategy engine spawn", "code", it[i].Code)
 		codech := make(chan indicator.Tick, 1)
 		s.channels[it[i].Code] = codech
-
-		v := indicator.NewValue()
+		cds, err := s.store.Candles(ctx, it[i].Code, store.Day)
+		if err != nil {
+			s.log.Error("apply candle error", "code", it[i].Code, "err", err)
+		}
+		v := indicator.NewValue(cds)
 		for _, st := range s.sts {
 			st.Next(it[i], v.Copy(), s.broker)
 		}

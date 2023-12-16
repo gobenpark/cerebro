@@ -9,8 +9,9 @@ import (
 )
 
 type Packet struct {
-	Tick  Tick
-	Value float64
+	Tick    Tick
+	Value   float64
+	Candles Candles
 }
 
 // InternalIndicator only for internal use
@@ -27,13 +28,14 @@ type Value interface {
 }
 
 type value struct {
-	tk     <-chan Tick
-	childs []chan Tick
-	mu     sync.RWMutex
+	tk      <-chan Tick
+	childs  []chan Tick
+	mu      sync.RWMutex
+	candles Candles
 }
 
-func NewValue() InternalIndicator {
-	return &value{}
+func NewValue(candles Candles) InternalIndicator {
+	return &value{candles: candles}
 }
 
 func (v *value) Start(tick <-chan Tick) {
@@ -44,9 +46,11 @@ func (v *value) Start(tick <-chan Tick) {
 				if !ok {
 					return
 				}
+				v.mu.Lock()
 				for i := range v.childs {
 					v.childs[i] <- t
 				}
+				v.mu.Unlock()
 			}
 		}
 
@@ -64,15 +68,18 @@ func (s *value) Copy() Value {
 	s.mu.Unlock()
 
 	v := value{
-		tk:     downstream,
-		childs: []chan Tick{},
+		tk:      downstream,
+		childs:  []chan Tick{},
+		candles: s.candles,
 	}
 
 	go func() {
 		for tk := range childTk {
+			v.mu.Lock()
 			for i := range v.childs {
 				v.childs[i] <- tk
 			}
+			v.mu.Unlock()
 		}
 	}()
 
@@ -89,8 +96,9 @@ func (s *value) Volume() Indicator {
 		defer close(downstream)
 		for msg := range childTk {
 			downstream <- Packet{
-				Value: float64(msg.Volume),
-				Tick:  msg,
+				Value:   float64(msg.Volume),
+				Tick:    msg,
+				Candles: s.candles,
 			}
 		}
 	}()
@@ -107,8 +115,9 @@ func (s *value) Price() Indicator {
 		defer close(downstream)
 		for msg := range childTk {
 			downstream <- Packet{
-				Value: float64(msg.Price),
-				Tick:  msg,
+				Value:   float64(msg.Price),
+				Tick:    msg,
+				Candles: s.candles,
 			}
 		}
 	}()
@@ -123,8 +132,9 @@ func (s *value) Filter(f func(Tick) bool) Value {
 	s.mu.Unlock()
 
 	v := value{
-		tk:     downstream,
-		childs: []chan Tick{},
+		tk:      downstream,
+		childs:  []chan Tick{},
+		candles: s.candles,
 	}
 
 	go func() {
@@ -150,6 +160,7 @@ func (s Indicator) Mean(d time.Duration) Indicator {
 	tk := []float64{}
 	ticker := time.NewTicker(d)
 	rawdata := Tick{}
+	candles := Candles{}
 
 	go func() {
 		defer close(downstream)
@@ -164,8 +175,9 @@ func (s Indicator) Mean(d time.Duration) Indicator {
 				}
 				value := sum / float64(len(tk))
 				downstream <- Packet{
-					Value: value,
-					Tick:  rawdata,
+					Value:   value,
+					Tick:    rawdata,
+					Candles: candles,
 				}
 				tk = []float64{}
 			case tick, ok := <-s.value:
@@ -174,6 +186,7 @@ func (s Indicator) Mean(d time.Duration) Indicator {
 				}
 				rawdata = tick.Tick
 				tk = append(tk, tick.Value)
+				candles = tick.Candles
 			}
 		}
 	}()
@@ -224,8 +237,9 @@ func (s Indicator) ROI(d time.Duration) Indicator {
 				}
 
 				downstream <- Packet{
-					Value: (end - start) / start * 100,
-					Tick:  v.Tick,
+					Value:   (end - start) / start * 100,
+					Tick:    v.Tick,
+					Candles: v.Candles,
 				}
 			}
 		}
@@ -267,30 +281,38 @@ func (s Indicator) Transaction(f func(v Packet)) {
 	}()
 }
 
-func CombineWithF(f func(v ...float64) float64, indicators ...Indicator) Indicator {
+func CombineWithF(duration time.Duration, f func(v ...float64) float64, indicators ...Indicator) Indicator {
 	downstream := make(chan Packet, 1)
 	go func() {
 		var wg sync.WaitGroup
 		size := uint32(len(indicators))
 		var counter uint32
-		mutex := sync.Mutex{}
+		var mutex sync.Mutex
 		s := make([]float64, size)
 
 		handler := func(i Indicator, idx int) {
-			for v := range i.value {
-
-				if s[idx] == 0 {
-					atomic.AddUint32(&counter, 1)
-				}
-
-				mutex.Lock()
-				s[idx] = v.Value
-				if atomic.LoadUint32(&counter) == size {
-					downstream <- Packet{Value: f(s...), Tick: v.Tick}
+			timeout := time.NewTicker(duration)
+			for {
+				select {
+				case <-timeout.C:
 					atomic.StoreUint32(&counter, 0)
+					mutex.Lock()
 					s = make([]float64, size)
+					mutex.Unlock()
+				case v := <-i.value:
+					mutex.Lock()
+					if s[idx] == 0 {
+						atomic.AddUint32(&counter, 1)
+					}
+
+					s[idx] = v.Value
+					if atomic.LoadUint32(&counter) == size {
+						downstream <- Packet{Value: f(s...), Tick: v.Tick, Candles: v.Candles}
+						atomic.StoreUint32(&counter, 0)
+						s = make([]float64, size)
+					}
+					mutex.Unlock()
 				}
-				mutex.Unlock()
 			}
 			wg.Done()
 		}

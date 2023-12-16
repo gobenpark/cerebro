@@ -24,5 +24,4 @@ func NewCandleProvider(st store.Store, itm item.Item) CandleProvider {
 
 func (p *provider) Candles(ctx context.Context, candleType store.CandleType) (indicator.Candles, error) {
 	return p.st.Candles(ctx, p.itm.Code, candleType)
-
 }

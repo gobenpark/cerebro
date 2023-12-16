@@ -8,7 +8,7 @@ import (
 
 func TestMean(t *testing.T) {
 	tk := make(chan Tick, 1)
-	sg := NewValue()
+	sg := NewValue(nil)
 	sg.Start(tk)
 	value := sg.Volume().Mean(3 * time.Second)
 
@@ -33,7 +33,7 @@ func TestMean(t *testing.T) {
 
 func TestROI(t *testing.T) {
 	tk := make(chan Tick, 1)
-	sg := NewValue()
+	sg := NewValue(nil)
 	value := sg.Volume().ROI(6 * time.Second)
 	sg.Start(tk)
 
@@ -61,7 +61,7 @@ func TestROI(t *testing.T) {
 
 func TestFilter(t *testing.T) {
 	tk := make(chan Tick, 1)
-	sg := NewValue()
+	sg := NewValue(nil)
 	sg.Start(tk)
 
 	data := sg.Filter(func(tick Tick) bool {
@@ -106,14 +106,10 @@ func TestFilter(t *testing.T) {
 
 func TestCombineF(t *testing.T) {
 	tk := make(chan Tick, 1)
-	sg := NewValue()
+	sg := NewValue(nil)
 	sg.Start(tk)
 
-	data := sg
-
-	value := data.Price()
-
-	vvalue := data.Volume()
+	v := sg
 
 	go func() {
 		var initvalue int64 = 0
@@ -133,12 +129,29 @@ func TestCombineF(t *testing.T) {
 			}
 		}
 	}()
-	CombineWithF(func(v ...float64) float64 {
-		fmt.Println("price", v[0], "volume", v[1])
-		return v[0] * v[1]
-	}, value, vvalue).Filter(func(value Packet) bool {
-		return (int64(value.Value) % 2) == 0
-	}).Transaction(func(v Packet) {
+
+	v.Copy().Price().Transaction(func(v Packet) {
+		fmt.Println("price", v)
+	})
+
+	CombineWithF(time.Minute, func(v ...float64) float64 {
+		return v[0]
+	}, v.Copy().Price().Filter(func(value Packet) bool {
+		return value.Value > 0.5
+	}), v.Copy().Volume().ROI(time.Minute).Filter(func(value Packet) bool {
+		return value.Value > 0.5
+	})).Transaction(func(v Packet) {
+		fmt.Println(v.Tick)
+
+	})
+
+	CombineWithF(time.Minute, func(v ...float64) float64 {
+		return v[0]
+	}, v.Copy().Price().ROI(30*time.Second).Filter(func(value Packet) bool {
+		return value.Value < 0.5
+	}), v.Copy().Volume().ROI(30*time.Second).Filter(func(value Packet) bool {
+		return value.Value < 0.5
+	})).Transaction(func(v Packet) {
 		fmt.Println(v)
 	})
 

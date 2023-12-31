@@ -1,6 +1,7 @@
 package indicator
 
 import (
+	"context"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -28,32 +29,32 @@ type Value interface {
 }
 
 type value struct {
+	ctx     context.Context
 	tk      <-chan Tick
 	childs  []chan Tick
 	mu      sync.RWMutex
 	candles Candles
 }
 
-func NewValue(candles Candles) InternalIndicator {
-	return &value{candles: candles}
+func NewValue(ctx context.Context, candles Candles) InternalIndicator {
+	return &value{candles: candles, ctx: ctx}
 }
 
 func (v *value) Start(tick <-chan Tick) {
 	go func() {
-		for {
-			select {
-			case t, ok := <-tick:
-				if !ok {
-					return
-				}
-				v.mu.Lock()
-				for i := range v.childs {
-					v.childs[i] <- t
-				}
-				v.mu.Unlock()
-			}
-		}
 
+		for t := range tick {
+			v.mu.Lock()
+		Done:
+			for i := range v.childs {
+				select {
+				case v.childs[i] <- t:
+				case <-v.ctx.Done():
+					break Done
+				}
+			}
+			v.mu.Unlock()
+		}
 		for i := range v.childs {
 			close(v.childs[i])
 		}
@@ -71,13 +72,21 @@ func (s *value) Copy() Value {
 		tk:      downstream,
 		childs:  []chan Tick{},
 		candles: s.candles,
+		ctx:     s.ctx,
 	}
 
 	go func() {
+		defer close(downstream)
 		for tk := range childTk {
 			v.mu.Lock()
+		Done:
 			for i := range v.childs {
-				v.childs[i] <- tk
+				select {
+				case v.childs[i] <- tk:
+				case <-s.ctx.Done():
+					break Done
+
+				}
 			}
 			v.mu.Unlock()
 		}
@@ -94,15 +103,20 @@ func (s *value) Volume() Indicator {
 	s.mu.Unlock()
 	go func() {
 		defer close(downstream)
+	Done:
 		for msg := range childTk {
-			downstream <- Packet{
+			select {
+			case downstream <- Packet{
 				Value:   float64(msg.Volume),
 				Tick:    msg,
 				Candles: s.candles,
+			}:
+			case <-s.ctx.Done():
+				break Done
 			}
 		}
 	}()
-	return Indicator{downstream}
+	return Indicator{value: downstream, ctx: s.ctx}
 }
 
 func (s *value) Price() Indicator {
@@ -113,15 +127,20 @@ func (s *value) Price() Indicator {
 	s.mu.Unlock()
 	go func() {
 		defer close(downstream)
+	Done:
 		for msg := range childTk {
-			downstream <- Packet{
+			select {
+			case downstream <- Packet{
 				Value:   float64(msg.Price),
 				Tick:    msg,
 				Candles: s.candles,
+			}:
+			case <-s.ctx.Done():
+				break Done
 			}
 		}
 	}()
-	return Indicator{downstream}
+	return Indicator{value: downstream, ctx: s.ctx}
 }
 
 func (s *value) Filter(f func(Tick) bool) Value {
@@ -138,10 +157,16 @@ func (s *value) Filter(f func(Tick) bool) Value {
 	}
 
 	go func() {
+		defer close(downstream)
 		for tk := range childTk {
 			if f(tk) {
+			Done:
 				for i := range v.childs {
-					v.childs[i] <- tk
+					select {
+					case v.childs[i] <- tk:
+					case <-s.ctx.Done():
+						break Done
+					}
 				}
 			}
 		}
@@ -151,6 +176,7 @@ func (s *value) Filter(f func(Tick) bool) Value {
 }
 
 type Indicator struct {
+	ctx   context.Context
 	value <-chan Packet
 }
 
@@ -190,7 +216,7 @@ func (s Indicator) Mean(d time.Duration) Indicator {
 			}
 		}
 	}()
-	return Indicator{value: downstream}
+	return Indicator{value: downstream, ctx: s.ctx}
 }
 
 func (s Indicator) Filter(f func(value Packet) bool) Indicator {
@@ -244,7 +270,7 @@ func (s Indicator) ROI(d time.Duration) Indicator {
 			}
 		}
 	}()
-	return Indicator{value: downstream}
+	return Indicator{value: downstream, ctx: s.ctx}
 }
 
 func (s Indicator) LargeThen(i Indicator) {
@@ -292,6 +318,7 @@ func CombineWithF(duration time.Duration, f func(v ...float64) float64, indicato
 
 		handler := func(i Indicator, idx int) {
 			timeout := time.NewTicker(duration)
+		Done:
 			for {
 				select {
 				case <-timeout.C:
@@ -299,7 +326,11 @@ func CombineWithF(duration time.Duration, f func(v ...float64) float64, indicato
 					mutex.Lock()
 					s = make([]float64, size)
 					mutex.Unlock()
-				case v := <-i.value:
+				case v, ok := <-i.value:
+					if !ok {
+						break Done
+					}
+
 					mutex.Lock()
 					if s[idx] == 0 {
 						atomic.AddUint32(&counter, 1)

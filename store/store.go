@@ -37,5 +37,5 @@ type Store interface {
 	Cash() int64
 	Commission() float64
 	Positions() map[string]position.Position
-	//OrderState(ctx context.Context) (<-chan event.OrderEvent, error)
+	Events() <-chan interface{}
 }

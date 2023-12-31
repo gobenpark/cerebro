@@ -34,28 +34,28 @@ func NewEngine(sg ...Signal) engine.Engine {
 	return &Engine{sg: sg}
 }
 
-func (e *Engine) Spawn(ctx context.Context, tick <-chan indicator.Tick, it []item.Item) error {
+func (e *Engine) Spawn(ctx context.Context, it []item.Item) error {
 	chans := map[string]chan indicator.Tick{}
 	for _, i := range it {
 		chans[i.Code] = make(chan indicator.Tick, 1)
 	}
-
-	go func() {
-		for i := range tick {
-			e.mu.RLock()
-			chans[i.Code] <- i
-			e.mu.RUnlock()
-		}
-
-		//수정 필요함.
-		//for i := range e.sg {
-		//	e.sg[i].Target(ctx, NewSignalValue(chans[i.Code]))
-		//}
-
-		for k, v := range chans {
-			close(v)
-			delete(chans, k)
-		}
-	}()
+	//
+	//go func() {
+	//	for i := range tick {
+	//		e.mu.RLock()
+	//		chans[i.Code] <- i
+	//		e.mu.RUnlock()
+	//	}
+	//
+	//	//수정 필요함.
+	//	//for i := range e.sg {
+	//	//	e.sg[i].Target(ctx, NewSignalValue(chans[i.Code]))
+	//	//}
+	//
+	//	for k, v := range chans {
+	//		close(v)
+	//		delete(chans, k)
+	//	}
+	//}()
 	return nil
 }

@@ -40,8 +40,6 @@ import (
 // make all dependency manage
 type Cerebro struct {
 	logLevel log.Level `json:"log_level,omitempty"`
-
-	isLive bool `json:"is_live,omitempty"`
 	// preload bool value, decide use candle history
 	preload bool `json:"preload,omitempty"`
 	// broker buy, sell and manage order
@@ -140,27 +138,23 @@ func (c *Cerebro) Start(ctx context.Context) error {
 		return fmt.Errorf("error empty strategies")
 	}
 
-	filtered := []item.Item{}
-	for _, st := range c.strategies {
-		for _, tg := range c.target {
-			prd := strategy.NewCandleProvider(c.store, tg)
-			if st.Pass(tg, prd) {
-				filtered = append(filtered, tg)
-			}
-		}
-	}
-
-	tk, err := c.store.Tick(ctx, filtered...)
-	if err != nil {
-		c.log.Error("store tick error", "error", err)
-		return err
-	}
-
 	//tks := lo.FanOut(2, 1, tk)
-	if err := c.strategyEngine.Spawn(ctx, tk, filtered); err != nil {
+	if err := c.strategyEngine.Spawn(ctx, c.target); err != nil {
 		c.log.Error("spawn error", "err", err)
 		return err
 	}
+
+	go func() {
+	Done:
+		for {
+			select {
+			case e := <-c.store.Events():
+				c.eventEngine.BroadCast(e)
+			case <-ctx.Done():
+				break Done
+			}
+		}
+	}()
 
 	// event engine settings
 	go c.eventEngine.Start(ctx)

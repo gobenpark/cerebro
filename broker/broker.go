@@ -53,7 +53,7 @@ func NewBroker(eventEngine event.Broadcaster, store store.Store, logger log.Logg
 	return &Broker{
 		orders:           []order.Order{},
 		EventEngine:      eventEngine,
-		positions:        map[string]position.Position{},
+		positions:        store.Positions(),
 		store:            store,
 		cashValueChanged: false,
 		logger:           logger,
@@ -117,10 +117,6 @@ func (b *Broker) submit(ctx context.Context, o order.Order) {
 		b.notifyOrder(o.Copy())
 		return
 	}
-	o.Accept()
-	b.notifyOrder(o.Copy())
-	o.Complete()
-	b.notifyOrder(o.Copy())
 
 	if o.Action() == order.Sell {
 		b.mu.Lock()

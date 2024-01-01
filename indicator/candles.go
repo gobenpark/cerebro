@@ -18,6 +18,8 @@ package indicator
 
 import (
 	"math"
+
+	"github.com/samber/lo"
 )
 
 type Candles []Candle
@@ -51,6 +53,115 @@ func (c Candles) StandardDeviation() float64 {
 	}
 	variance := total / float64(c.Len()-1)
 	return math.Sqrt(variance)
+}
+
+//func (c Candles) MACD(fast, slow, signal int) (macdLine []Indicate[float64], signalLine []Indicate[float64]) {
+//
+//	if fast == 0 {
+//		fast = 12
+//	}
+//
+//	if slow == 0 {
+//		slow = 26
+//	}
+//
+//	if signal == 0 {
+//		signal = 9
+//	}
+//
+//	candleLength := c.Len()
+//	if candleLength < slow {
+//		return
+//	}
+//
+//	signalLine = make([]Indicate[float64], candleLength)
+//	macdLine = make([]Indicate[float64], candleLength)
+//
+//	for i := 0; i < candleLength; i++ {
+//		if i < slow {
+//			macdLine[i], signalLine[i] = Indicate[float64]{}, Indicate[float64]{}
+//			continue
+//		}
+//
+//		// 빠른 선 계산 (12일 지수 이동 평균)
+//		fastMean := c[i-fast : i+1].StandardDeviation()
+//
+//		// 느린 선 계산 (26일 지수 이동 평균)
+//		slowMean := c[i-slow : i+1].StandardDeviation()
+//
+//		// MACD 계산
+//		macdValue := fastMean - slowMean
+//
+//		// 신호선 계산 (9일 지수 이동 평균)
+//		signalMean := c[i-signal : i+1].StandardDeviation()
+//
+//		macdLine[i], signalLine[i] = Indicate[float64]{
+//			Data: macdValue,
+//			Date: c[i].Date,
+//		}, Indicate[float64]{
+//			Data: signalMean,
+//			Date: c[i].Date,
+//		}
+//	}
+//	return
+//}
+
+func (c Candles) MACD(fast, slow, signal int) (macdLine []Indicate[float64], signalLine []Indicate[float64]) {
+	if fast == 0 {
+		fast = 12
+	}
+
+	if slow == 0 {
+		slow = 26
+	}
+
+	if signal == 0 {
+		signal = 9
+	}
+
+	candleLength := c.Len()
+	if candleLength < slow {
+		return
+	}
+
+	ema := func(data []float64, period int) []float64 {
+		result := make([]float64, len(data))
+		k := 2.0 / float64(period+1)
+
+		result[0] = data[0]
+		for i := 1; i < len(data); i++ {
+			result[i] = k*data[i] + (1-k)*result[i-1]
+		}
+
+		return result
+	}
+
+	cds := lo.Map[Candle](c, func(item Candle, index int) float64 {
+		return float64(item.Close)
+	})
+
+	f := ema(cds, fast)
+	s := ema(cds, slow)
+	macd := make([]float64, c.Len())
+	for i := range f {
+		macd[i] = f[i] - s[i]
+	}
+
+	signals := ema(macd, signal)
+	macdLine = make([]Indicate[float64], c.Len())
+	signalLine = make([]Indicate[float64], c.Len())
+
+	for i := range c {
+		macdLine[i], signalLine[i] = Indicate[float64]{
+			Data: macd[i],
+			Date: c[i].Date,
+		}, Indicate[float64]{
+			Data: signals[i],
+			Date: c[i].Date,
+		}
+	}
+
+	return
 }
 
 // calculate bollinger band with candle

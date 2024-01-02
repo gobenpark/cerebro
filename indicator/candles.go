@@ -237,3 +237,122 @@ func (c Candles) VolumeRatio(nday int) []Indicate[float64] {
 	}
 	return value
 }
+
+func (c Candles) StochasticSlow(k, d, period int) (K, D []Indicate[float64]) {
+	if k == 0 {
+		k = 3
+	}
+
+	if d == 0 {
+		d = 3
+	}
+
+	if period == 0 {
+		period = 14
+	}
+
+	K = make([]Indicate[float64], c.Len())
+	D = make([]Indicate[float64], c.Len())
+	faskK, _ := c.StochasticFast(k, d, period)
+
+	for i := range faskK {
+		if i < k-1 {
+			K[i] = Indicate[float64]{
+				Data: 0,
+				Date: c[i].Date,
+			}
+			continue
+		}
+
+		data := lo.Map[Indicate[float64]](faskK[i-k+1:i+1], func(item Indicate[float64], index int) float64 {
+			return item.Data
+		})
+
+		K[i] = Indicate[float64]{
+			Data: lo.Sum(data) / float64(k),
+			Date: faskK[i].Date,
+		}
+	}
+
+	for i := range K {
+		if i < d-1 {
+			D[i] = Indicate[float64]{
+				Data: 0,
+				Date: c[i].Date,
+			}
+			continue
+		}
+
+		data := lo.Map[Indicate[float64]](K[i-d+1:i+1], func(item Indicate[float64], index int) float64 {
+			return item.Data
+		})
+
+		D[i] = Indicate[float64]{
+			Data: lo.Sum(data) / float64(d),
+			Date: K[i].Date,
+		}
+	}
+
+	return
+}
+
+func (c Candles) StochasticFast(k, d, period int) (K, D []Indicate[float64]) {
+	if k == 0 {
+		k = 3
+	}
+
+	if d == 0 {
+		d = 3
+	}
+
+	if period == 0 {
+		period = 14
+	}
+
+	D = make([]Indicate[float64], c.Len())
+	K = make([]Indicate[float64], c.Len())
+
+	for i := range c {
+		if i < period {
+			K[i] = Indicate[float64]{Date: c[i].Date}
+			continue
+		}
+
+		high := c[i-period].Close
+		low := c[i-period].Close
+
+		for j := range c[i-period : i+1] {
+			if high < c[i-period : i+1][j].High {
+				high = c[i-period : i+1][j].High
+			}
+
+			if low > c[i-period : i+1][j].Low {
+				low = c[i-period : i+1][j].Low
+			}
+		}
+		K[i] = Indicate[float64]{
+			Data: ((float64(c[i].Close) - float64(low)) / (float64(high) - float64(low))) * 100,
+			Date: c[i].Date,
+		}
+	}
+
+	for i := range K {
+		if i < k-1 {
+			D[i] = Indicate[float64]{
+				Data: 0,
+				Date: c[i].Date,
+			}
+			continue
+		}
+
+		data := lo.Map[Indicate[float64]](K[i-k+1:i+1], func(item Indicate[float64], index int) float64 {
+			return item.Data
+		})
+
+		D[i] = Indicate[float64]{
+			Data: lo.Sum(data) / float64(k),
+			Date: K[i].Date,
+		}
+	}
+	return
+}

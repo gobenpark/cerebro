@@ -59,7 +59,7 @@ const (
 type Order interface {
 	ID() string
 	Code() string
-	Reject(err error)
+	Reject()
 	Expire()
 	Cancel()
 	Margin()
@@ -147,7 +147,7 @@ func (o *order) ID() string {
 	return o.uuid
 }
 
-func (o *order) Reject(err error) {
+func (o *order) Reject() {
 	o.mu.Lock()
 	defer o.mu.Unlock()
 	o.status = Rejected

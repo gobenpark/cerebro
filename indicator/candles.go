@@ -55,57 +55,6 @@ func (c Candles) StandardDeviation() float64 {
 	return math.Sqrt(variance)
 }
 
-//func (c Candles) MACD(fast, slow, signal int) (macdLine []Indicate[float64], signalLine []Indicate[float64]) {
-//
-//	if fast == 0 {
-//		fast = 12
-//	}
-//
-//	if slow == 0 {
-//		slow = 26
-//	}
-//
-//	if signal == 0 {
-//		signal = 9
-//	}
-//
-//	candleLength := c.Len()
-//	if candleLength < slow {
-//		return
-//	}
-//
-//	signalLine = make([]Indicate[float64], candleLength)
-//	macdLine = make([]Indicate[float64], candleLength)
-//
-//	for i := 0; i < candleLength; i++ {
-//		if i < slow {
-//			macdLine[i], signalLine[i] = Indicate[float64]{}, Indicate[float64]{}
-//			continue
-//		}
-//
-//		// 빠른 선 계산 (12일 지수 이동 평균)
-//		fastMean := c[i-fast : i+1].StandardDeviation()
-//
-//		// 느린 선 계산 (26일 지수 이동 평균)
-//		slowMean := c[i-slow : i+1].StandardDeviation()
-//
-//		// MACD 계산
-//		macdValue := fastMean - slowMean
-//
-//		// 신호선 계산 (9일 지수 이동 평균)
-//		signalMean := c[i-signal : i+1].StandardDeviation()
-//
-//		macdLine[i], signalLine[i] = Indicate[float64]{
-//			Data: macdValue,
-//			Date: c[i].Date,
-//		}, Indicate[float64]{
-//			Data: signalMean,
-//			Date: c[i].Date,
-//		}
-//	}
-//	return
-//}
-
 func (c Candles) MACD(fast, slow, signal int) (macdLine []Indicate[float64], signalLine []Indicate[float64]) {
 	if fast == 0 {
 		fast = 12
@@ -352,6 +301,54 @@ func (c Candles) StochasticFast(k, d, period int) (K, D []Indicate[float64]) {
 		D[i] = Indicate[float64]{
 			Data: lo.Sum(data) / float64(k),
 			Date: K[i].Date,
+		}
+	}
+	return
+}
+
+// Envelope indicator, period (number) up,down percentage
+func (c Candles) Envelope(period int, up, down float64) (sma, upper, lower []Indicate[float64]) {
+
+	if period == 0 {
+		period = 20
+	}
+
+	if up == 0 {
+		up = 0.1
+	}
+
+	if down == 0 {
+		down = 0.1
+	}
+
+	sma = make([]Indicate[float64], c.Len())
+	upper = make([]Indicate[float64], c.Len())
+	lower = make([]Indicate[float64], c.Len())
+
+	for i := range c {
+		if i < period-1 {
+			sma[i], upper[i], lower[i] = Indicate[float64]{
+				Data: 0,
+				Date: c[i].Date,
+			}, Indicate[float64]{
+				Data: 0,
+				Date: c[i].Date,
+			}, Indicate[float64]{
+				Data: 0,
+				Date: c[i].Date,
+			}
+			continue
+		}
+		mean := c[i-period+1 : i+1].Mean()
+		sma[i], upper[i], lower[i] = Indicate[float64]{
+			Data: mean,
+			Date: c[i].Date,
+		}, Indicate[float64]{
+			Data: mean + (mean * up),
+			Date: c[i].Date,
+		}, Indicate[float64]{
+			Data: mean - (mean * up),
+			Date: c[i].Date,
 		}
 	}
 	return

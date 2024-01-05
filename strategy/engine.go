@@ -71,7 +71,7 @@ func (s *Engine) Spawn(ctx context.Context, it []item.Item) error {
 					s.log.Error("apply candle error", "code", it[j].Code, "err", err)
 				}
 				v := indicator.NewValue(ctx, cds)
-				s.sts[i].Next(it[j], v.Copy(), s.broker)
+				s.sts[i].Next(it[j], v.Copy(), prd, s.broker)
 				v.Start(codech)
 			}
 		}

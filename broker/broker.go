@@ -28,7 +28,7 @@ import (
 
 // Broker it's instead of human for buy, sell and other
 //type Broker interface {
-//	Order(ctx context.Context, code string, size int64, price float64, action order.Action, exec order.OrderType) error
+//	SubmitOrder(ctx context.Context, code string, size int64, price float64, action order.Action, exec order.OrderType) error
 //	OrderCash(ctx context.Context, code string, amount float64, currentPrice float64, action order.Action, exec order.OrderType) error
 //	Cash() int64
 //	Position(code string) (position.Position, bool)
@@ -40,7 +40,6 @@ type Broker struct {
 	EventEngine      event.Broadcaster
 	store            store.Store
 	logger           log.Logger
-	orderState       map[string]bool
 	orders           []order.Order
 	positions        map[string]position.Position
 	commission       float64
@@ -57,7 +56,6 @@ func NewBroker(eventEngine event.Broadcaster, store store.Store, logger log.Logg
 		store:            store,
 		cashValueChanged: false,
 		logger:           logger,
-		orderState:       map[string]bool{},
 		commission:       store.Commission(),
 		cash:             store.Cash(),
 	}
@@ -72,18 +70,20 @@ func (b *Broker) Setcommission(percent float64) {
 func (b *Broker) OrderCash(ctx context.Context, code string, amount float64, currentPrice int64, action order.Action, exec order.OrderType) error {
 
 	size := amount / float64(currentPrice)
-	return b.Order(ctx, code, int64(size), currentPrice, action, exec)
+	return b.SubmitOrder(ctx, code, int64(size), currentPrice, action, exec)
 }
 
-func (b *Broker) Order(ctx context.Context, code string, size int64, price int64, action order.Action, ot order.OrderType) error {
+func (b *Broker) SubmitOrder(ctx context.Context, code string, size int64, price int64, action order.Action, ot order.OrderType) error {
 
 	b.mu.Lock()
 	defer b.mu.Unlock()
-	if b.orderState[code] {
-		return ErrPositionExists
+	if ot == order.Market {
+		price = 0
 	}
 
-	b.orderState[code] = true
+	if size == 0 {
+		return ErrOrderSizeIsZero
+	}
 
 	if price == 0 && ot != order.Market {
 		return ErrPriceIsZero
@@ -98,10 +98,9 @@ func (b *Broker) Order(ctx context.Context, code string, size int64, price int64
 		if value > b.cash {
 			return ErrNotEnoughCash
 		}
-	case order.Sell:
-
 	}
 
+	b.orders = append(b.orders, o)
 	go b.submit(ctx, o)
 	return nil
 }
@@ -113,7 +112,8 @@ func (b *Broker) submit(ctx context.Context, o order.Order) {
 	start := b.cash
 
 	if err := b.store.Order(ctx, o); err != nil {
-		o.Reject(err)
+		b.logger.Info("reject order", "order", o, "error", err)
+		o.Reject()
 		b.notifyOrder(o.Copy())
 		return
 	}
@@ -157,6 +157,19 @@ func (b *Broker) Cash() int64 {
 	return b.cash
 }
 
+func (b *Broker) Orders(code string) []order.Order {
+	b.mu.RLock()
+	defer b.mu.RUnlock()
+
+	orders := []order.Order{}
+	for i := range b.orders {
+		if b.orders[i].Code() == code {
+			orders = append(orders, b.orders[i])
+		}
+	}
+	return orders
+}
+
 func (b *Broker) Position(code string) (position.Position, bool) {
 	b.mu.RLock()
 	defer b.mu.RUnlock()
@@ -171,9 +184,7 @@ func (b *Broker) Listen(e interface{}) {
 	if o, ok := e.(order.Order); ok {
 		switch o.Status() {
 		case order.Rejected, order.Accepted, order.Canceled, order.Completed, order.Expired:
-			b.mu.Lock()
-			b.orderState[o.Code()] = false
-			b.mu.Unlock()
+
 		}
 
 		b.positions = b.store.Positions()

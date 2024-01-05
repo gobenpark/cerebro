@@ -145,12 +145,21 @@ func (c *Cerebro) Start(ctx context.Context) error {
 	}
 
 	go func() {
+		ch, err := c.store.Events(ctx)
+		if err != nil {
+			c.log.Panic("event channel error", "err", err)
+		}
 	Done:
 		for {
 			select {
-			case e := <-c.store.Events():
+			case e, ok := <-ch:
+				if !ok {
+					c.log.Info("event channel closed")
+					break Done
+				}
 				c.eventEngine.BroadCast(e)
 			case <-ctx.Done():
+				c.log.Info("context done")
 				break Done
 			}
 		}

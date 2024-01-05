@@ -24,4 +24,5 @@ var (
 	ErrPositionNotExists   = errors.New("Broker Position is not Exists")
 	ErrLowSizeThenPosition = errors.New("Low Size then position")
 	ErrPriceIsZero         = errors.New("Price is Zero")
+	ErrOrderSizeIsZero     = errors.New("Order Size is Zero")
 )

@@ -31,4 +31,5 @@ type Logger interface {
 	Info(msg string, kv ...interface{})
 	Warn(msg string, kv ...interface{})
 	Debug(msg string, kv ...interface{})
+	Panic(msg string, kv ...interface{})
 }

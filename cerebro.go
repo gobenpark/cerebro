@@ -39,6 +39,7 @@ import (
 // Cerebro head of trading system
 // make all dependency manage
 type Cerebro struct {
+	cancel   context.CancelFunc
 	logLevel log.Level `json:"log_level,omitempty"`
 	// preload bool value, decide use candle history
 	preload bool `json:"preload,omitempty"`
@@ -128,6 +129,9 @@ func NewCerebro(opts ...Option) *Cerebro {
 
 // Start run cerebro
 func (c *Cerebro) Start(ctx context.Context) error {
+	ctx, cancel := context.WithCancel(ctx)
+	c.cancel = cancel
+
 	c.log.Debug("Cerebro starting ...")
 
 	if len(c.target) == 0 {
@@ -164,11 +168,15 @@ func (c *Cerebro) Start(ctx context.Context) error {
 			}
 		}
 	}()
-
 	// event engine settings
 	go c.eventEngine.Start(ctx)
 	c.eventEngine.Register <- c.strategyEngine
 	//c.eventEngine.Register <- c.analyzer
 
 	return nil
+}
+
+func (c *Cerebro) Shutdown() {
+	c.log.Info("shutdown")
+	c.cancel()
 }

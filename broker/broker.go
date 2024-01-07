@@ -183,8 +183,7 @@ func (b *Broker) Position(code string) (position.Position, bool) {
 func (b *Broker) Listen(e interface{}) {
 	if o, ok := e.(order.Order); ok {
 		switch o.Status() {
-		case order.Rejected, order.Accepted, order.Canceled, order.Completed, order.Expired:
-
+		case order.Rejected, order.Accepted, order.Canceled, order.Expired:
 		}
 
 		b.positions = b.store.Positions()

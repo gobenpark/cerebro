@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"github.com/gobenpark/cerebro/analysis"
+	"github.com/gobenpark/cerebro/broker"
 	"github.com/gobenpark/cerebro/item"
 	"github.com/gobenpark/cerebro/log"
 	"github.com/gobenpark/cerebro/observer"
@@ -49,6 +50,12 @@ func WithTargetItem(codes ...item.Item) Option {
 func WithPreload(b bool) Option {
 	return func(c *Cerebro) {
 		c.preload = b
+	}
+}
+
+func WithBroker(b broker.Broker) Option {
+	return func(c *Cerebro) {
+		c.broker = b
 	}
 }
 

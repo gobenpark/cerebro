@@ -26,17 +26,22 @@ import (
 	"go.uber.org/zap"
 )
 
-// Broker it's instead of human for buy, sell and other
+// DefaultBroker it's instead of human for buy, sell and other
 //type Broker interface {
 //	SubmitOrder(ctx context.Context, code string, size int64, price float64, action order.Action, exec order.OrderType) error
 //	OrderCash(ctx context.Context, code string, amount float64, currentPrice float64, action order.Action, exec order.OrderType) error
-//	Cash() int64
 //	Position(code string) (position.Position, bool)
-//	SetCash(amount int64)
-//	Setcommission(percent float64)
 //}
 
-type Broker struct {
+type Broker interface {
+	OrderCash(ctx context.Context, code string, amount float64, currentPrice int64, action order.Action, exec order.OrderType) error
+	SubmitOrder(ctx context.Context, code string, size int64, price int64, action order.Action, ot order.OrderType) error
+	Orders(code string) []order.Order
+	Position(code string) (position.Position, bool)
+	event.Listener
+}
+
+type DefaultBroker struct {
 	EventEngine      event.Broadcaster
 	store            store.Store
 	logger           log.Logger
@@ -48,8 +53,8 @@ type Broker struct {
 	cashValueChanged bool
 }
 
-func NewBroker(eventEngine event.Broadcaster, store store.Store, logger log.Logger) *Broker {
-	return &Broker{
+func NewDefaultBroker(eventEngine event.Broadcaster, store store.Store, logger log.Logger) *DefaultBroker {
+	return &DefaultBroker{
 		orders:           []order.Order{},
 		EventEngine:      eventEngine,
 		positions:        store.Positions(),
@@ -61,19 +66,19 @@ func NewBroker(eventEngine event.Broadcaster, store store.Store, logger log.Logg
 	}
 }
 
-func (b *Broker) Setcommission(percent float64) {
+func (b *DefaultBroker) Setcommission(percent float64) {
 	b.commission = percent
 }
 
 // TODO: impelement
 // OrderCash broker do buy/sell order from how much value and automatically calculate size
-func (b *Broker) OrderCash(ctx context.Context, code string, amount float64, currentPrice int64, action order.Action, exec order.OrderType) error {
+func (b *DefaultBroker) OrderCash(ctx context.Context, code string, amount float64, currentPrice int64, action order.Action, exec order.OrderType) error {
 
 	size := amount / float64(currentPrice)
 	return b.SubmitOrder(ctx, code, int64(size), currentPrice, action, exec)
 }
 
-func (b *Broker) SubmitOrder(ctx context.Context, code string, size int64, price int64, action order.Action, ot order.OrderType) error {
+func (b *DefaultBroker) SubmitOrder(ctx context.Context, code string, size int64, price int64, action order.Action, ot order.OrderType) error {
 
 	b.mu.Lock()
 	defer b.mu.Unlock()
@@ -106,7 +111,7 @@ func (b *Broker) SubmitOrder(ctx context.Context, code string, size int64, price
 }
 
 // In goroutine
-func (b *Broker) submit(ctx context.Context, o order.Order) {
+func (b *DefaultBroker) submit(ctx context.Context, o order.Order) {
 	o.Submit()
 	b.notifyOrder(o.Copy())
 	start := b.cash
@@ -131,13 +136,13 @@ func (b *Broker) submit(ctx context.Context, o order.Order) {
 	b.notifyCash(o.Copy())
 }
 
-func (b *Broker) notifyOrder(o order.Order) {
+func (b *DefaultBroker) notifyOrder(o order.Order) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	b.EventEngine.BroadCast(o)
 }
 
-func (b *Broker) notifyCash(o order.Order) {
+func (b *DefaultBroker) notifyCash(o order.Order) {
 	//var value int64
 	//switch o.Action() {
 	//case order.Sell:
@@ -153,11 +158,11 @@ func (b *Broker) notifyCash(o order.Order) {
 	//b.cash += value
 }
 
-func (b *Broker) Cash() int64 {
+func (b *DefaultBroker) Cash() int64 {
 	return b.cash
 }
 
-func (b *Broker) Orders(code string) []order.Order {
+func (b *DefaultBroker) Orders(code string) []order.Order {
 	b.mu.RLock()
 	defer b.mu.RUnlock()
 
@@ -170,7 +175,7 @@ func (b *Broker) Orders(code string) []order.Order {
 	return orders
 }
 
-func (b *Broker) Position(code string) (position.Position, bool) {
+func (b *DefaultBroker) Position(code string) (position.Position, bool) {
 	b.mu.RLock()
 	defer b.mu.RUnlock()
 
@@ -180,7 +185,7 @@ func (b *Broker) Position(code string) (position.Position, bool) {
 	return position.Position{}, false
 }
 
-func (b *Broker) Listen(e interface{}) {
+func (b *DefaultBroker) Listen(e interface{}) {
 	if o, ok := e.(order.Order); ok {
 		switch o.Status() {
 		case order.Rejected, order.Accepted, order.Canceled, order.Expired:

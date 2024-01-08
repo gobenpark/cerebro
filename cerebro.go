@@ -25,7 +25,6 @@ import (
 	"github.com/gobenpark/cerebro/broker"
 	"github.com/gobenpark/cerebro/engine"
 	"github.com/gobenpark/cerebro/event"
-	"github.com/gobenpark/cerebro/indicator"
 	"github.com/gobenpark/cerebro/item"
 	"github.com/gobenpark/cerebro/log"
 	log2 "github.com/gobenpark/cerebro/log/v1"
@@ -44,7 +43,7 @@ type Cerebro struct {
 	// preload bool value, decide use candle history
 	preload bool `json:"preload,omitempty"`
 	// broker buy, sell and manage order
-	broker *broker.Broker `validate:"required" json:"broker,omitempty"`
+	broker broker.Broker `validate:"required" json:"broker,omitempty"`
 
 	inmemory bool `json:"inmemory,omitempty"`
 
@@ -66,13 +65,9 @@ type Cerebro struct {
 	// eventEngine engine of management all event
 	eventEngine *event.Engine `json:"event_engine,omitempty"`
 
-	tickCh map[string]chan indicator.Tick `json:"tick_ch,omitempty"`
-
 	cache *badger.DB `json:"cache,omitempty"`
 
 	strategies []strategy.Strategy `json:"strategies,omitempty"`
-
-	cash int64 `json:"cash,omitempty"`
 
 	timeout time.Duration `json:"timeout,omitempty"`
 
@@ -84,8 +79,6 @@ func NewCerebro(opts ...Option) *Cerebro {
 	c := &Cerebro{
 		order:       make(chan order.Order, 1),
 		eventEngine: event.NewEventEngine(),
-		//chart:        chart.NewTraderChart(),
-		tickCh: make(map[string]chan indicator.Tick),
 	}
 
 	for _, opt := range opts {
@@ -116,7 +109,9 @@ func NewCerebro(opts ...Option) *Cerebro {
 		c.log = logger
 	}
 
-	c.broker = broker.NewBroker(c.eventEngine, c.store, c.log)
+	if c.broker == nil {
+		c.broker = broker.NewDefaultBroker(c.eventEngine, c.store, c.log)
+	}
 
 	c.signalEngine = signals.NewEngine()
 
@@ -171,7 +166,6 @@ func (c *Cerebro) Start(ctx context.Context) error {
 	// event engine settings
 	go c.eventEngine.Start(ctx)
 	c.eventEngine.Register <- c.strategyEngine
-	//c.eventEngine.Register <- c.analyzer
 
 	return nil
 }

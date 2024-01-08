@@ -34,7 +34,7 @@ import (
 type Engine struct {
 	log         log.Logger
 	store       store.Store
-	broker      *broker.Broker
+	broker      broker.Broker
 	cache       *badger.DB
 	eventEngine *event.Engine
 	channels    map[string]chan indicator.Tick
@@ -43,7 +43,7 @@ type Engine struct {
 	mu          sync.Mutex
 }
 
-func NewEngine(log log.Logger, eventEngine *event.Engine, bk *broker.Broker, st []Strategy, store store.Store, cache *badger.DB, timeout time.Duration) engine.Engine {
+func NewEngine(log log.Logger, eventEngine *event.Engine, bk broker.Broker, st []Strategy, store store.Store, cache *badger.DB, timeout time.Duration) engine.Engine {
 	return &Engine{
 		broker:      bk,
 		log:         log,

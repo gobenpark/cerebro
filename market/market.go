@@ -7,6 +7,8 @@ import (
 
 	"github.com/gobenpark/cerebro/indicator"
 	"github.com/gobenpark/cerebro/item"
+	"github.com/gobenpark/cerebro/order"
+	"github.com/gobenpark/cerebro/position"
 )
 
 type CandleType int
@@ -26,4 +28,9 @@ type Market interface {
 	Candles(ctx context.Context, code string, level CandleType) (indicator.Candles, error)
 	Tick(ctx context.Context, item ...item.Item) (<-chan indicator.Tick, error)
 	UID() string
+	Order(ctx context.Context, o order.Order) error
+	AccountPosition() []position.Position
+	AccountBalance() int64
+	Event()
+	Commission() float64
 }

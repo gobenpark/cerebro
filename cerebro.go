@@ -43,9 +43,7 @@ type Cerebro struct {
 	// preload bool value, decide use candle history
 	preload bool
 	// broker buy, sell and manage order
-	broker broker.Broker
-
-	inmemory bool
+	broker *broker.Broker
 
 	target []item.Item
 

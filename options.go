@@ -19,7 +19,6 @@ import (
 	"time"
 
 	"github.com/gobenpark/cerebro/analysis"
-	"github.com/gobenpark/cerebro/broker"
 	"github.com/gobenpark/cerebro/item"
 	"github.com/gobenpark/cerebro/log"
 	"github.com/gobenpark/cerebro/market"
@@ -53,12 +52,6 @@ func WithPreload(b bool) Option {
 	}
 }
 
-func WithBroker(b broker.Broker) Option {
-	return func(c *Cerebro) {
-		c.broker = b
-	}
-}
-
 func WithAnalyzer(analyzer analysis.Analyzer) Option {
 	return func(c *Cerebro) {
 		c.analyzer = analyzer
@@ -80,11 +73,5 @@ func WithStrategy(st ...strategy.Strategy) Option {
 func WithStrategyTimeout(du time.Duration) Option {
 	return func(c *Cerebro) {
 		c.timeout = du
-	}
-}
-
-func WithInmemory(b bool) Option {
-	return func(c *Cerebro) {
-		c.inmemory = b
 	}
 }

@@ -31,6 +31,8 @@ type (
 const (
 	Buy Action = iota + 1
 	Sell
+	Cancel
+	Edit
 )
 
 const (
@@ -59,6 +61,7 @@ const (
 type Order interface {
 	ID() string
 	Code() string
+	Type() OrderType
 	Reject()
 	Expire()
 	Cancel()
@@ -75,26 +78,24 @@ type Order interface {
 	Size() int64
 	RemainPrice() float64
 	Copy() Order
-	Commission() float64
 	SetID(id string)
 }
 
 type order struct {
-	createdAt     time.Time `json:"createdAt" form:"created_at" json:"created_at"`
-	updatedAt     time.Time `json:"updatedAt" form:"updated_at" json:"updated_at"`
-	code          string    `json:"code" form:"code" json:"code,omitempty"`
-	uuid          string    `json:"uuid" form:"uuid" json:"uuid,omitempty"`
-	action        Action    `json:"action,omitempty"`
-	OrderType     `json:"exec_type,omitempty"`
-	commission    float64      `json:"commission,omitempty"`
-	size          int64        `json:"size" form:"size" json:"size,omitempty"`
-	price         int64        `json:"price" form:"price" json:"price,omitempty"`
-	remainingSize int64        `json:"remaining_size,omitempty"`
-	mu            sync.RWMutex `json:"-"`
-	status        Status       `json:"status,omitempty"`
+	createdAt time.Time
+	updatedAt time.Time
+	code      string
+	uuid      string
+	action    Action
+	OrderType
+	size          int64
+	price         int64
+	remainingSize int64
+	mu            sync.RWMutex
+	status        Status
 }
 
-func NewOrder(code string, action Action, execType OrderType, size int64, price int64, commission float64) Order {
+func NewOrder(code string, action Action, execType OrderType, size int64, price int64) Order {
 	return &order{
 		status:        Created,
 		action:        action,
@@ -106,8 +107,11 @@ func NewOrder(code string, action Action, execType OrderType, size int64, price 
 		createdAt:     time.Now(),
 		updatedAt:     time.Now(),
 		remainingSize: size,
-		commission:    commission,
 	}
+}
+
+func (o *order) Type() OrderType {
+	return o.OrderType
 }
 
 func (o *order) Accept() {
@@ -211,15 +215,6 @@ func (o *order) OrderPrice() float64 {
 	return float64(o.price) * float64(o.size)
 }
 
-func (o *order) Commission() float64 {
-	var com float64
-	o.mu.Lock()
-	com = o.commission
-	o.mu.Unlock()
-	return com
-
-}
-
 func (o *order) RemainPrice() float64 {
 	o.mu.Lock()
 	defer o.mu.Unlock()
@@ -252,6 +247,5 @@ func (o *order) Copy() Order {
 		createdAt:     o.createdAt,
 		updatedAt:     o.updatedAt,
 		remainingSize: o.remainingSize,
-		commission:    o.commission,
 	}
 }

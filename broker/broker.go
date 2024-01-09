@@ -20,30 +20,25 @@ import (
 
 	"github.com/gobenpark/cerebro/event"
 	"github.com/gobenpark/cerebro/log"
+	"github.com/gobenpark/cerebro/market"
 	"github.com/gobenpark/cerebro/order"
 	"github.com/gobenpark/cerebro/position"
-	"github.com/gobenpark/cerebro/store"
 	"go.uber.org/zap"
 )
 
-// DefaultBroker it's instead of human for buy, sell and other
-//type Broker interface {
-//	SubmitOrder(ctx context.Context, code string, size int64, price float64, action order.Action, exec order.OrderType) error
-//	OrderCash(ctx context.Context, code string, amount float64, currentPrice float64, action order.Action, exec order.OrderType) error
-//	Position(code string) (position.Position, bool)
-//}
-
 type Broker interface {
-	OrderCash(ctx context.Context, code string, amount float64, currentPrice int64, action order.Action, exec order.OrderType) error
+	//OrderCash(ctx context.Context, code string, amount float64, currentPrice int64, action order.Action, exec order.OrderType) error
 	SubmitOrder(ctx context.Context, code string, size int64, price int64, action order.Action, ot order.OrderType) error
 	Orders(code string) []order.Order
 	Position(code string) (position.Position, bool)
+	Cash() int64
+	Cancel(o order.Order) error
 	event.Listener
 }
 
 type DefaultBroker struct {
 	EventEngine      event.Broadcaster
-	store            store.Store
+	market           market.Market
 	logger           log.Logger
 	orders           []order.Order
 	positions        map[string]position.Position
@@ -53,16 +48,13 @@ type DefaultBroker struct {
 	cashValueChanged bool
 }
 
-func NewDefaultBroker(eventEngine event.Broadcaster, store store.Store, logger log.Logger) *DefaultBroker {
+func NewDefaultBroker(eventEngine event.Broadcaster, store market.Market, logger log.Logger) *DefaultBroker {
 	return &DefaultBroker{
 		orders:           []order.Order{},
 		EventEngine:      eventEngine,
-		positions:        store.Positions(),
-		store:            store,
+		market:           store,
 		cashValueChanged: false,
 		logger:           logger,
-		commission:       store.Commission(),
-		cash:             store.Cash(),
 	}
 }
 
@@ -70,7 +62,6 @@ func (b *DefaultBroker) Setcommission(percent float64) {
 	b.commission = percent
 }
 
-// TODO: impelement
 // OrderCash broker do buy/sell order from how much value and automatically calculate size
 func (b *DefaultBroker) OrderCash(ctx context.Context, code string, amount float64, currentPrice int64, action order.Action, exec order.OrderType) error {
 
@@ -116,12 +107,12 @@ func (b *DefaultBroker) submit(ctx context.Context, o order.Order) {
 	b.notifyOrder(o.Copy())
 	start := b.cash
 
-	if err := b.store.Order(ctx, o); err != nil {
-		b.logger.Info("reject order", "order", o, "error", err)
-		o.Reject()
-		b.notifyOrder(o.Copy())
-		return
-	}
+	//if err := b.market.Order(ctx, o); err != nil {
+	//	b.logger.Info("reject order", "order", o, "error", err)
+	//	o.Reject()
+	//	b.notifyOrder(o.Copy())
+	//	return
+	//}
 
 	if o.Action() == order.Sell {
 		b.mu.Lock()
@@ -185,12 +176,16 @@ func (b *DefaultBroker) Position(code string) (position.Position, bool) {
 	return position.Position{}, false
 }
 
+func (b *DefaultBroker) Cancel(o order.Order) error {
+	return nil
+}
+
 func (b *DefaultBroker) Listen(e interface{}) {
 	if o, ok := e.(order.Order); ok {
 		switch o.Status() {
 		case order.Rejected, order.Accepted, order.Canceled, order.Expired:
 		}
 
-		b.positions = b.store.Positions()
+		//b.positions = b.market.Positions()
 	}
 }

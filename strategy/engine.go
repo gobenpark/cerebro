@@ -27,13 +27,13 @@ import (
 	"github.com/gobenpark/cerebro/indicator"
 	"github.com/gobenpark/cerebro/item"
 	"github.com/gobenpark/cerebro/log"
+	"github.com/gobenpark/cerebro/market"
 	"github.com/gobenpark/cerebro/order"
-	"github.com/gobenpark/cerebro/store"
 )
 
 type Engine struct {
 	log         log.Logger
-	store       store.Store
+	store       market.Market
 	broker      broker.Broker
 	cache       *badger.DB
 	eventEngine *event.Engine
@@ -43,7 +43,7 @@ type Engine struct {
 	mu          sync.Mutex
 }
 
-func NewEngine(log log.Logger, eventEngine *event.Engine, bk broker.Broker, st []Strategy, store store.Store, cache *badger.DB, timeout time.Duration) engine.Engine {
+func NewEngine(log log.Logger, eventEngine *event.Engine, bk broker.Broker, st []Strategy, store market.Market, cache *badger.DB, timeout time.Duration) engine.Engine {
 	return &Engine{
 		broker:      bk,
 		log:         log,
@@ -66,7 +66,7 @@ func (s *Engine) Spawn(ctx context.Context, it []item.Item) error {
 				filtered = append(filtered, it[j])
 				codech := make(chan indicator.Tick, 1)
 				s.channels[it[j].Code] = codech
-				cds, err := s.store.Candles(ctx, it[j].Code, store.Day)
+				cds, err := s.store.Candles(ctx, it[j].Code, market.Day)
 				if err != nil {
 					s.log.Error("apply candle error", "code", it[j].Code, "err", err)
 				}

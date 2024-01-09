@@ -22,8 +22,8 @@ import (
 	"github.com/gobenpark/cerebro/broker"
 	"github.com/gobenpark/cerebro/item"
 	"github.com/gobenpark/cerebro/log"
+	"github.com/gobenpark/cerebro/market"
 	"github.com/gobenpark/cerebro/observer"
-	"github.com/gobenpark/cerebro/store"
 	"github.com/gobenpark/cerebro/strategy"
 )
 
@@ -35,9 +35,9 @@ func WithObserver(o observer.Observer) Option {
 	}
 }
 
-func WithStore(s store.Store) Option {
+func WithMarket(s market.Market) Option {
 	return func(c *Cerebro) {
-		c.store = s
+		c.market = s
 	}
 }
 
@@ -80,12 +80,6 @@ func WithStrategy(st ...strategy.Strategy) Option {
 func WithStrategyTimeout(du time.Duration) Option {
 	return func(c *Cerebro) {
 		c.timeout = du
-	}
-}
-
-func WithAutomaticTarget(b bool) Option {
-	return func(c *Cerebro) {
-		c.automaticTarget = b
 	}
 }
 

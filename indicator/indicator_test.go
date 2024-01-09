@@ -1,6 +1,7 @@
 package indicator
 
 import (
+	"context"
 	"fmt"
 	"testing"
 	"time"
@@ -8,7 +9,7 @@ import (
 
 func TestMean(t *testing.T) {
 	tk := make(chan Tick, 1)
-	sg := NewValue(nil)
+	sg := NewValue(context.TODO(), nil)
 	sg.Start(tk)
 	value := sg.Volume().Mean(3 * time.Second)
 
@@ -33,7 +34,7 @@ func TestMean(t *testing.T) {
 
 func TestROI(t *testing.T) {
 	tk := make(chan Tick, 1)
-	sg := NewValue(nil)
+	sg := NewValue(context.TODO(), nil)
 	value := sg.Volume().ROI(6 * time.Second)
 	sg.Start(tk)
 
@@ -61,7 +62,7 @@ func TestROI(t *testing.T) {
 
 func TestFilter(t *testing.T) {
 	tk := make(chan Tick, 1)
-	sg := NewValue(nil)
+	sg := NewValue(context.TODO(), nil)
 	sg.Start(tk)
 
 	data := sg.Filter(func(tick Tick) bool {
@@ -106,7 +107,7 @@ func TestFilter(t *testing.T) {
 
 func TestCombineF(t *testing.T) {
 	tk := make(chan Tick, 1)
-	sg := NewValue(nil)
+	sg := NewValue(context.TODO(), nil)
 	sg.Start(tk)
 
 	v := sg

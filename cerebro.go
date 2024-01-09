@@ -28,10 +28,10 @@ import (
 	"github.com/gobenpark/cerebro/item"
 	"github.com/gobenpark/cerebro/log"
 	log2 "github.com/gobenpark/cerebro/log/v1"
+	"github.com/gobenpark/cerebro/market"
 	"github.com/gobenpark/cerebro/observer"
 	"github.com/gobenpark/cerebro/order"
 	"github.com/gobenpark/cerebro/signals"
-	"github.com/gobenpark/cerebro/store"
 	"github.com/gobenpark/cerebro/strategy"
 )
 
@@ -39,39 +39,36 @@ import (
 // make all dependency manage
 type Cerebro struct {
 	cancel   context.CancelFunc
-	logLevel log.Level `json:"log_level,omitempty"`
+	logLevel log.Level
 	// preload bool value, decide use candle history
-	preload bool `json:"preload,omitempty"`
+	preload bool
 	// broker buy, sell and manage order
-	broker broker.Broker `validate:"required" json:"broker,omitempty"`
+	broker broker.Broker
 
-	inmemory bool `json:"inmemory,omitempty"`
+	inmemory bool
 
-	target []item.Item `json:"target,omitempty"`
+	target []item.Item
 
-	store          store.Store   `json:"store,omitempty"`
-	strategyEngine engine.Engine `json:"strategy_engine,omitempty"`
+	market         market.Market
+	strategyEngine engine.Engine
 
-	log log.Logger `validate:"required" json:"log,omitempty"`
+	log log.Logger
 
-	analyzer analysis.Analyzer `json:"analyzer,omitempty"`
+	analyzer analysis.Analyzer
 
-	o observer.Observer `json:"o,omitempty"`
+	o observer.Observer
 
 	signalEngine engine.Engine
 	// broker buy, sell and manage order
-	order chan order.Order `json:"order,omitempty"`
-
+	order chan order.Order
 	// eventEngine engine of management all event
-	eventEngine *event.Engine `json:"event_engine,omitempty"`
+	eventEngine *event.Engine
 
-	cache *badger.DB `json:"cache,omitempty"`
+	cache *badger.DB
 
-	strategies []strategy.Strategy `json:"strategies,omitempty"`
+	strategies []strategy.Strategy
 
-	timeout time.Duration `json:"timeout,omitempty"`
-
-	automaticTarget bool
+	timeout time.Duration
 }
 
 // NewCerebro generate new cerebro with cerebro option
@@ -110,13 +107,13 @@ func NewCerebro(opts ...Option) *Cerebro {
 	}
 
 	if c.broker == nil {
-		c.broker = broker.NewDefaultBroker(c.eventEngine, c.store, c.log)
+		c.broker = broker.NewDefaultBroker(c.eventEngine, c.market, c.log)
 	}
 
 	c.signalEngine = signals.NewEngine()
 
 	if c.strategyEngine == nil {
-		c.strategyEngine = strategy.NewEngine(c.log, c.eventEngine, c.broker, c.strategies, c.store, c.cache, c.timeout)
+		c.strategyEngine = strategy.NewEngine(c.log, c.eventEngine, c.broker, c.strategies, c.market, c.cache, c.timeout)
 	}
 
 	return c
@@ -142,30 +139,31 @@ func (c *Cerebro) Start(ctx context.Context) error {
 		c.log.Error("spawn error", "err", err)
 		return err
 	}
-
-	go func() {
-		ch, err := c.store.Events(ctx)
-		if err != nil {
-			c.log.Panic("event channel error", "err", err)
-		}
-	Done:
-		for {
-			select {
-			case e, ok := <-ch:
-				if !ok {
-					c.log.Info("event channel closed")
-					break Done
-				}
-				c.eventEngine.BroadCast(e)
-			case <-ctx.Done():
-				c.log.Info("context done")
-				break Done
-			}
-		}
-	}()
+	//
+	//go func() {
+	//	ch, err := c.market.Events(ctx)
+	//	if err != nil {
+	//		c.log.Panic("event channel error", "err", err)
+	//	}
+	//Done:
+	//	for {
+	//		select {
+	//		case e, ok := <-ch:
+	//			if !ok {
+	//				c.log.Info("event channel closed")
+	//				break Done
+	//			}
+	//			c.eventEngine.BroadCast(e)
+	//		case <-ctx.Done():
+	//			c.log.Info("context done")
+	//			break Done
+	//		}
+	//	}
+	//}()
 	// event engine settings
 	go c.eventEngine.Start(ctx)
 	c.eventEngine.Register <- c.strategyEngine
+	c.eventEngine.Register <- c.broker
 
 	return nil
 }

@@ -33,7 +33,6 @@ type Strategy interface {
 	//NotifyOrder is when event rise order then called
 	NotifyOrder(o order.Order)
 	NotifyTrade()
-	NotifyCashValue(before, after int64)
 	NotifyFund()
 	Name() string
 }

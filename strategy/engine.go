@@ -106,9 +106,5 @@ func (s *Engine) Listen(e interface{}) {
 		for _, st := range s.sts {
 			st.NotifyOrder(et)
 		}
-	case event.CashEvent:
-		for _, st := range s.sts {
-			st.NotifyCashValue(et.Before, et.After)
-		}
 	}
 }

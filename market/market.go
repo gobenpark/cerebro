@@ -29,8 +29,8 @@ type Market interface {
 	Tick(ctx context.Context, item ...item.Item) (<-chan indicator.Tick, error)
 	UID() string
 	Order(ctx context.Context, o order.Order) error
-	AccountPosition() []position.Position
+	AccountPositions() []position.Position
 	AccountBalance() int64
-	Event()
+	Events(ctx context.Context) <-chan MarketEvent
 	Commission() float64
 }

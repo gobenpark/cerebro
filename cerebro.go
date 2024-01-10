@@ -80,18 +80,6 @@ func NewCerebro(opts ...Option) *Cerebro {
 		opt(c)
 	}
 
-	db, err := badger.Open(func() badger.Options {
-		if c.inmemory {
-			return badger.DefaultOptions("").WithInMemory(true)
-		} else {
-			return badger.DefaultOptions("cerebro")
-		}
-	}())
-	if err != nil {
-		panic(err)
-	}
-	c.cache = db
-
 	if c.log == nil {
 		if c.logLevel == 0 {
 			c.logLevel = log.InfoLevel
@@ -122,7 +110,7 @@ func (c *Cerebro) Start(ctx context.Context) error {
 	ctx, cancel := context.WithCancel(ctx)
 	c.cancel = cancel
 
-	c.log.Debug("Cerebro starting ...")
+	c.log.Info("Cerebro starting ...")
 
 	if len(c.target) == 0 {
 		return fmt.Errorf("error need target setting")
@@ -137,27 +125,24 @@ func (c *Cerebro) Start(ctx context.Context) error {
 		c.log.Error("spawn error", "err", err)
 		return err
 	}
-	//
-	//go func() {
-	//	ch, err := c.market.Events(ctx)
-	//	if err != nil {
-	//		c.log.Panic("event channel error", "err", err)
-	//	}
-	//Done:
-	//	for {
-	//		select {
-	//		case e, ok := <-ch:
-	//			if !ok {
-	//				c.log.Info("event channel closed")
-	//				break Done
-	//			}
-	//			c.eventEngine.BroadCast(e)
-	//		case <-ctx.Done():
-	//			c.log.Info("context done")
-	//			break Done
-	//		}
-	//	}
-	//}()
+
+	go func() {
+		ch := c.market.Events(ctx)
+	Done:
+		for {
+			select {
+			case e, ok := <-ch:
+				if !ok {
+					c.log.Info("event channel closed")
+					break Done
+				}
+				c.eventEngine.BroadCast(e)
+			case <-ctx.Done():
+				c.log.Info("context done")
+				break Done
+			}
+		}
+	}()
 	// event engine settings
 	go c.eventEngine.Start(ctx)
 	c.eventEngine.Register <- c.strategyEngine

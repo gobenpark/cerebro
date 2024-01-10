@@ -32,7 +32,7 @@ type Broker struct {
 	market           market.Market
 	logger           log.Logger
 	orders           []order.Order
-	positions        map[string]position.Position
+	positions        []position.Position
 	balance          int64
 	mu               sync.RWMutex
 	cashValueChanged bool
@@ -97,29 +97,12 @@ func (b *Broker) submit(ctx context.Context, o order.Order) {
 		b.mu.Unlock()
 	}
 	zap.L().Debug("cash size change", zap.Int64("start", start), zap.Int64("end", b.balance))
-	b.notifyCash(o.Copy())
 }
 
 func (b *Broker) notifyOrder(o order.Order) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	b.EventEngine.BroadCast(o)
-}
-
-func (b *Broker) notifyCash(o order.Order) {
-	//var value int64
-	//switch o.Action() {
-	//case order.Sell:
-	//	value = int64(o.OrderPrice() - ((o.OrderPrice() * o.commission()) / 100))
-	//case order.Buy:
-	//	value = -int64(o.OrderPrice() - ((o.OrderPrice() * o.commission()) / 100))
-	//}
-	//fmt.Println(o.commission())
-	//fmt.Println("commision:", (o.OrderPrice()*o.commission())/100)
-	//fmt.Println(value)
-	//fmt.Println(b.cash)
-	//b.eventEngine.BroadCast(event.CashEvent{Before: b.cash, After: b.cash + value})
-	//b.cash += value
 }
 
 func (b *Broker) Orders(code string) []order.Order {
@@ -135,26 +118,53 @@ func (b *Broker) Orders(code string) []order.Order {
 	return orders
 }
 
-func (b *Broker) Position(code string) (position.Position, bool) {
+func (b *Broker) Position(ticker string) (position.Position, bool) {
 	b.mu.RLock()
 	defer b.mu.RUnlock()
-
-	if p, ok := b.positions[code]; ok {
-		return p, true
+	for i := range b.positions {
+		if b.positions[i].Code == ticker {
+			return b.positions[i], true
+		}
 	}
 	return position.Position{}, false
 }
 
-func (b *Broker) Cancel(o order.Order) error {
-	return nil
+func (b *Broker) completeOrder(o order.Order) {
+	for i := range b.orders {
+		if b.orders[i].ID() == o.ID() {
+			b.orders = append(b.orders[:i], b.orders[i+1:]...)
+		}
+	}
 }
 
 func (b *Broker) Listen(e interface{}) {
-	if o, ok := e.(order.Order); ok {
-		switch o.Status() {
-		case order.Rejected, order.Accepted, order.Canceled, order.Expired:
-		}
 
-		//b.positions = b.market.Positions()
+	if m, ok := e.(market.MarketEvent); ok {
+		switch evt := m.(type) {
+		case market.ChangeOrderEvent:
+			b.logger.Info("market change order", "message", m.(market.ChangeOrderEvent).Message, "id", m.(market.ChangeOrderEvent).ID, "action", m.(market.ChangeOrderEvent).Action)
+			for i := range b.orders {
+				if b.orders[i].ID() == m.(market.ChangeOrderEvent).ID {
+					o := b.orders[i]
+					switch evt.Action {
+					case order.Accepted:
+						o.Accept()
+						b.logger.Info("order accepted", "id", o.ID(), "code", o.Code(), "price", o.Price(), "size", o.Size())
+					case order.Completed:
+						o.Complete()
+						b.completeOrder(o)
+						b.logger.Info("order completed", "id", o.ID(), "code", o.Code(), "price", o.Price(), "size", o.Size())
+					case order.Canceled:
+						o.Cancel()
+						b.completeOrder(o)
+						b.logger.Info("order canceled", "id", o.ID(), "code", o.Code(), "price", o.Price(), "size", o.Size())
+					}
+					b.notifyOrder(o)
+				}
+			}
+		case market.ChangeBalanceEvent:
+			b.logger.Info("market change balance", "message", m.(market.ChangeBalanceEvent).Message, "balance", m.(market.ChangeBalanceEvent).Balance)
+			b.balance = m.(market.ChangeBalanceEvent).Balance
+		}
 	}
 }

@@ -74,7 +74,7 @@ type Order interface {
 	Exec() OrderType
 	OrderPrice() float64
 	Action() Action
-	Price() float64
+	Price() int64
 	Size() int64
 	RemainPrice() float64
 	Copy() Order
@@ -221,10 +221,10 @@ func (o *order) RemainPrice() float64 {
 	return float64(o.price) * float64(o.remainingSize)
 }
 
-func (o *order) Price() float64 {
+func (o *order) Price() int64 {
 	o.mu.Lock()
 	defer o.mu.Unlock()
-	return float64(o.price)
+	return o.price
 }
 
 func (o *order) Size() int64 {

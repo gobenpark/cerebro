@@ -120,7 +120,6 @@ func (c *Cerebro) Start(ctx context.Context) error {
 		return fmt.Errorf("error empty strategies")
 	}
 
-	//tks := lo.FanOut(2, 1, tk)
 	if err := c.strategyEngine.Spawn(ctx, c.target); err != nil {
 		c.log.Error("spawn error", "err", err)
 		return err

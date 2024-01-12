@@ -53,7 +53,7 @@ func (b *Broker) Order(ctx context.Context, o order.Order) error {
 		return fmt.Errorf("invalid order price, market order price must be set 0")
 	}
 
-	if o.Size() == 0 {
+	if o.Type() == order.Limit && o.Size() == 0 {
 		return ErrOrderSizeIsZero
 	}
 

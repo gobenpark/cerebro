@@ -50,14 +50,17 @@ func NewDefaultBroker(eventEngine event.Broadcaster, store market.Market, logger
 
 func (b *Broker) Order(ctx context.Context, o order.Order) error {
 	if o.Type() == order.Market && o.Price() != 0 {
+		b.logger.Error("invalid order price", "code", o.Code(), "price", o.Price(), "size", o.Size())
 		return fmt.Errorf("invalid order price, market order price must be set 0")
 	}
 
 	if o.Type() == order.Limit && o.Size() == 0 {
+		b.logger.Error("invalid order size", "code", o.Code(), "price", o.Price(), "size", o.Size())
 		return ErrOrderSizeIsZero
 	}
 
-	if o.Price() == 0 {
+	if o.Type() == order.Limit && o.Price() == 0 {
+		b.logger.Error("invalid order price", "code", o.Code(), "price", o.Price(), "size", o.Size())
 		return ErrPriceIsZero
 	}
 

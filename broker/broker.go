@@ -49,7 +49,6 @@ func NewDefaultBroker(eventEngine event.Broadcaster, store market.Market, logger
 }
 
 func (b *Broker) Order(ctx context.Context, o order.Order) error {
-	defer b.mu.Unlock()
 	if o.Type() == order.Market && o.Price() != 0 {
 		return fmt.Errorf("invalid order price, market order price must be set 0")
 	}

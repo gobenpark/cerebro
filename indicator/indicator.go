@@ -307,7 +307,7 @@ func (s Indicator) Transaction(f func(v Packet)) {
 	}()
 }
 
-func CombineWithF(duration time.Duration, f func(v ...float64) float64, indicators ...Indicator) Indicator {
+func CombineWithF(minimumWait time.Duration, f func(v ...float64) float64, indicators ...Indicator) Indicator {
 	downstream := make(chan Packet, 1)
 	go func() {
 		var wg sync.WaitGroup
@@ -317,7 +317,7 @@ func CombineWithF(duration time.Duration, f func(v ...float64) float64, indicato
 		s := make([]float64, size)
 
 		handler := func(i Indicator, idx int) {
-			timeout := time.NewTicker(duration)
+			timeout := time.NewTicker(minimumWait)
 		Done:
 			for {
 				select {

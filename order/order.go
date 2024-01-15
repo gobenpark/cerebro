@@ -16,6 +16,7 @@
 package order
 
 import (
+	"encoding/json"
 	"sync"
 	"time"
 
@@ -82,17 +83,17 @@ type Order interface {
 }
 
 type order struct {
-	createdAt time.Time
-	updatedAt time.Time
-	code      string
-	uuid      string
-	action    Action
-	OrderType
-	size          int64
-	price         int64
-	remainingSize int64
-	mu            sync.RWMutex
-	status        Status
+	createdAt     time.Time    `json:"createdAt"`
+	updatedAt     time.Time    `json:"updatedAt"`
+	code          string       `json:"code"`
+	uuid          string       `json:"uuid"`
+	action        Action       `json:"action"`
+	OrderType     OrderType    `json:"orderType"`
+	size          int64        `json:"size"`
+	price         int64        `json:"price"`
+	remainingSize int64        `json:"remainingSize"`
+	mu            sync.RWMutex `json:"-"`
+	status        Status       `json:"status"`
 }
 
 func NewOrder(code string, action Action, execType OrderType, size int64, price int64) Order {
@@ -248,4 +249,14 @@ func (o *order) Copy() Order {
 		updatedAt:     o.updatedAt,
 		remainingSize: o.remainingSize,
 	}
+}
+
+func (o *order) MarshalJSON() ([]byte, error) {
+	data := map[string]interface{}{
+		"code":      o.code,
+		"price":     o.price,
+		"size":      o.size,
+		"createdAt": o.createdAt.Format("2006-01-02 15:04:05"),
+	}
+	return json.Marshal(data)
 }

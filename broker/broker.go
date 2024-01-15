@@ -72,6 +72,8 @@ func (b *Broker) Order(ctx context.Context, o order.Order) error {
 			return ErrNotEnoughCash
 		}
 	}
+
+	b.orders = append(b.orders, o)
 	go b.submit(ctx, o)
 	return nil
 }

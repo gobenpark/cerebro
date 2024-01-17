@@ -37,7 +37,8 @@ const (
 )
 
 const (
-	Created Status = iota + 1
+	None Status = iota
+	Created
 	Submitted
 	Accepted
 	Partial

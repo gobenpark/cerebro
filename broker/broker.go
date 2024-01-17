@@ -45,6 +45,7 @@ func NewDefaultBroker(eventEngine event.Broadcaster, store market.Market, logger
 		market:           store,
 		cashValueChanged: false,
 		logger:           logger,
+		positions:        store.AccountPositions(),
 	}
 }
 
@@ -69,7 +70,7 @@ func (b *Broker) Order(ctx context.Context, o order.Order) error {
 	switch o.Action() {
 	case order.Buy:
 		if value > b.balance {
-			return ErrNotEnoughCash
+			return ErrNotEnoughMoney
 		}
 	}
 
@@ -91,15 +92,15 @@ func (b *Broker) submit(ctx context.Context, o order.Order) {
 		return
 	}
 
-	if o.Action() == order.Sell {
-		b.mu.Lock()
-		b.balance += int64(o.OrderPrice() - (o.OrderPrice() * (b.market.Commission() / 100)))
-		b.mu.Unlock()
-	} else {
-		b.mu.Lock()
-		b.balance -= int64(o.OrderPrice() + (o.OrderPrice() * (b.market.Commission() / 100)))
-		b.mu.Unlock()
-	}
+	//if o.Action() == order.Sell {
+	//	b.mu.Lock()
+	//	b.balance += int64(o.OrderPrice() - (o.OrderPrice() * (b.market.Commission() / 100)))
+	//	b.mu.Unlock()
+	//} else {
+	//	b.mu.Lock()
+	//	b.balance -= int64(o.OrderPrice() + (o.OrderPrice() * (b.market.Commission() / 100)))
+	//	b.mu.Unlock()
+	//}
 	zap.L().Debug("cash size change", zap.Int64("start", start), zap.Int64("end", b.balance))
 }
 
@@ -143,6 +144,14 @@ func (b *Broker) completeOrder(o order.Order) {
 
 func (b *Broker) Listen(e interface{}) {
 
+	if m, ok := e.(order.Order); ok {
+		if m.Status() == order.Submitted {
+			b.mu.Lock()
+			b.positions = b.market.AccountPositions()
+			b.mu.Unlock()
+		}
+	}
+
 	if m, ok := e.(market.MarketEvent); ok {
 		switch evt := m.(type) {
 		case market.ChangeOrderEvent:
@@ -166,6 +175,9 @@ func (b *Broker) Listen(e interface{}) {
 					b.notifyOrder(o)
 				}
 			}
+			b.mu.Lock()
+			b.positions = b.market.AccountPositions()
+			b.mu.Unlock()
 		case market.ChangeBalanceEvent:
 			b.logger.Info("market change balance", "message", m.(market.ChangeBalanceEvent).Message, "balance", m.(market.ChangeBalanceEvent).Balance)
 			b.balance = m.(market.ChangeBalanceEvent).Balance

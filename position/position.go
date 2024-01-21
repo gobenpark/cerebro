@@ -16,19 +16,19 @@
 package position
 
 import (
+	"github.com/gobenpark/cerebro/item"
 	"github.com/gobenpark/cerebro/order"
 )
 
 type Position struct {
-	Code  string `json:"code"`
-	Name  string `json:"name"`
-	Size  int64  `json:"size"`
-	Price int64  `json:"price"`
+	Item  item.Item
+	Size  int64 `json:"size"`
+	Price int64 `json:"price"`
 }
 
 func NewPosition(o order.Order) Position {
 	return Position{
-		Code:  o.Code(),
+		Item:  o.Item(),
 		Size:  o.Size(),
 		Price: o.Price(),
 	}

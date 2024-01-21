@@ -1,5 +1,7 @@
 package item
 
+import "fmt"
+
 type StockType int
 
 const (
@@ -12,4 +14,8 @@ type Item struct {
 	Code string            `json:"code"`
 	Name string            `json:"name"`
 	Type StockType         `json:"type"`
+}
+
+func (i Item) String() string {
+	return fmt.Sprintf("[%s,%s]", i.Code, i.Name)
 }

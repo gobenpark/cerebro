@@ -24,6 +24,7 @@ import (
 	"github.com/gobenpark/cerebro/market"
 	"github.com/gobenpark/cerebro/order"
 	"github.com/gobenpark/cerebro/position"
+	"github.com/samber/lo"
 	"go.uber.org/zap"
 )
 
@@ -51,17 +52,17 @@ func NewDefaultBroker(eventEngine event.Broadcaster, store market.Market, logger
 
 func (b *Broker) Order(ctx context.Context, o order.Order) error {
 	if o.Type() == order.Market && o.Price() != 0 {
-		b.logger.Error("invalid order price", "code", o.Code(), "price", o.Price(), "size", o.Size())
+		b.logger.Error("invalid order price", "code", o.Item().Code, "price", o.Price(), "size", o.Size())
 		return fmt.Errorf("invalid order price, market order price must be set 0")
 	}
 
 	if o.Type() == order.Limit && o.Size() == 0 {
-		b.logger.Error("invalid order size", "code", o.Code(), "price", o.Price(), "size", o.Size())
+		b.logger.Error("invalid order size", "code", o.Item().Code, "price", o.Price(), "size", o.Size())
 		return ErrOrderSizeIsZero
 	}
 
 	if o.Type() == order.Limit && o.Price() == 0 {
-		b.logger.Error("invalid order price", "code", o.Code(), "price", o.Price(), "size", o.Size())
+		b.logger.Error("invalid order price", "code", o.Item().Code, "price", o.Price(), "size", o.Size())
 		return ErrPriceIsZero
 	}
 
@@ -116,7 +117,7 @@ func (b *Broker) Orders(code string) []order.Order {
 
 	orders := []order.Order{}
 	for i := range b.orders {
-		if b.orders[i].Code() == code {
+		if b.orders[i].Item().Code == code {
 			orders = append(orders, b.orders[i])
 		}
 	}
@@ -126,12 +127,10 @@ func (b *Broker) Orders(code string) []order.Order {
 func (b *Broker) Position(ticker string) (position.Position, bool) {
 	b.mu.RLock()
 	defer b.mu.RUnlock()
-	for i := range b.positions {
-		if b.positions[i].Code == ticker {
-			return b.positions[i], true
-		}
-	}
-	return position.Position{}, false
+
+	return lo.Find(b.positions, func(item position.Position) bool {
+		return item.Item.Code == ticker
+	})
 }
 
 func (b *Broker) completeOrder(o order.Order) {
@@ -162,15 +161,15 @@ func (b *Broker) Listen(e interface{}) {
 					switch evt.Action {
 					case order.Accepted:
 						o.Accept()
-						b.logger.Info("order accepted", "id", o.ID(), "code", o.Code(), "price", o.Price(), "size", o.Size())
+						b.logger.Info("order accepted", "id", o.ID(), "code", o.Item(), "price", o.Price(), "size", o.Size())
 					case order.Completed:
 						o.Complete()
 						b.completeOrder(o)
-						b.logger.Info("order completed", "id", o.ID(), "code", o.Code(), "price", o.Price(), "size", o.Size())
+						b.logger.Info("order completed", "id", o.ID(), "code", o.Item(), "price", o.Price(), "size", o.Size())
 					case order.Canceled:
 						o.Cancel()
 						b.completeOrder(o)
-						b.logger.Info("order canceled", "id", o.ID(), "code", o.Code(), "price", o.Price(), "size", o.Size())
+						b.logger.Info("order canceled", "id", o.ID(), "code", o.Item(), "price", o.Price(), "size", o.Size())
 					}
 					b.notifyOrder(o)
 				}

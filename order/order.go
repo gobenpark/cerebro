@@ -20,6 +20,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/gobenpark/cerebro/item"
 	uuid "github.com/satori/go.uuid"
 )
 
@@ -62,7 +63,7 @@ const (
 
 type Order interface {
 	ID() string
-	Code() string
+	Item() item.Item
 	Type() OrderType
 	Reject()
 	Expire()
@@ -86,7 +87,7 @@ type Order interface {
 type order struct {
 	createdAt     time.Time    `json:"createdAt"`
 	updatedAt     time.Time    `json:"updatedAt"`
-	code          string       `json:"code"`
+	item          item.Item    `json:"item"`
 	uuid          string       `json:"uuid"`
 	action        Action       `json:"action"`
 	OrderType     OrderType    `json:"orderType"`
@@ -97,12 +98,12 @@ type order struct {
 	status        Status       `json:"status"`
 }
 
-func NewOrder(code string, action Action, execType OrderType, size int64, price int64) Order {
+func NewOrder(item item.Item, action Action, execType OrderType, size int64, price int64) Order {
 	return &order{
 		status:        Created,
 		action:        action,
 		OrderType:     execType,
-		code:          code,
+		item:          item,
 		uuid:          uuid.NewV4().String(),
 		size:          size,
 		price:         price,
@@ -141,10 +142,10 @@ func (o *order) Action() Action {
 	return o.action
 }
 
-func (o *order) Code() string {
+func (o *order) Item() item.Item {
 	o.mu.Lock()
 	defer o.mu.Unlock()
-	return o.code
+	return o.item
 }
 
 func (o *order) ID() string {
@@ -242,7 +243,7 @@ func (o *order) Copy() Order {
 		status:        o.status,
 		action:        o.action,
 		OrderType:     o.OrderType,
-		code:          o.code,
+		item:          o.item,
 		uuid:          o.uuid,
 		size:          o.size,
 		price:         o.price,
@@ -254,7 +255,7 @@ func (o *order) Copy() Order {
 
 func (o *order) MarshalJSON() ([]byte, error) {
 	data := map[string]interface{}{
-		"code":      o.code,
+		"item":      o.item,
 		"price":     o.price,
 		"size":      o.size,
 		"createdAt": o.createdAt.Format("2006-01-02 15:04:05"),

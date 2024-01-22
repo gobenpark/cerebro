@@ -17,6 +17,7 @@ package strategy
 
 import (
 	"context"
+	"slices"
 	"sync"
 	"time"
 
@@ -29,6 +30,7 @@ import (
 	"github.com/gobenpark/cerebro/log"
 	"github.com/gobenpark/cerebro/market"
 	"github.com/gobenpark/cerebro/order"
+	"github.com/gobenpark/cerebro/position"
 )
 
 type Engine struct {
@@ -62,7 +64,7 @@ func (s *Engine) Spawn(ctx context.Context, it []item.Item) error {
 	for i := range s.sts {
 		for j := range it {
 			prd := NewCandleProvider(s.store, it[j])
-			if s.sts[i].Pass(it[j], prd) {
+			if s.sts[i].Pass(it[j], prd) || slices.ContainsFunc(s.store.AccountPositions(), func(p position.Position) bool { return p.Item.Code == it[j].Code }) {
 				filtered = append(filtered, it[j])
 				codech := make(chan indicator.Tick, 1)
 				s.channels[it[j].Code] = codech

@@ -18,6 +18,7 @@ package cerebro
 import (
 	"context"
 	"fmt"
+	"slices"
 	"time"
 
 	"github.com/dgraph-io/badger/v4"
@@ -31,8 +32,9 @@ import (
 	"github.com/gobenpark/cerebro/market"
 	"github.com/gobenpark/cerebro/observer"
 	"github.com/gobenpark/cerebro/order"
-	"github.com/gobenpark/cerebro/signals"
+	"github.com/gobenpark/cerebro/position"
 	"github.com/gobenpark/cerebro/strategy"
+	"github.com/samber/lo"
 )
 
 // Cerebro head of trading system
@@ -52,7 +54,7 @@ type Cerebro struct {
 
 	log log.Logger
 
-	analyzer analysis.Analyzer
+	analyzer analysis.Engine
 
 	o observer.Observer
 
@@ -96,8 +98,6 @@ func NewCerebro(opts ...Option) *Cerebro {
 		c.broker = broker.NewDefaultBroker(c.eventEngine, c.market, c.log)
 	}
 
-	c.signalEngine = signals.NewEngine()
-
 	if c.strategyEngine == nil {
 		c.strategyEngine = strategy.NewEngine(c.log, c.eventEngine, c.broker, c.strategies, c.market, c.cache, c.timeout)
 	}
@@ -120,10 +120,38 @@ func (c *Cerebro) Start(ctx context.Context) error {
 		return fmt.Errorf("error empty strategies")
 	}
 
-	if err := c.strategyEngine.Spawn(ctx, c.target); err != nil {
-		c.log.Error("spawn error", "err", err)
+	positions := c.market.AccountPositions()
+	filterd := []item.Item{}
+	for i := range c.strategies {
+		for j := range c.target {
+			prd := strategy.NewCandleProvider(c.market, c.target[j])
+			if c.strategies[i].Pass(c.target[j], prd) || slices.ContainsFunc(positions, func(position position.Position) bool { return position.Item.Code == c.target[j].Code }) {
+				filterd = append(filterd, c.target[j])
+			}
+		}
+	}
+
+	tk, err := c.market.Tick(ctx, filterd...)
+	if err != nil {
+		c.log.Error("store tick error", "error", err)
 		return err
 	}
+
+	ticks := lo.FanOut(2, 1, tk)
+
+	go func() {
+		if err := c.strategyEngine.Spawn(ctx, filterd, ticks[0]); err != nil {
+			c.log.Error("spawn error", "err", err)
+			return
+		}
+	}()
+
+	go func() {
+		if err := c.analyzer.Spawn(ctx, filterd, ticks[1]); err != nil {
+			c.log.Error("analyzer spawn error", "err", err)
+			return
+		}
+	}()
 
 	go func() {
 		ch := c.market.Events(ctx)

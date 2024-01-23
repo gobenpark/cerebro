@@ -1,6 +1,7 @@
 package cache
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/dgraph-io/badger/v4"
@@ -47,4 +48,24 @@ func TestCache_UpdatePosition(t *testing.T) {
 			require.Equal(t, input.Price, p.Price, p)
 		}
 	})
+
+	t.Run("init position", func(t *testing.T) {
+		input := position.Position{
+			Item: item.Item{
+				Code: "005930",
+				Name: "삼성전자",
+				Type: item.KOSPI,
+			},
+			Size:  100,
+			Price: 10,
+		}
+
+		err := cache.InitializePosition([]position.Position{input})
+		require.NoError(t, err)
+
+		p, err := cache.GetPosition("005930")
+		require.NoError(t, err)
+		fmt.Println(p)
+	})
+
 }

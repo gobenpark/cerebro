@@ -18,7 +18,6 @@ package cerebro
 import (
 	"time"
 
-	"github.com/gobenpark/cerebro/analysis"
 	"github.com/gobenpark/cerebro/item"
 	"github.com/gobenpark/cerebro/log"
 	"github.com/gobenpark/cerebro/market"
@@ -52,11 +51,12 @@ func WithPreload(b bool) Option {
 	}
 }
 
-func WithAnalyzer(analyzer analysis.Analyzer) Option {
-	return func(c *Cerebro) {
-		c.analyzer = analyzer
-	}
-}
+//
+//func WithAnalyzer(analyzer analysis.Analyzer) Option {
+//	return func(c *Cerebro) {
+//		c.analyzer = analyzer
+//	}
+//}
 
 func WithLogLevel(lvl log.Level) Option {
 	return func(c *Cerebro) {

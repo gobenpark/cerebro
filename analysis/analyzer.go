@@ -16,7 +16,12 @@
 package analysis
 
 import (
+	"context"
+	"fmt"
+
 	"github.com/gobenpark/cerebro/event"
+	"github.com/gobenpark/cerebro/indicator"
+	"github.com/gobenpark/cerebro/item"
 )
 
 type Analyzer interface {
@@ -26,10 +31,16 @@ type Analyzer interface {
 type Engine struct {
 }
 
-//func NewEngine(log log.Logger, bk *broker.Broker, preload bool, store store.Store, cache *badger.DB, timeout time.Duration) *Engine {
-//	return &Engine{}
-//}
-//
-//func (a *Engine) Spawn(ctx context.Context, tk <-chan indicator.Tick, item []item.Item) error {
-//
-//}
+func NewEngine() *Engine {
+	return &Engine{}
+}
+
+func (e *Engine) Spawn(ctx context.Context, item []item.Item, tk <-chan indicator.Tick) error {
+	for i := range tk {
+		fmt.Println("analyzer", i)
+	}
+	return nil
+}
+
+func (e *Engine) Listen(i interface{}) {
+}

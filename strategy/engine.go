@@ -17,7 +17,6 @@ package strategy
 
 import (
 	"context"
-	"slices"
 	"sync"
 	"time"
 
@@ -30,7 +29,6 @@ import (
 	"github.com/gobenpark/cerebro/log"
 	"github.com/gobenpark/cerebro/market"
 	"github.com/gobenpark/cerebro/order"
-	"github.com/gobenpark/cerebro/position"
 )
 
 type Engine struct {
@@ -58,47 +56,36 @@ func NewEngine(log log.Logger, eventEngine *event.Engine, bk *broker.Broker, st 
 	}
 }
 
-func (s *Engine) Spawn(ctx context.Context, it []item.Item) error {
-
+func (s *Engine) Spawn(ctx context.Context, it []item.Item, tk <-chan indicator.Tick) error {
 	filtered := []item.Item{}
 	for i := range s.sts {
 		for j := range it {
 			prd := NewCandleProvider(s.store, it[j])
-			if s.sts[i].Pass(it[j], prd) || slices.ContainsFunc(s.store.AccountPositions(), func(p position.Position) bool { return p.Item.Code == it[j].Code }) {
-				filtered = append(filtered, it[j])
-				codech := make(chan indicator.Tick, 1)
-				s.channels[it[j].Code] = codech
-				cds, err := s.store.Candles(ctx, it[j].Code, market.Day)
-				if err != nil {
-					s.log.Error("apply candle error", "code", it[j].Code, "err", err)
-				}
-				v := indicator.NewValue(ctx, cds)
-				s.sts[i].Next(it[j], v.Copy(), prd, s.broker)
-				v.Start(codech)
+			filtered = append(filtered, it[j])
+			codech := make(chan indicator.Tick, 1)
+			s.channels[it[j].Code] = codech
+			cds, err := s.store.Candles(ctx, it[j].Code, market.Day)
+			if err != nil {
+				s.log.Error("apply candle error", "code", it[j].Code, "err", err)
 			}
+			v := indicator.NewValue(ctx, cds)
+			s.sts[i].Next(it[j], v.Copy(), prd, s.broker)
+			v.Start(codech)
 		}
 	}
 
-	tk, err := s.store.Tick(ctx, filtered...)
-	if err != nil {
-		s.log.Error("store tick error", "error", err)
-		return err
-	}
-
-	go func() {
-		for i := range tk {
-			if c, ok := s.channels[i.Code]; ok {
-				select {
-				case c <- i:
-				case <-ctx.Done():
-					break
-				}
+	for i := range tk {
+		if c, ok := s.channels[i.Code]; ok {
+			select {
+			case c <- i:
+			case <-ctx.Done():
+				break
 			}
 		}
-		for i := range s.channels {
-			close(s.channels[i])
-		}
-	}()
+	}
+	for i := range s.channels {
+		close(s.channels[i])
+	}
 	return nil
 }
 

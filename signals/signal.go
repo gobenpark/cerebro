@@ -4,7 +4,6 @@ import (
 	"context"
 	"sync"
 
-	"github.com/gobenpark/cerebro/engine"
 	"github.com/gobenpark/cerebro/indicator"
 	"github.com/gobenpark/cerebro/item"
 )
@@ -30,8 +29,8 @@ func (e2 *Engine) Listen(e interface{}) {
 	panic("implement me")
 }
 
-func NewEngine(sg ...Signal) engine.Engine {
-	return &Engine{sg: sg}
+func NewEngine(sg ...Signal) *Engine {
+	return &Engine{}
 }
 
 func (e *Engine) Spawn(ctx context.Context, it []item.Item) error {

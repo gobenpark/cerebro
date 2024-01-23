@@ -12,13 +12,17 @@
  *  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  *  See the License for the specific language governing permissions and
  *  limitations under the License.
- */package broker
+ */
+package broker
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"slices"
 	"sync"
 
+	"github.com/gobenpark/cerebro/cache"
 	"github.com/gobenpark/cerebro/event"
 	"github.com/gobenpark/cerebro/log"
 	"github.com/gobenpark/cerebro/market"
@@ -30,6 +34,7 @@ import (
 
 type Broker struct {
 	EventEngine      event.Broadcaster
+	brokerCache      cache.Cache
 	market           market.Market
 	logger           log.Logger
 	orders           []order.Order
@@ -50,7 +55,16 @@ func NewDefaultBroker(eventEngine event.Broadcaster, store market.Market, logger
 	}
 }
 
-func (b *Broker) Order(ctx context.Context, o order.Order) error {
+func (b *Broker) Order(ctx context.Context, o order.Order, safe bool) error {
+
+	if safe {
+		if slices.ContainsFunc(b.orders, func(od order.Order) bool {
+			return od.Item().Code == o.Item().Code
+		}) {
+			return errors.New("Waiting for conclusion")
+		}
+	}
+
 	if o.Type() == order.Market && o.Price() != 0 {
 		b.logger.Error("invalid order price", "code", o.Item().Code, "price", o.Price(), "size", o.Size())
 		return fmt.Errorf("invalid order price, market order price must be set 0")
@@ -134,11 +148,9 @@ func (b *Broker) Position(ticker string) (position.Position, bool) {
 }
 
 func (b *Broker) completeOrder(o order.Order) {
-	for i := range b.orders {
-		if b.orders[i].ID() == o.ID() {
-			b.orders = append(b.orders[:i], b.orders[i+1:]...)
-		}
-	}
+	b.orders = slices.DeleteFunc(b.orders, func(od order.Order) bool {
+		return od.ID() == o.ID()
+	})
 }
 
 func (b *Broker) Listen(e interface{}) {

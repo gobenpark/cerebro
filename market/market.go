@@ -24,7 +24,7 @@ const (
 )
 
 type Market interface {
-	MarketItems(ctx context.Context) []item.Item
+	Stocks(ctx context.Context) []item.Item
 	Candles(ctx context.Context, code string, level CandleType) (indicator.Candles, error)
 	Tick(ctx context.Context, item ...item.Item) (<-chan indicator.Tick, error)
 	UID() string

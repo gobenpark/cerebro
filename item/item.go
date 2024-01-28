@@ -10,10 +10,10 @@ const (
 )
 
 type Item struct {
-	Tag  map[string]string `json:"other"`
-	Code string            `json:"code"`
-	Name string            `json:"name"`
-	Type StockType         `json:"type"`
+	Code     string                 `json:"code"`
+	Name     string                 `json:"name"`
+	Type     StockType              `json:"type"`
+	Metadata map[string]interface{} `json:"metadata"`
 }
 
 func (i Item) String() string {

@@ -32,6 +32,47 @@ func TestMean(t *testing.T) {
 	}
 }
 
+func TestWithoutCopy(t *testing.T) {
+	tk := make(chan Tick, 1)
+	v := NewValue(context.TODO(), nil)
+	CombineWithF(time.Minute, func(v ...float64) float64 {
+		return v[0]
+	}, v.Price().ROI(30*time.Second).
+		Filter(func(value Packet) bool {
+			return value.Value > 2
+		}),
+		v.Volume().ROI(30*time.Second).
+			Filter(func(value Packet) bool {
+				return value.Value > 20
+			})).
+		Transaction(func(v Packet) {
+			fmt.Println("buy", v)
+		})
+
+	//sell
+	v.Price().Transaction(func(v Packet) {
+		fmt.Println("sell", v)
+	})
+
+	v.Start(tk)
+
+	go func() {
+		var initvalue int64 = 100
+		for {
+			time.Sleep(500 * time.Millisecond)
+			tk <- Tick{
+				Price:  initvalue * 2,
+				Volume: initvalue * 100,
+			}
+			initvalue++
+		}
+
+		v.Start(tk)
+	}()
+
+	time.Sleep(time.Hour)
+}
+
 func TestROI(t *testing.T) {
 	tk := make(chan Tick, 1)
 	sg := NewValue(context.TODO(), nil)
@@ -131,15 +172,15 @@ func TestCombineF(t *testing.T) {
 		}
 	}()
 
-	v.Copy().Price().Transaction(func(v Packet) {
+	v.Price().Transaction(func(v Packet) {
 		fmt.Println("price", v)
 	})
 
 	CombineWithF(time.Minute, func(v ...float64) float64 {
 		return v[0]
-	}, v.Copy().Price().Filter(func(value Packet) bool {
+	}, v.Price().Filter(func(value Packet) bool {
 		return value.Value > 0.5
-	}), v.Copy().Volume().ROI(time.Minute).Filter(func(value Packet) bool {
+	}), v.Volume().ROI(time.Minute).Filter(func(value Packet) bool {
 		return value.Value > 0.5
 	})).Transaction(func(v Packet) {
 		fmt.Println(v.Tick)
@@ -148,9 +189,9 @@ func TestCombineF(t *testing.T) {
 
 	CombineWithF(time.Minute, func(v ...float64) float64 {
 		return v[0]
-	}, v.Copy().Price().ROI(30*time.Second).Filter(func(value Packet) bool {
+	}, v.Price().ROI(30*time.Second).Filter(func(value Packet) bool {
 		return value.Value < 0.5
-	}), v.Copy().Volume().ROI(30*time.Second).Filter(func(value Packet) bool {
+	}), v.Volume().ROI(30*time.Second).Filter(func(value Packet) bool {
 		return value.Value < 0.5
 	})).Transaction(func(v Packet) {
 		fmt.Println(v)

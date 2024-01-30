@@ -25,7 +25,6 @@ type Value interface {
 	Volume() Indicator
 	Price() Indicator
 	Filter(f func(Tick) bool) Value
-	Copy() Value
 }
 
 type value struct {
@@ -59,40 +58,6 @@ func (v *value) Start(tick <-chan Tick) {
 			close(v.childs[i])
 		}
 	}()
-}
-
-func (s *value) Copy() Value {
-	childTk := make(chan Tick, 1)
-	downstream := make(chan Tick, 1)
-	s.mu.Lock()
-	s.childs = append(s.childs, childTk)
-	s.mu.Unlock()
-
-	v := value{
-		tk:      downstream,
-		childs:  []chan Tick{},
-		candles: s.candles,
-		ctx:     s.ctx,
-	}
-
-	go func() {
-		defer close(downstream)
-		for tk := range childTk {
-			v.mu.Lock()
-		Done:
-			for i := range v.childs {
-				select {
-				case v.childs[i] <- tk:
-				case <-s.ctx.Done():
-					break Done
-
-				}
-			}
-			v.mu.Unlock()
-		}
-	}()
-
-	return &v
 }
 
 func (s *value) Volume() Indicator {

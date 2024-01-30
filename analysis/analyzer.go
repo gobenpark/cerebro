@@ -26,6 +26,7 @@ import (
 
 type Analyzer interface {
 	event.Listener
+	Next(tk indicator.Tick)
 }
 
 type Engine struct {

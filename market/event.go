@@ -1,6 +1,8 @@
 package market
 
-import "github.com/gobenpark/cerebro/order"
+import (
+	"github.com/gobenpark/cerebro/order"
+)
 
 type MarketEvent interface {
 	String() string

@@ -69,17 +69,18 @@ func (s *Engine) Spawn(ctx context.Context, it []item.Item, tk <-chan indicator.
 				s.log.Error("apply candle error", "code", it[j].Code, "err", err)
 			}
 			v := indicator.NewValue(ctx, cds)
-			s.sts[i].Next(it[j], v.Copy(), prd, s.broker)
+			s.sts[i].Next(it[j], v, prd, s.broker)
 			v.Start(codech)
 		}
 	}
 
+Done:
 	for i := range tk {
 		if c, ok := s.channels[i.Code]; ok {
 			select {
 			case c <- i:
 			case <-ctx.Done():
-				break
+				break Done
 			}
 		}
 	}

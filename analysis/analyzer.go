@@ -17,29 +17,29 @@ package analysis
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/gobenpark/cerebro/event"
 	"github.com/gobenpark/cerebro/indicator"
 	"github.com/gobenpark/cerebro/item"
+	"github.com/gobenpark/cerebro/log"
 )
 
 type Analyzer interface {
 	event.Listener
-	Next(tk indicator.Tick)
+	Next(tk <-chan indicator.Tick)
 }
 
 type Engine struct {
+	logger log.Logger
+	Analyzer
 }
 
-func NewEngine() *Engine {
-	return &Engine{}
+func NewEngine(log log.Logger) *Engine {
+	return &Engine{logger: log}
 }
 
 func (e *Engine) Spawn(ctx context.Context, item []item.Item, tk <-chan indicator.Tick) error {
-	for i := range tk {
-		fmt.Println("analyzer", i)
-	}
+	e.Analyzer.Next(tk)
 	return nil
 }
 

@@ -54,7 +54,9 @@ type Cerebro struct {
 
 	log log.Logger
 
-	analyzer analysis.Engine
+	analyzerEngine *analysis.Engine
+
+	analyzer analysis.Analyzer
 
 	o observer.Observer
 
@@ -94,13 +96,10 @@ func NewCerebro(opts ...Option) *Cerebro {
 		c.log = logger
 	}
 
-	if c.broker == nil {
-		c.broker = broker.NewDefaultBroker(c.eventEngine, c.market, c.log)
-	}
-
-	if c.strategyEngine == nil {
-		c.strategyEngine = strategy.NewEngine(c.log, c.eventEngine, c.broker, c.strategies, c.market, c.cache, c.timeout)
-	}
+	c.broker = broker.NewDefaultBroker(c.eventEngine, c.market, c.log)
+	c.strategyEngine = strategy.NewEngine(c.log, c.eventEngine, c.broker, c.strategies, c.market, c.cache, c.timeout)
+	c.analyzerEngine = analysis.NewEngine(c.log)
+	c.analyzerEngine.Analyzer = c.analyzer
 
 	return c
 }
@@ -147,7 +146,7 @@ func (c *Cerebro) Start(ctx context.Context) error {
 	}()
 
 	go func() {
-		if err := c.analyzer.Spawn(ctx, filterd, ticks[1]); err != nil {
+		if err := c.analyzerEngine.Spawn(ctx, filterd, ticks[1]); err != nil {
 			c.log.Error("analyzer spawn error", "err", err)
 			return
 		}

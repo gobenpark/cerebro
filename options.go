@@ -18,6 +18,7 @@ package cerebro
 import (
 	"time"
 
+	"github.com/gobenpark/cerebro/analysis"
 	"github.com/gobenpark/cerebro/item"
 	"github.com/gobenpark/cerebro/log"
 	"github.com/gobenpark/cerebro/market"
@@ -51,12 +52,11 @@ func WithPreload(b bool) Option {
 	}
 }
 
-//
-//func WithAnalyzer(analyzer analysis.Analyzer) Option {
-//	return func(c *Cerebro) {
-//		c.analyzer = analyzer
-//	}
-//}
+func WithAnalyzer(analyzer analysis.Analyzer) Option {
+	return func(c *Cerebro) {
+		c.analyzer = analyzer
+	}
+}
 
 func WithLogLevel(lvl log.Level) Option {
 	return func(c *Cerebro) {
@@ -73,5 +73,11 @@ func WithStrategy(st ...strategy.Strategy) Option {
 func WithStrategyTimeout(du time.Duration) Option {
 	return func(c *Cerebro) {
 		c.timeout = du
+	}
+}
+
+func WithStartTime(ti string) Option {
+	return func(c *Cerebro) {
+		c.startTime = ti
 	}
 }

@@ -71,6 +71,8 @@ type Cerebro struct {
 	strategies []strategy.Strategy
 
 	timeout time.Duration
+
+	startTime string
 }
 
 // NewCerebro generate new cerebro with cerebro option

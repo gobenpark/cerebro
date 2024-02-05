@@ -141,7 +141,7 @@ func (c *Cerebro) Start(ctx context.Context) error {
 		c.log.Error("store tick error", "error", err)
 		return err
 	}
-	ticks := lo.FanOut(len(c.engines), 1, tk)
+	ticks := lo.FanOut(len(c.engines), 10000, tk)
 
 	for i := range ticks {
 		go func(idx int) {

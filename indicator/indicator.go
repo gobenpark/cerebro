@@ -6,6 +6,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/gobenpark/cerebro/item"
 	"github.com/samber/lo" //nolint:depguard
 )
 
@@ -13,6 +14,7 @@ type Packet struct {
 	Tick    Tick
 	Value   float64
 	Candles Candles
+	Item    *item.Item
 }
 
 // InternalIndicator only for internal use
@@ -25,6 +27,7 @@ type Value interface {
 	Volume() Indicator
 	Price() Indicator
 	Filter(f func(Tick) bool) Value
+	Resample(duration time.Duration)
 }
 
 type value struct {
@@ -33,10 +36,11 @@ type value struct {
 	childs  []chan Tick
 	mu      sync.RWMutex
 	candles Candles
+	itm     *item.Item
 }
 
-func NewValue(ctx context.Context, candles Candles) InternalIndicator {
-	return &value{candles: candles, ctx: ctx}
+func NewValue(ctx context.Context, itm *item.Item) InternalIndicator {
+	return &value{ctx: ctx, itm: itm}
 }
 
 func (v *value) Start(tick <-chan Tick) {
@@ -106,6 +110,59 @@ func (s *value) Price() Indicator {
 		}
 	}()
 	return Indicator{value: downstream, ctx: s.ctx}
+}
+
+func (s *value) Resample(duration time.Duration) {
+	childTk := make(chan Tick, 1)
+	downstream := make(chan Packet, 1)
+	s.mu.Lock()
+	s.childs = append(s.childs, childTk)
+	s.mu.Unlock()
+	go func() {
+		defer close(downstream)
+		ticker := time.NewTicker(duration)
+		go func() {
+		Done:
+			for {
+				select {
+				case <-ticker.C:
+					s.candles = append(s.candles, Candle{
+						Date: time.Now().Truncate(duration),
+						Code: s.itm.Code,
+					})
+				case <-s.ctx.Done():
+					break Done
+				}
+			}
+		}()
+	Done:
+		for msg := range childTk {
+			select {
+			case downstream <- Packet{
+				Value:   float64(msg.Price),
+				Tick:    msg,
+				Candles: s.candles,
+				Item:    s.itm,
+			}:
+				c := s.candles[s.candles.Len()-1]
+				if c.Open == 0 {
+					c.Open = msg.Price
+				}
+				c.Close = msg.Price
+
+				if c.High < msg.Price || c.High == 0 {
+					c.High = msg.Price
+				}
+
+				if c.Low > msg.Price || c.Low == 0 {
+					c.Low = msg.Price
+				}
+				c.Amount += msg.Volume
+			case <-s.ctx.Done():
+				break Done
+			}
+		}
+	}()
 }
 
 func (s *value) Filter(f func(Tick) bool) Value {
@@ -231,6 +288,7 @@ func (s Indicator) ROI(d time.Duration) Indicator {
 					Value:   (end - start) / start * 100,
 					Tick:    v.Tick,
 					Candles: v.Candles,
+					Item:    v.Item,
 				}
 			}
 		}

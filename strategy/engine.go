@@ -29,7 +29,6 @@ import (
 	"github.com/gobenpark/cerebro/log"
 	"github.com/gobenpark/cerebro/market"
 	"github.com/gobenpark/cerebro/order"
-	"github.com/samber/lo"
 )
 
 type Engine struct {
@@ -68,7 +67,7 @@ func (s *Engine) Spawn(ctx context.Context, it []*item.Item, tk <-chan indicator
 			//if err != nil {
 			//	s.log.Error("apply candle error", "code", it[j].Code, "err", err)
 			//}
-			v := indicator.NewValue(ctx, nil)
+			v := indicator.NewValue(ctx, it[j])
 			s.sts[i].Next(it[j], v, nil, s.broker)
 			v.Start(codech)
 		}
@@ -76,20 +75,7 @@ func (s *Engine) Spawn(ctx context.Context, it []*item.Item, tk <-chan indicator
 
 Done:
 	for i := range tk {
-		t, ok := lo.Find[*item.Item](it, func(item *item.Item) bool {
-			return item.Code == i.Code
-		})
-
-		if ok {
-			for i := range s.sts {
-				s.sts[i].Estimation(t, NewCandleProvider(s.store, t))
-			}
-		}
-
 		if c, ok := s.channels[i.Code]; ok {
-			if t.Status() != item.Unactivate {
-				continue
-			}
 			select {
 			case c <- i:
 			case <-ctx.Done():

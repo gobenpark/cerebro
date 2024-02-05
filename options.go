@@ -40,7 +40,7 @@ func WithMarket(s market.Market) Option {
 	}
 }
 
-func WithTargetItem(codes ...item.Item) Option {
+func WithTargetItem(codes ...*item.Item) Option {
 	return func(c *Cerebro) {
 		c.target = codes
 	}

@@ -20,8 +20,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/dgraph-io/badger/v4"
 	"github.com/gobenpark/cerebro/broker"
+	"github.com/gobenpark/cerebro/cache"
 	"github.com/gobenpark/cerebro/engine"
 	"github.com/gobenpark/cerebro/event"
 	"github.com/gobenpark/cerebro/indicator"
@@ -29,13 +29,14 @@ import (
 	"github.com/gobenpark/cerebro/log"
 	"github.com/gobenpark/cerebro/market"
 	"github.com/gobenpark/cerebro/order"
+	"github.com/samber/lo"
 )
 
 type Engine struct {
 	log         log.Logger
 	store       market.Market
 	broker      *broker.Broker
-	cache       *badger.DB
+	cache       *cache.Cache
 	eventEngine *event.Engine
 	channels    map[string]chan indicator.Tick
 	sts         []Strategy
@@ -43,7 +44,7 @@ type Engine struct {
 	mu          sync.Mutex
 }
 
-func NewEngine(log log.Logger, eventEngine *event.Engine, bk *broker.Broker, st []Strategy, store market.Market, cache *badger.DB, timeout time.Duration) engine.Engine {
+func NewEngine(log log.Logger, eventEngine *event.Engine, bk *broker.Broker, st []Strategy, store market.Market, cache *cache.Cache, timeout time.Duration) engine.Engine {
 	return &Engine{
 		broker:      bk,
 		log:         log,
@@ -56,12 +57,11 @@ func NewEngine(log log.Logger, eventEngine *event.Engine, bk *broker.Broker, st 
 	}
 }
 
-func (s *Engine) Spawn(ctx context.Context, it []item.Item, tk <-chan indicator.Tick) error {
-	filtered := []item.Item{}
+func (s *Engine) Spawn(ctx context.Context, it []*item.Item, tk <-chan indicator.Tick) error {
+
 	for i := range s.sts {
 		for j := range it {
 			prd := NewCandleProvider(s.store, it[j])
-			filtered = append(filtered, it[j])
 			codech := make(chan indicator.Tick, 1)
 			s.channels[it[j].Code] = codech
 			cds, err := s.store.Candles(ctx, it[j].Code, market.Day)
@@ -76,7 +76,20 @@ func (s *Engine) Spawn(ctx context.Context, it []item.Item, tk <-chan indicator.
 
 Done:
 	for i := range tk {
+		t, ok := lo.Find[*item.Item](it, func(item *item.Item) bool {
+			return item.Code == i.Code
+		})
+
+		if ok {
+			for i := range s.sts {
+				s.sts[i].Estimation(t, NewCandleProvider(s.store, t))
+			}
+		}
+
 		if c, ok := s.channels[i.Code]; ok {
+			if t.Status() != item.Unactivate {
+				continue
+			}
 			select {
 			case c <- i:
 			case <-ctx.Done():

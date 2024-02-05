@@ -9,6 +9,6 @@ import (
 )
 
 type Engine interface {
-	Spawn(ctx context.Context, item []item.Item, tk <-chan indicator.Tick) error
+	Spawn(ctx context.Context, item []*item.Item, tk <-chan indicator.Tick) error
 	event.Listener
 }

@@ -18,12 +18,12 @@ package cerebro
 import (
 	"context"
 	"fmt"
-	"slices"
 	"time"
 
 	"github.com/dgraph-io/badger/v4"
 	"github.com/gobenpark/cerebro/analysis"
 	"github.com/gobenpark/cerebro/broker"
+	"github.com/gobenpark/cerebro/cache"
 	"github.com/gobenpark/cerebro/engine"
 	"github.com/gobenpark/cerebro/event"
 	"github.com/gobenpark/cerebro/item"
@@ -32,7 +32,6 @@ import (
 	"github.com/gobenpark/cerebro/market"
 	"github.com/gobenpark/cerebro/observer"
 	"github.com/gobenpark/cerebro/order"
-	"github.com/gobenpark/cerebro/position"
 	"github.com/gobenpark/cerebro/strategy"
 	"github.com/samber/lo"
 )
@@ -47,7 +46,7 @@ type Cerebro struct {
 	// broker buy, sell and manage order
 	broker *broker.Broker
 
-	target []item.Item
+	target []*item.Item
 
 	market         market.Market
 	strategyEngine engine.Engine
@@ -66,13 +65,15 @@ type Cerebro struct {
 	// eventEngine engine of management all event
 	eventEngine *event.Engine
 
-	cache *badger.DB
+	cache *cache.Cache
 
 	strategies []strategy.Strategy
 
 	timeout time.Duration
 
 	startTime string
+
+	engines []engine.Engine
 }
 
 // NewCerebro generate new cerebro with cerebro option
@@ -98,9 +99,15 @@ func NewCerebro(opts ...Option) *Cerebro {
 		c.log = logger
 	}
 
+	db, err := badger.Open(badger.DefaultOptions("").WithInMemory(true))
+	if err != nil {
+		panic(err)
+	}
+
+	c.cache = cache.NewCache(db)
 	c.broker = broker.NewDefaultBroker(c.eventEngine, c.market, c.log)
-	c.strategyEngine = strategy.NewEngine(c.log, c.eventEngine, c.broker, c.strategies, c.market, c.cache, c.timeout)
-	c.analyzerEngine = analysis.NewEngine(c.log)
+	c.engines = append(c.engines, strategy.NewEngine(c.log, c.eventEngine, c.broker, c.strategies, c.market, c.cache, c.timeout))
+	c.engines = append(c.engines, analysis.NewEngine(c.log))
 	c.analyzerEngine.Analyzer = c.analyzer
 
 	return c
@@ -122,35 +129,27 @@ func (c *Cerebro) Start(ctx context.Context) error {
 	}
 
 	positions := c.market.AccountPositions()
-	filterd := []item.Item{}
-	for i := range c.strategies {
+	for i := range positions {
 		for j := range c.target {
-			prd := strategy.NewCandleProvider(c.market, c.target[j])
-			if c.strategies[i].Pass(c.target[j], prd) || slices.ContainsFunc(positions, func(position position.Position) bool { return position.Item.Code == c.target[j].Code }) {
-				filterd = append(filterd, c.target[j])
+			if c.target[j].Code == positions[i].Item.Code {
+				c.target[j].UpdateStatus(item.Activate)
 			}
 		}
 	}
 
-	tk, err := c.market.Tick(ctx, filterd...)
+	tk, err := c.market.Tick(ctx, c.target...)
 	if err != nil {
 		c.log.Error("store tick error", "error", err)
 		return err
 	}
-
-	ticks := lo.FanOut(2, 1, tk)
-
-	go func() {
-		if err := c.strategyEngine.Spawn(ctx, filterd, ticks[0]); err != nil {
-			c.log.Error("spawn error", "err", err)
-			return
-		}
-	}()
+	ticks := lo.FanOut(len(c.engines), 1, tk)
 
 	go func() {
-		if err := c.analyzerEngine.Spawn(ctx, filterd, ticks[1]); err != nil {
-			c.log.Error("analyzer spawn error", "err", err)
-			return
+		for i := range ticks {
+			if err := c.engines[i].Spawn(ctx, c.target, ticks[0]); err != nil {
+				c.log.Error("spawn error", "err", err)
+				return
+			}
 		}
 	}()
 
@@ -171,7 +170,7 @@ func (c *Cerebro) Start(ctx context.Context) error {
 			}
 		}
 	}()
-	// event engine settings
+
 	go c.eventEngine.Start(ctx)
 	c.eventEngine.Register <- c.strategyEngine
 	c.eventEngine.Register <- c.broker

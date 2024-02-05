@@ -38,7 +38,7 @@ func NewEngine(log log.Logger) *Engine {
 	return &Engine{logger: log}
 }
 
-func (e *Engine) Spawn(ctx context.Context, item []item.Item, tk <-chan indicator.Tick) error {
+func (e *Engine) Spawn(ctx context.Context, item []*item.Item, tk <-chan indicator.Tick) error {
 	e.Analyzer.Next(tk)
 	return nil
 }

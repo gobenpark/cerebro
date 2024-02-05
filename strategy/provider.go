@@ -15,10 +15,10 @@ type CandleProvider interface {
 
 type provider struct {
 	st  market.Market
-	itm item.Item
+	itm *item.Item
 }
 
-func NewCandleProvider(st market.Market, itm item.Item) CandleProvider {
+func NewCandleProvider(st market.Market, itm *item.Item) CandleProvider {
 	return &provider{st: st, itm: itm}
 }
 

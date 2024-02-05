@@ -179,7 +179,7 @@ func TestCombineF(t *testing.T) {
 		}
 	}()
 
-	v.Resample(time.Minute).Price().Transaction(func(v Packet) {
+	v.Resample(10 * time.Second).Price().Transaction(func(v Packet) {
 		//fmt.Println("price", v)
 	})
 

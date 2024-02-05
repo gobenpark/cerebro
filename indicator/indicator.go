@@ -35,13 +35,13 @@ type value struct {
 	ctx     context.Context
 	tk      <-chan Tick
 	childs  []chan Tick
-	mu      sync.RWMutex
+	mu      *sync.RWMutex
 	candles Candles
 	itm     *item.Item
 }
 
 func NewValue(ctx context.Context, itm *item.Item) InternalIndicator {
-	return &value{ctx: ctx, itm: itm, candles: Candles{}}
+	return &value{ctx: ctx, itm: itm, candles: Candles{}, mu: &sync.RWMutex{}}
 }
 
 func (v *value) Start(tick <-chan Tick) {
@@ -99,15 +99,18 @@ func (s *value) Price() Indicator {
 		defer close(downstream)
 	Done:
 		for msg := range childTk {
+			s.mu.Lock()
 			select {
 			case downstream <- Packet{
 				Value:   float64(msg.Price),
 				Tick:    msg,
 				Candles: s.candles,
 			}:
+				s.mu.Unlock()
 			case <-s.ctx.Done():
 				break Done
 			}
+
 		}
 	}()
 	return Indicator{value: downstream, ctx: s.ctx}
@@ -122,9 +125,10 @@ func (s *value) Resample(duration time.Duration) Value {
 	v := value{
 		tk:      downstream,
 		childs:  []chan Tick{},
-		candles: s.candles,
 		ctx:     s.ctx,
 		itm:     s.itm,
+		mu:      s.mu,
+		candles: s.candles,
 	}
 
 	go func() {
@@ -135,10 +139,12 @@ func (s *value) Resample(duration time.Duration) Value {
 			for {
 				select {
 				case <-ticker.C:
+					s.mu.Lock()
 					v.candles = append(v.candles, Candle{
 						Date: time.Now().Truncate(duration),
 						Code: v.itm.Code,
 					})
+					s.mu.Unlock()
 				case <-s.ctx.Done():
 					break Done
 				}
@@ -149,6 +155,7 @@ func (s *value) Resample(duration time.Duration) Value {
 			for i := range v.childs {
 				select {
 				case v.childs[i] <- tk:
+					s.mu.Lock()
 					if v.candles.Len() == 0 {
 						v.candles = append(v.candles, Candle{
 							Date: time.Now().Truncate(duration),
@@ -156,6 +163,7 @@ func (s *value) Resample(duration time.Duration) Value {
 						})
 					}
 					c := v.candles[v.candles.Len()-1]
+					s.mu.Unlock()
 					if c.Open == 0 {
 						c.Open = tk.Price
 					}
@@ -169,8 +177,10 @@ func (s *value) Resample(duration time.Duration) Value {
 						c.Low = tk.Price
 					}
 					c.Volume += tk.Volume
+					s.mu.Lock()
 					v.candles[v.candles.Len()-1] = c
 					fmt.Printf("%#v\n", v.candles)
+					s.mu.Unlock()
 				case <-s.ctx.Done():
 					break Done
 				}

@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"testing"
 	"time"
+
+	"github.com/gobenpark/cerebro/item"
 )
 
 func TestMean(t *testing.T) {
@@ -148,7 +150,12 @@ func TestFilter(t *testing.T) {
 
 func TestCombineF(t *testing.T) {
 	tk := make(chan Tick, 1)
-	sg := NewValue(context.TODO(), nil)
+	sg := NewValue(context.Background(), &item.Item{
+		Code:     "005930",
+		Name:     "삼성전자",
+		Type:     0,
+		Metadata: nil,
+	})
 	sg.Start(tk)
 
 	v := sg
@@ -172,8 +179,8 @@ func TestCombineF(t *testing.T) {
 		}
 	}()
 
-	v.Price().Transaction(func(v Packet) {
-		fmt.Println("price", v)
+	v.Resample(time.Minute).Price().Transaction(func(v Packet) {
+		//fmt.Println("price", v)
 	})
 
 	CombineWithF(time.Minute, func(v ...float64) float64 {
@@ -183,7 +190,7 @@ func TestCombineF(t *testing.T) {
 	}), v.Volume().ROI(time.Minute).Filter(func(value Packet) bool {
 		return value.Value > 0.5
 	})).Transaction(func(v Packet) {
-		fmt.Println(v.Tick)
+		//fmt.Println(v.Tick)
 
 	})
 
@@ -194,7 +201,7 @@ func TestCombineF(t *testing.T) {
 	}), v.Volume().ROI(30*time.Second).Filter(func(value Packet) bool {
 		return value.Value < 0.5
 	})).Transaction(func(v Packet) {
-		fmt.Println(v)
+		//fmt.Println(v)
 	})
 
 	time.Sleep(time.Hour)

@@ -2,6 +2,7 @@ package indicator
 
 import (
 	"context"
+	"fmt"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -27,7 +28,7 @@ type Value interface {
 	Volume() Indicator
 	Price() Indicator
 	Filter(f func(Tick) bool) Value
-	Resample(duration time.Duration)
+	Resample(duration time.Duration) Value
 }
 
 type value struct {
@@ -40,7 +41,7 @@ type value struct {
 }
 
 func NewValue(ctx context.Context, itm *item.Item) InternalIndicator {
-	return &value{ctx: ctx, itm: itm}
+	return &value{ctx: ctx, itm: itm, candles: Candles{}}
 }
 
 func (v *value) Start(tick <-chan Tick) {
@@ -112,57 +113,71 @@ func (s *value) Price() Indicator {
 	return Indicator{value: downstream, ctx: s.ctx}
 }
 
-func (s *value) Resample(duration time.Duration) {
+func (s *value) Resample(duration time.Duration) Value {
 	childTk := make(chan Tick, 1)
-	downstream := make(chan Packet, 1)
+	downstream := make(chan Tick, 1)
 	s.mu.Lock()
 	s.childs = append(s.childs, childTk)
 	s.mu.Unlock()
+	v := value{
+		tk:      downstream,
+		childs:  []chan Tick{},
+		candles: s.candles,
+		ctx:     s.ctx,
+		itm:     s.itm,
+	}
+
 	go func() {
 		defer close(downstream)
-		ticker := time.NewTicker(duration)
+		ticker := time.NewTicker(30 * time.Second)
 		go func() {
 		Done:
 			for {
 				select {
 				case <-ticker.C:
-					s.candles = append(s.candles, Candle{
+					v.candles = append(v.candles, Candle{
 						Date: time.Now().Truncate(duration),
-						Code: s.itm.Code,
+						Code: v.itm.Code,
 					})
 				case <-s.ctx.Done():
 					break Done
 				}
 			}
 		}()
-	Done:
-		for msg := range childTk {
-			select {
-			case downstream <- Packet{
-				Value:   float64(msg.Price),
-				Tick:    msg,
-				Candles: s.candles,
-				Item:    s.itm,
-			}:
-				c := s.candles[s.candles.Len()-1]
-				if c.Open == 0 {
-					c.Open = msg.Price
-				}
-				c.Close = msg.Price
+		for tk := range childTk {
+		Done:
+			for i := range v.childs {
+				select {
+				case v.childs[i] <- tk:
+					if v.candles.Len() == 0 {
+						v.candles = append(v.candles, Candle{
+							Date: time.Now().Truncate(duration),
+							Code: v.itm.Code,
+						})
+					}
+					c := v.candles[v.candles.Len()-1]
+					if c.Open == 0 {
+						c.Open = tk.Price
+					}
+					c.Close = tk.Price
 
-				if c.High < msg.Price || c.High == 0 {
-					c.High = msg.Price
-				}
+					if c.High < tk.Price || c.High == 0 {
+						c.High = tk.Price
+					}
 
-				if c.Low > msg.Price || c.Low == 0 {
-					c.Low = msg.Price
+					if c.Low > tk.Price || c.Low == 0 {
+						c.Low = tk.Price
+					}
+					c.Volume += tk.Volume
+					v.candles[v.candles.Len()-1] = c
+					fmt.Printf("%#v\n", v.candles)
+				case <-s.ctx.Done():
+					break Done
 				}
-				c.Amount += msg.Volume
-			case <-s.ctx.Done():
-				break Done
 			}
 		}
 	}()
+	return &v
 }
 
 func (s *value) Filter(f func(Tick) bool) Value {

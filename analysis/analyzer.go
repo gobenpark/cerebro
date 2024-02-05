@@ -30,16 +30,16 @@ type Analyzer interface {
 }
 
 type Engine struct {
-	logger log.Logger
-	Analyzer
+	logger   log.Logger
+	analyzer Analyzer
 }
 
-func NewEngine(log log.Logger) *Engine {
-	return &Engine{logger: log}
+func NewEngine(log log.Logger, analyzer Analyzer) *Engine {
+	return &Engine{logger: log, analyzer: analyzer}
 }
 
 func (e *Engine) Spawn(ctx context.Context, item []*item.Item, tk <-chan indicator.Tick) error {
-	e.Analyzer.Next(tk)
+	e.analyzer.Next(tk)
 	return nil
 }
 

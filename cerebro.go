@@ -107,8 +107,7 @@ func NewCerebro(opts ...Option) *Cerebro {
 	c.cache = cache.NewCache(db)
 	c.broker = broker.NewDefaultBroker(c.eventEngine, c.market, c.log)
 	c.engines = append(c.engines, strategy.NewEngine(c.log, c.eventEngine, c.broker, c.strategies, c.market, c.cache, c.timeout))
-	c.engines = append(c.engines, analysis.NewEngine(c.log))
-	c.analyzerEngine.Analyzer = c.analyzer
+	c.engines = append(c.engines, analysis.NewEngine(c.log, c.analyzer))
 
 	return c
 }

@@ -143,14 +143,15 @@ func (c *Cerebro) Start(ctx context.Context) error {
 	}
 	ticks := lo.FanOut(len(c.engines), 1, tk)
 
-	go func() {
-		for i := range ticks {
-			if err := c.engines[i].Spawn(ctx, c.target, ticks[0]); err != nil {
+	for i := range ticks {
+		go func(idx int) {
+			if err := c.engines[idx].Spawn(ctx, c.target, ticks[idx]); err != nil {
 				c.log.Error("spawn error", "err", err)
 				return
 			}
-		}
-	}()
+		}(i)
+
+	}
 
 	go func() {
 		ch := c.market.Events(ctx)

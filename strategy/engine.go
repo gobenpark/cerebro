@@ -61,15 +61,15 @@ func (s *Engine) Spawn(ctx context.Context, it []*item.Item, tk <-chan indicator
 
 	for i := range s.sts {
 		for j := range it {
-			prd := NewCandleProvider(s.store, it[j])
 			codech := make(chan indicator.Tick, 1)
 			s.channels[it[j].Code] = codech
-			cds, err := s.store.Candles(ctx, it[j].Code, market.Day)
-			if err != nil {
-				s.log.Error("apply candle error", "code", it[j].Code, "err", err)
-			}
-			v := indicator.NewValue(ctx, cds)
-			s.sts[i].Next(it[j], v, prd, s.broker)
+			//prd := NewCandleProvider(s.store, it[j])
+			//cds, err := s.store.Candles(ctx, it[j].Code, market.Day)
+			//if err != nil {
+			//	s.log.Error("apply candle error", "code", it[j].Code, "err", err)
+			//}
+			v := indicator.NewValue(ctx, nil)
+			s.sts[i].Next(it[j], v, nil, s.broker)
 			v.Start(codech)
 		}
 	}

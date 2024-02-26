@@ -11,7 +11,13 @@ import (
 	"github.com/gobenpark/cerebro/position"
 )
 
-type CandleType int
+type (
+	CandleType int
+
+	TickEventHandler    func() item.Item
+	AccountEventHandler func()
+	OrderEventHandler   func()
+)
 
 const (
 	Min CandleType = iota + 1
@@ -26,11 +32,10 @@ const (
 type Market interface {
 	Stocks(ctx context.Context) []*item.Item
 	Candles(ctx context.Context, code string, level CandleType) (indicator.Candles, error)
-	Tick(ctx context.Context, item ...*item.Item) (<-chan indicator.Tick, error)
-	UID() string
+	Subscribe(event interface{}) error
 	Order(ctx context.Context, o order.Order) error
 	AccountPositions() []position.Position
 	AccountBalance() int64
-	Events(ctx context.Context) <-chan MarketEvent
+	Events(ctx context.Context) <-chan interface{}
 	Commission() float64
 }

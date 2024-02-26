@@ -41,10 +41,8 @@ func NewEngine(log log.Logger, analyzer Analyzer) *Engine {
 	return &Engine{logger: log, analyzer: analyzer}
 }
 
-func (e *Engine) Spawn(ctx context.Context, item []*item.Item, tk <-chan indicator.Tick) error {
-	e.analyzer.Next(tk)
-	return nil
+func (e *Engine) Spawn(ctx context.Context, item []*item.Item) {
 }
 
-func (e *Engine) Listen(i interface{}) {
+func (e *Engine) Listen(ctx context.Context, i interface{}) {
 }

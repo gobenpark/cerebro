@@ -21,7 +21,6 @@ import (
 	"time"
 
 	"github.com/gobenpark/cerebro/broker"
-	"github.com/gobenpark/cerebro/cache"
 	"github.com/gobenpark/cerebro/engine"
 	"github.com/gobenpark/cerebro/event"
 	"github.com/gobenpark/cerebro/indicator"
@@ -35,7 +34,6 @@ type Engine struct {
 	log         log.Logger
 	store       market.Market
 	broker      *broker.Broker
-	cache       *cache.Cache
 	eventEngine *event.Engine
 	channels    map[string]chan indicator.Tick
 	sts         []Strategy
@@ -43,20 +41,19 @@ type Engine struct {
 	mu          sync.Mutex
 }
 
-func NewEngine(log log.Logger, eventEngine *event.Engine, bk *broker.Broker, st []Strategy, store market.Market, cache *cache.Cache, timeout time.Duration) engine.Engine {
+func NewEngine(log log.Logger, eventEngine *event.Engine, bk *broker.Broker, st []Strategy, store market.Market, timeout time.Duration) engine.Engine {
 	return &Engine{
 		broker:      bk,
 		log:         log,
 		store:       store,
 		timeout:     timeout,
-		cache:       cache,
 		eventEngine: eventEngine,
 		channels:    map[string]chan indicator.Tick{},
 		sts:         st,
 	}
 }
 
-func (s *Engine) Spawn(ctx context.Context, it []*item.Item, tk <-chan indicator.Tick) error {
+func (s *Engine) Spawn(ctx context.Context, it []*item.Item) {
 
 	for i := range s.sts {
 		for j := range it {
@@ -72,28 +69,24 @@ func (s *Engine) Spawn(ctx context.Context, it []*item.Item, tk <-chan indicator
 			v.Start(codech)
 		}
 	}
-
-Done:
-	for i := range tk {
-		if c, ok := s.channels[i.Code]; ok {
-			select {
-			case c <- i:
-			case <-ctx.Done():
-				break Done
-			}
-		}
-	}
 	for i := range s.channels {
 		close(s.channels[i])
 	}
-	return nil
 }
 
-func (s *Engine) Listen(e interface{}) {
+func (s *Engine) Listen(ctx context.Context, e interface{}) {
 	switch et := e.(type) {
 	case order.Order:
 		for _, st := range s.sts {
 			st.NotifyOrder(et)
+		}
+	case indicator.Tick:
+		if c, ok := s.channels[et.Code]; ok {
+			select {
+			case c <- et:
+			case <-ctx.Done():
+				break
+			}
 		}
 	}
 }

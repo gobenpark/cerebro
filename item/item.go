@@ -29,7 +29,7 @@ type Item struct {
 	status   Status
 }
 
-func (i *Item) String() string {
+func (i Item) String() string {
 	return fmt.Sprintf("[%s,%s]", i.Code, i.Name)
 }
 

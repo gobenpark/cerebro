@@ -22,7 +22,7 @@ import (
 	"github.com/samber/lo"
 )
 
-type Candles []Candle
+type Candles []*Candle
 
 func (c Candles) Len() int {
 	return len(c)
@@ -85,7 +85,7 @@ func (c Candles) MACD(fast, slow, signal int) (macdLine []Indicate[float64], sig
 		return result
 	}
 
-	cds := lo.Map[Candle](c, func(item Candle, index int) float64 {
+	cds := lo.Map[*Candle](c, func(item *Candle, index int) float64 {
 		return float64(item.Close)
 	})
 

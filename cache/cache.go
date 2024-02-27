@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/dgraph-io/badger/v4"
+	"github.com/gobenpark/cerebro/indicator"
 	"github.com/gobenpark/cerebro/internal/pkg"
 	"github.com/gobenpark/cerebro/position"
 	jsoniter "github.com/json-iterator/go"
@@ -12,16 +13,17 @@ import (
 var json = jsoniter.ConfigCompatibleWithStandardLibrary
 
 type (
-	Prefix string
-	Key    func(ticker string) []byte
+	Key func(ticker string) []byte
 )
 
 const (
-	PositionPrefix Prefix = "position"
+	positionPrefix = "position"
+	counterPrefix  = "counter"
 )
 
 var (
-	Position Key = func(ticker string) []byte { return pkg.StringToBytes(fmt.Sprintf("%s:%s", PositionPrefix, ticker)) }
+	Position Key = func(ticker string) []byte { return pkg.StringToBytes(fmt.Sprintf("%s:%s", positionPrefix, ticker)) }
+	Counter  Key = func(ticker string) []byte { return pkg.StringToBytes(fmt.Sprintf("%s:%s", counterPrefix, ticker)) }
 )
 
 type Cache struct {
@@ -47,7 +49,7 @@ func (c *Cache) GetPosition(ticker string) (position.Position, error) {
 }
 
 func (c *Cache) InitializePosition(p []position.Position) error {
-	if err := c.cache.DropPrefix(pkg.StringToBytes(string(PositionPrefix))); err != nil {
+	if err := c.cache.DropPrefix(pkg.StringToBytes(positionPrefix)); err != nil {
 		return err
 	}
 
@@ -98,4 +100,7 @@ func (c *Cache) Positions() []position.Position {
 		return nil
 	})
 	return positions
+}
+
+func (c *Cache) AddCounter(tk indicator.Tick) {
 }

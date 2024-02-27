@@ -88,7 +88,7 @@ func Resample(tk []Tick, compress time.Duration) Candles {
 	cds := Candles{}
 	for i := range tk {
 		if len(cds) == 0 {
-			cds = append(cds, Candle{
+			cds = append(cds, &Candle{
 				Open:   tk[i].Price,
 				High:   tk[i].Price,
 				Low:    tk[i].Price,
@@ -113,7 +113,7 @@ func Resample(tk []Tick, compress time.Duration) Candles {
 			}
 			cds[len(cds)-1] = last
 		} else {
-			cds = append(cds, Candle{
+			cds = append(cds, &Candle{
 				Open:   tk[i].Price,
 				High:   tk[i].Price,
 				Low:    tk[i].Price,

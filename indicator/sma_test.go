@@ -25,7 +25,7 @@ import (
 //var samplejson []byte
 //
 //func TestSma_Calculate(t *testing.T) {
-//	var data container.Candles
+//	var data container.candles
 //	err := json.Unmarshal(samplejson, &data)
 //	require.NoError(t, err)
 //

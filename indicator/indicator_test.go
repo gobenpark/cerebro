@@ -128,7 +128,7 @@ func TestFilter(t *testing.T) {
 			}
 			initvalue++
 
-			if initvalue == 100 {
+			if initvalue == 1000000 {
 				close(tk)
 				break Done
 			}
@@ -179,8 +179,8 @@ func TestCombineF(t *testing.T) {
 		}
 	}()
 
-	v.Resample(10 * time.Second).Price().Transaction(func(v Packet) {
-		//fmt.Println("price", v)
+	v.Price().Resample(5 * time.Second).Transaction(func(v Packet) {
+		fmt.Println(v.Candles)
 	})
 
 	CombineWithF(time.Minute, func(v ...float64) float64 {

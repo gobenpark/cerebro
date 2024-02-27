@@ -21,7 +21,7 @@ import (
 )
 
 type Position struct {
-	Item  item.Item
+	Item  *item.Item
 	Size  int64 `json:"size"`
 	Price int64 `json:"price"`
 }

@@ -28,7 +28,7 @@ package indicator
 //	return &sma{period: period, limit: limit}
 //}
 //
-//func (s *sma) Calculate(candles Candles) {
+//func (s *sma) Calculate(candles candles) {
 //
 //	U := []int{}
 //	D := []int{}

@@ -63,7 +63,7 @@ func (s *Engine) Spawn(ctx context.Context, it []*item.Item, tk <-chan indicator
 			codech := make(chan indicator.Tick, 1)
 			s.channels[it[j].Code] = codech
 			//prd := NewCandleProvider(s.store, it[j])
-			//cds, err := s.store.Candles(ctx, it[j].Code, market.Day)
+			//cds, err := s.store.candles(ctx, it[j].Code, market.Day)
 			//if err != nil {
 			//	s.log.Error("apply candle error", "code", it[j].Code, "err", err)
 			//}

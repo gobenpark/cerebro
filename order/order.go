@@ -63,7 +63,7 @@ const (
 
 type Order interface {
 	ID() string
-	Item() item.Item
+	Item() *item.Item
 	Type() OrderType
 	Reject()
 	Expire()
@@ -87,7 +87,7 @@ type Order interface {
 type order struct {
 	createdAt     time.Time    `json:"createdAt"`
 	updatedAt     time.Time    `json:"updatedAt"`
-	item          item.Item    `json:"item"`
+	item          *item.Item   `json:"item"`
 	uuid          string       `json:"uuid"`
 	action        Action       `json:"action"`
 	OrderType     OrderType    `json:"orderType"`
@@ -98,7 +98,7 @@ type order struct {
 	status        Status       `json:"status"`
 }
 
-func NewOrder(item item.Item, action Action, execType OrderType, size int64, price int64) Order {
+func NewOrder(item *item.Item, action Action, execType OrderType, size int64, price int64) Order {
 	return &order{
 		status:        Created,
 		action:        action,
@@ -142,7 +142,7 @@ func (o *order) Action() Action {
 	return o.action
 }
 
-func (o *order) Item() item.Item {
+func (o *order) Item() *item.Item {
 	o.mu.Lock()
 	defer o.mu.Unlock()
 	return o.item

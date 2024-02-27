@@ -2,7 +2,6 @@ package indicator
 
 import (
 	"context"
-	"fmt"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -14,8 +13,8 @@ import (
 type Packet struct {
 	Tick    Tick
 	Value   float64
-	Candles Candles
 	Item    *item.Item
+	Candles Candles
 }
 
 // InternalIndicator only for internal use
@@ -28,20 +27,18 @@ type Value interface {
 	Volume() Indicator
 	Price() Indicator
 	Filter(f func(Tick) bool) Value
-	Resample(duration time.Duration) Value
 }
 
 type value struct {
-	ctx     context.Context
-	tk      <-chan Tick
-	childs  []chan Tick
-	mu      *sync.RWMutex
-	candles Candles
-	itm     *item.Item
+	ctx    context.Context
+	tk     <-chan Tick
+	childs []chan Tick
+	mu     *sync.RWMutex
+	itm    *item.Item
 }
 
 func NewValue(ctx context.Context, itm *item.Item) InternalIndicator {
-	return &value{ctx: ctx, itm: itm, candles: Candles{}, mu: &sync.RWMutex{}}
+	return &value{ctx: ctx, itm: itm, mu: &sync.RWMutex{}}
 }
 
 func (v *value) Start(tick <-chan Tick) {
@@ -77,9 +74,8 @@ func (s *value) Volume() Indicator {
 		for msg := range childTk {
 			select {
 			case downstream <- Packet{
-				Value:   float64(msg.Volume),
-				Tick:    msg,
-				Candles: s.candles,
+				Value: float64(msg.Volume),
+				Tick:  msg,
 			}:
 			case <-s.ctx.Done():
 				break Done
@@ -99,14 +95,11 @@ func (s *value) Price() Indicator {
 		defer close(downstream)
 	Done:
 		for msg := range childTk {
-			s.mu.Lock()
 			select {
 			case downstream <- Packet{
-				Value:   float64(msg.Price),
-				Tick:    msg,
-				Candles: s.candles,
+				Value: float64(msg.Price),
+				Tick:  msg,
 			}:
-				s.mu.Unlock()
 			case <-s.ctx.Done():
 				break Done
 			}
@@ -114,80 +107,6 @@ func (s *value) Price() Indicator {
 		}
 	}()
 	return Indicator{value: downstream, ctx: s.ctx}
-}
-
-func (s *value) Resample(duration time.Duration) Value {
-	childTk := make(chan Tick, 1)
-	downstream := make(chan Tick, 1)
-	s.mu.Lock()
-	s.childs = append(s.childs, childTk)
-	s.mu.Unlock()
-	v := value{
-		tk:      downstream,
-		childs:  []chan Tick{},
-		ctx:     s.ctx,
-		itm:     s.itm,
-		mu:      s.mu,
-		candles: s.candles,
-	}
-
-	go func() {
-		defer close(downstream)
-		ticker := time.NewTicker(30 * time.Second)
-		go func() {
-		Done:
-			for {
-				select {
-				case <-ticker.C:
-					s.mu.Lock()
-					v.candles = append(v.candles, Candle{
-						Date: time.Now().Truncate(duration),
-						Code: v.itm.Code,
-					})
-					s.mu.Unlock()
-				case <-s.ctx.Done():
-					break Done
-				}
-			}
-		}()
-		for tk := range childTk {
-		Done:
-			for i := range v.childs {
-				select {
-				case v.childs[i] <- tk:
-					s.mu.Lock()
-					if v.candles.Len() == 0 {
-						v.candles = append(v.candles, Candle{
-							Date: time.Now().Truncate(duration),
-							Code: v.itm.Code,
-						})
-					}
-					c := v.candles[v.candles.Len()-1]
-					s.mu.Unlock()
-					if c.Open == 0 {
-						c.Open = tk.Price
-					}
-					c.Close = tk.Price
-
-					if c.High < tk.Price || c.High == 0 {
-						c.High = tk.Price
-					}
-
-					if c.Low > tk.Price || c.Low == 0 {
-						c.Low = tk.Price
-					}
-					c.Volume += tk.Volume
-					s.mu.Lock()
-					v.candles[v.candles.Len()-1] = c
-					fmt.Printf("%#v\n", v.candles)
-					s.mu.Unlock()
-				case <-s.ctx.Done():
-					break Done
-				}
-			}
-		}
-	}()
-	return &v
 }
 
 func (s *value) Filter(f func(Tick) bool) Value {
@@ -198,9 +117,8 @@ func (s *value) Filter(f func(Tick) bool) Value {
 	s.mu.Unlock()
 
 	v := value{
-		tk:      downstream,
-		childs:  []chan Tick{},
-		candles: s.candles,
+		tk:     downstream,
+		childs: []chan Tick{},
 	}
 
 	go func() {
@@ -233,7 +151,6 @@ func (s Indicator) Mean(d time.Duration) Indicator {
 	tk := []float64{}
 	ticker := time.NewTicker(d)
 	rawdata := Tick{}
-	candles := Candles{}
 
 	go func() {
 		defer close(downstream)
@@ -248,9 +165,8 @@ func (s Indicator) Mean(d time.Duration) Indicator {
 				}
 				value := sum / float64(len(tk))
 				downstream <- Packet{
-					Value:   value,
-					Tick:    rawdata,
-					Candles: candles,
+					Value: value,
+					Tick:  rawdata,
 				}
 				tk = []float64{}
 			case tick, ok := <-s.value:
@@ -259,7 +175,6 @@ func (s Indicator) Mean(d time.Duration) Indicator {
 				}
 				rawdata = tick.Tick
 				tk = append(tk, tick.Value)
-				candles = tick.Candles
 			}
 		}
 	}()
@@ -310,10 +225,9 @@ func (s Indicator) ROI(d time.Duration) Indicator {
 				}
 
 				downstream <- Packet{
-					Value:   (end - start) / start * 100,
-					Tick:    v.Tick,
-					Candles: v.Candles,
-					Item:    v.Item,
+					Value: (end - start) / start * 100,
+					Tick:  v.Tick,
+					Item:  v.Item,
 				}
 			}
 		}
@@ -386,7 +300,7 @@ func CombineWithF(minimumWait time.Duration, f func(v ...float64) float64, indic
 
 					s[idx] = v.Value
 					if atomic.LoadUint32(&counter) == size {
-						downstream <- Packet{Value: f(s...), Tick: v.Tick, Candles: v.Candles}
+						downstream <- Packet{Value: f(s...), Tick: v.Tick}
 						atomic.StoreUint32(&counter, 0)
 						s = make([]float64, size)
 					}
@@ -404,4 +318,63 @@ func CombineWithF(minimumWait time.Duration, f func(v ...float64) float64, indic
 		defer close(downstream)
 	}()
 	return Indicator{value: downstream}
+}
+
+func (s Indicator) Resample(d time.Duration) Indicator {
+	downstream := make(chan Packet, 1)
+	ticker := time.NewTicker(d)
+
+	var candles Candles
+
+	go func() {
+		defer close(downstream)
+	Done:
+		for {
+			select {
+			case i := <-ticker.C:
+				candles = append(candles, &Candle{
+					Date: i.Local().Truncate(d),
+				})
+			case v, ok := <-s.value:
+				if !ok {
+					break Done
+				}
+				if candles == nil {
+					candles = append(candles, &Candle{
+						Date: time.Now().Truncate(d),
+						Code: v.Tick.Code,
+					})
+				}
+				c := candles[candles.Len()-1]
+				if c.Open == 0 {
+					c.Open = v.Tick.Price
+				}
+				c.Close = v.Tick.Price
+
+				if c.High < v.Tick.Price || c.High == 0 {
+					c.High = v.Tick.Price
+				}
+
+				if c.Low > v.Tick.Price || c.Low == 0 {
+					c.Low = v.Tick.Price
+				}
+				c.Volume += v.Tick.Volume
+				c.Code = v.Tick.Code
+				select {
+				case downstream <- Packet{
+					Value:   v.Value,
+					Tick:    v.Tick,
+					Item:    v.Item,
+					Candles: candles,
+				}:
+				case <-s.ctx.Done():
+					break Done
+
+				}
+			case <-s.ctx.Done():
+				break Done
+			}
+		}
+	}()
+	return Indicator{value: downstream, ctx: s.ctx}
 }

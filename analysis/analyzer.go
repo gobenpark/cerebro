@@ -16,7 +16,6 @@
 package analysis
 
 import (
-	"github.com/gobenpark/cerebro/cache"
 	"github.com/gobenpark/cerebro/event"
 	"github.com/gobenpark/cerebro/indicator"
 	"github.com/gobenpark/cerebro/item"
@@ -36,7 +35,6 @@ type Analyzer interface {
 type Engine struct {
 	logger   log.Logger
 	analyzer Analyzer
-	cache    *cache.Cache
 }
 
 func NewEngine(log log.Logger, analyzer Analyzer) *Engine {

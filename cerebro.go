@@ -107,6 +107,7 @@ func (c *Cerebro) Start(ctx context.Context) error {
 	c.cancel = cancel
 
 	c.log.Info("Cerebro starting ...")
+	go c.eventEngine.Start(ctx)
 
 	if len(c.target) == 0 {
 		return fmt.Errorf("error need target setting")
@@ -128,8 +129,13 @@ func (c *Cerebro) Start(ctx context.Context) error {
 	for i := range c.engines {
 		go func(idx int) {
 			c.engines[idx].Spawn(ctx, c.target)
+			c.eventEngine.Register <- c.engines[idx]
 		}(i)
 	}
+
+	c.market.Subscribe(func() []*item.Item {
+		return c.target
+	})
 
 	go func() {
 		ch := c.market.Events(ctx)
@@ -148,10 +154,6 @@ func (c *Cerebro) Start(ctx context.Context) error {
 			}
 		}
 	}()
-
-	go c.eventEngine.Start(ctx)
-	c.eventEngine.Register <- c.strategyEngine
-	c.eventEngine.Register <- c.broker
 
 	return nil
 }

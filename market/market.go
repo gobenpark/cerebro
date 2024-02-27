@@ -14,7 +14,7 @@ import (
 type (
 	CandleType int
 
-	TickEventHandler    func() item.Item
+	TickEventHandler    func() []*item.Item
 	AccountEventHandler func()
 	OrderEventHandler   func()
 )

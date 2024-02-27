@@ -69,9 +69,7 @@ func (s *Engine) Spawn(ctx context.Context, it []*item.Item) {
 			v.Start(codech)
 		}
 	}
-	for i := range s.channels {
-		close(s.channels[i])
-	}
+
 }
 
 func (s *Engine) Listen(ctx context.Context, e interface{}) {

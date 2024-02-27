@@ -22,7 +22,6 @@ import (
 	"slices"
 	"sync"
 
-	"github.com/gobenpark/cerebro/cache"
 	"github.com/gobenpark/cerebro/event"
 	"github.com/gobenpark/cerebro/log"
 	"github.com/gobenpark/cerebro/market"
@@ -34,7 +33,6 @@ import (
 
 type Broker struct {
 	EventEngine      event.Broadcaster
-	brokerCache      cache.Cache
 	market           market.Market
 	logger           log.Logger
 	orders           []order.Order
@@ -153,7 +151,7 @@ func (b *Broker) completeOrder(o order.Order) {
 	})
 }
 
-func (b *Broker) Listen(e interface{}) {
+func (b *Broker) Listen(ctx context.Context, e interface{}) {
 
 	if m, ok := e.(order.Order); ok {
 		if m.Status() == order.Submitted {

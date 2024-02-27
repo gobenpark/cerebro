@@ -18,11 +18,13 @@
 
 package event
 
+import "context"
+
 type Event interface {
 }
 
 type Listener interface {
-	Listen(e interface{})
+	Listen(ctx context.Context, e interface{})
 }
 
 type Broadcaster interface {

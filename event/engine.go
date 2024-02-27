@@ -45,7 +45,7 @@ Done:
 			break Done
 		case evt := <-e.broadcast:
 			for c := range e.childEvent {
-				c.Listen(evt)
+				c.Listen(ctx, evt)
 			}
 		case cli := <-e.Register:
 			if cli != nil {

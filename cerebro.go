@@ -20,10 +20,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/dgraph-io/badger/v4"
 	"github.com/gobenpark/cerebro/analysis"
 	"github.com/gobenpark/cerebro/broker"
-	"github.com/gobenpark/cerebro/cache"
 	"github.com/gobenpark/cerebro/engine"
 	"github.com/gobenpark/cerebro/event"
 	"github.com/gobenpark/cerebro/item"
@@ -33,7 +31,6 @@ import (
 	"github.com/gobenpark/cerebro/observer"
 	"github.com/gobenpark/cerebro/order"
 	"github.com/gobenpark/cerebro/strategy"
-	"github.com/samber/lo"
 )
 
 // Cerebro head of trading system
@@ -64,8 +61,6 @@ type Cerebro struct {
 	order chan order.Order
 	// eventEngine engine of management all event
 	eventEngine *event.Engine
-
-	cache *cache.Cache
 
 	strategies []strategy.Strategy
 
@@ -99,18 +94,9 @@ func NewCerebro(opts ...Option) *Cerebro {
 		c.log = logger
 	}
 
-	db, err := badger.Open(badger.DefaultOptions("").WithInMemory(true))
-	if err != nil {
-		panic(err)
-	}
-
-	c.cache = cache.NewCache(db)
 	c.broker = broker.NewDefaultBroker(c.eventEngine, c.market, c.log)
-	c.engines = append(c.engines, strategy.NewEngine(c.log, c.eventEngine, c.broker, c.strategies, c.market, c.cache, c.timeout))
-
-	if c.analyzer != nil {
-		c.engines = append(c.engines, analysis.NewEngine(c.log, c.analyzer))
-	}
+	c.engines = append(c.engines, strategy.NewEngine(c.log, c.eventEngine, c.broker, c.strategies, c.market, c.timeout))
+	c.engines = append(c.engines, analysis.NewEngine(c.log, c.analyzer))
 
 	return c
 }
@@ -139,21 +125,10 @@ func (c *Cerebro) Start(ctx context.Context) error {
 		}
 	}
 
-	tk, err := c.market.Tick(ctx, c.target...)
-	if err != nil {
-		c.log.Error("store tick error", "error", err)
-		return err
-	}
-	ticks := lo.FanOut(len(c.engines), 10000, tk)
-
-	for i := range ticks {
+	for i := range c.engines {
 		go func(idx int) {
-			if err := c.engines[idx].Spawn(ctx, c.target, ticks[idx]); err != nil {
-				c.log.Error("spawn error", "err", err)
-				return
-			}
+			c.engines[idx].Spawn(ctx, c.target)
 		}(i)
-
 	}
 
 	go func() {

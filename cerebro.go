@@ -128,14 +128,10 @@ func (c *Cerebro) Start(ctx context.Context) error {
 
 	for i := range c.engines {
 		go func(idx int) {
-			c.engines[idx].Spawn(ctx, c.target)
 			c.eventEngine.Register <- c.engines[idx]
+			c.engines[idx].Spawn(ctx, c.target)
 		}(i)
 	}
-
-	c.market.Subscribe(func() []*item.Item {
-		return c.target
-	})
 
 	go func() {
 		ch := c.market.Events(ctx)

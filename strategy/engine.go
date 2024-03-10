@@ -54,22 +54,27 @@ func NewEngine(log log.Logger, eventEngine *event.Engine, bk *broker.Broker, st 
 }
 
 func (s *Engine) Spawn(ctx context.Context, it []*item.Item) {
+	for i := range it {
 
-	for i := range s.sts {
-		for j := range it {
-			codech := make(chan indicator.Tick, 1)
-			s.channels[it[j].Code] = codech
-			//prd := NewCandleProvider(s.store, it[j])
-			//cds, err := s.store.candles(ctx, it[j].Code, market.Day)
-			//if err != nil {
-			//	s.log.Error("apply candle error", "code", it[j].Code, "err", err)
-			//}
-			v := indicator.NewValue(ctx, it[j])
-			s.sts[i].Next(it[j], v, nil, s.broker)
-			v.Start(codech)
+		s.channels[it[i].Code] = make(chan indicator.Tick, 100)
+		if err := s.manager(ctx, it[i]); err != nil {
+			s.log.Error("manager", "err", err)
+			continue
 		}
 	}
+}
 
+func (s *Engine) manager(ctx context.Context, itm *item.Item) error {
+	for i := range s.sts {
+		time.Sleep(time.Second)
+		if err := s.store.Subscribe(func() []*item.Item {
+			return []*item.Item{itm}
+		}); err != nil {
+			return err
+		}
+		s.sts[i].Next(itm, s.channels[itm.Code], s.broker)
+	}
+	return nil
 }
 
 func (s *Engine) Listen(ctx context.Context, e interface{}) {

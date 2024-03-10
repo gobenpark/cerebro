@@ -27,9 +27,7 @@ import (
 type CandleType int
 
 type Strategy interface {
-	Next(it *item.Item, indicator indicator.Value, c CandleProvider, b *broker.Broker)
-	// Filter is when pass or not for strategy if true then pass else not pass
-	Estimation(itm *item.Item, c CandleProvider)
+	Next(it *item.Item, tick <-chan indicator.Tick, b *broker.Broker)
 	//NotifyOrder is when event rise order then called
 	NotifyOrder(o order.Order)
 	NotifyTrade()

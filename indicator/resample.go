@@ -29,11 +29,29 @@ var (
 )
 
 // Rasampler is resample for realtime tick data
-func Resampler(last *Candle, tk Tick, compress time.Duration) error {
+func Resampler(cds Candles, tk Tick, compress time.Duration) Candles {
+	if cds.Len() == 0 {
+		return Candles{
+			{
+				Date:          tk.Date.Truncate(compress),
+				Code:          tk.Code,
+				Open:          tk.Price,
+				High:          tk.Price,
+				Low:           tk.Price,
+				Close:         tk.Price,
+				Volume:        tk.Volume,
+				Amount:        0,
+				IndicateValue: 0,
+			},
+		}
+	}
+	last := cds[cds.Len()-1]
 	d := last.Date.Add(compress).Truncate(compress)
 
 	if tk.Date.After(d) {
-		return ErrOverDate
+		last = &Candle{}
+		cds = append(cds, last)
+		return cds
 	}
 	last.Close = tk.Price
 	last.Volume += tk.Volume
@@ -43,7 +61,7 @@ func Resampler(last *Candle, tk Tick, compress time.Duration) error {
 	if last.High < tk.Price {
 		last.High = tk.Price
 	}
-	return nil
+	return cds
 }
 
 func ResampleCandle(compress time.Duration, tick ...Tick) Candle {

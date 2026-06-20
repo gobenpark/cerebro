@@ -49,13 +49,13 @@ func (c Candles) StandardDeviation() float64 {
 	total := 0.0
 	for i := range c {
 		diff := float64(c[i].Close) - mean
-		total += math.Pow(diff, 2)
+		total += diff * diff
 	}
 	variance := total / float64(c.Len()-1)
 	return math.Sqrt(variance)
 }
 
-func (c Candles) MACD(fast, slow, signal int) (macdLine []Indicate[float64], signalLine []Indicate[float64]) {
+func (c Candles) MACD(fast, slow, signal int) (macdLine, signalLine []Indicate[float64]) {
 	if fast == 0 {
 		fast = 12
 	}
@@ -113,10 +113,9 @@ func (c Candles) MACD(fast, slow, signal int) (macdLine []Indicate[float64], sig
 	return
 }
 
-// calculate bollinger band with candle
-// period is the number of candles to calculate the mean and standard deviation of the candle
-// period must be greater than 1 and day
-func (c Candles) BollingerBand(period int) (bottom []Indicate[float64], mid []Indicate[float64], top []Indicate[float64]) {
+// BollingerBand calculates the bollinger band over period candles, returning the
+// bottom, middle, and top bands. period must be greater than 1.
+func (c Candles) BollingerBand(period int) (bottom, mid, top []Indicate[float64]) {
 	candleLength := c.Len()
 	if candleLength < period {
 		return
@@ -202,7 +201,7 @@ func (c Candles) StochasticSlow(k, d, period int) (K, D []Indicate[float64]) {
 
 	K = make([]Indicate[float64], c.Len())
 	D = make([]Indicate[float64], c.Len())
-	faskK, _ := c.StochasticFast(k, d, period)
+	faskK, _ := c.StochasticFast(d, period)
 
 	for i := range faskK {
 		if i < k-1 {
@@ -245,11 +244,7 @@ func (c Candles) StochasticSlow(k, d, period int) (K, D []Indicate[float64]) {
 	return
 }
 
-func (c Candles) StochasticFast(k, d, period int) (K, D []Indicate[float64]) {
-	if k == 0 {
-		k = 3
-	}
-
+func (c Candles) StochasticFast(d, period int) (K, D []Indicate[float64]) {
 	if d == 0 {
 		d = 3
 	}
@@ -282,7 +277,7 @@ func (c Candles) StochasticFast(k, d, period int) (K, D []Indicate[float64]) {
 	}
 
 	for i := range K {
-		if i < k-1 {
+		if i < d-1 {
 			D[i] = Indicate[float64]{
 				Data: 0,
 				Date: c[i].Date,
@@ -290,12 +285,12 @@ func (c Candles) StochasticFast(k, d, period int) (K, D []Indicate[float64]) {
 			continue
 		}
 
-		data := lo.Map[Indicate[float64]](K[i-k+1:i+1], func(item Indicate[float64], index int) float64 {
+		data := lo.Map(K[i-d+1:i+1], func(item Indicate[float64], index int) float64 {
 			return item.Data
 		})
 
 		D[i] = Indicate[float64]{
-			Data: lo.Sum(data) / float64(k),
+			Data: lo.Sum(data) / float64(d),
 			Date: K[i].Date,
 		}
 	}
@@ -343,7 +338,7 @@ func (c Candles) Envelope(period int, up, down float64) (sma, upper, lower []Ind
 			Data: mean + (mean * up),
 			Date: c[i].Date,
 		}, Indicate[float64]{
-			Data: mean - (mean * up),
+			Data: mean - (mean * down),
 			Date: c[i].Date,
 		}
 	}

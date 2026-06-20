@@ -28,41 +28,82 @@ import (
 	"github.com/gobenpark/cerebro/order"
 	"github.com/gobenpark/cerebro/position"
 	"github.com/samber/lo"
-	"go.uber.org/zap"
 )
 
+// Broker tracks cash and open orders. Cash accounting is exchange-authoritative:
+// balance reflects the settled cash reported by the market, while open buy orders
+// reserve cash so the broker never over-commits before settlement.
 type Broker struct {
-	EventEngine      event.Broadcaster
-	market           market.Market
-	logger           log.Logger
-	orders           []order.Order
-	positions        []position.Position
-	balance          int64
-	mu               sync.RWMutex
-	cashValueChanged bool
+	EventEngine event.Broadcaster
+	market      market.Market
+	logger      log.Logger
+	// orders holds open (unsettled) orders. An order leaves this set once it is
+	// completed, canceled, or rejected, which releases its cash reservation.
+	orders []order.Order
+	// positions is the latest snapshot of account positions from the market.
+	positions []position.Position
+	// balance is the settled cash reported by the exchange. It is seeded from
+	// AccountBalance() and updated from market.ChangeBalanceEvent.
+	balance int64
+	// mu guards orders, positions, and balance.
+	mu sync.RWMutex
 }
 
 func NewDefaultBroker(eventEngine event.Broadcaster, store market.Market, logger log.Logger) *Broker {
 	return &Broker{
-		orders:           []order.Order{},
-		EventEngine:      eventEngine,
-		market:           store,
-		cashValueChanged: false,
-		logger:           logger,
-		positions:        store.AccountPositions(),
+		orders:      []order.Order{},
+		EventEngine: eventEngine,
+		market:      store,
+		logger:      logger,
+		positions:   store.AccountPositions(),
+		balance:     store.AccountBalance(),
 	}
 }
 
-func (b *Broker) Order(ctx context.Context, o order.Order, safe bool) error {
+// orderValue returns the cash an order commits, including commission.
+func (b *Broker) orderValue(o order.Order) int64 {
+	return int64(o.OrderPrice() + (o.OrderPrice() * (b.market.Commission() / 100)))
+}
 
-	if safe {
-		if slices.ContainsFunc(b.orders, func(od order.Order) bool {
-			return od.Item().Code == o.Item().Code
-		}) {
-			return errors.New("Waiting for conclusion")
+// isTerminalStatus reports whether a status ends an order's lifecycle, meaning
+// the order should leave the open set and release any cash it reserved.
+func isTerminalStatus(s order.Status) bool {
+	switch s {
+	case order.Completed, order.Canceled, order.Expired, order.Margin, order.Rejected:
+		return true
+	default:
+		return false
+	}
+}
+
+// reservedLocked returns the cash committed by open buy orders.
+// Callers must hold b.mu (read or write).
+func (b *Broker) reservedLocked() int64 {
+	var reserved int64
+	for i := range b.orders {
+		if b.orders[i].Action() == order.Buy {
+			reserved += b.orderValue(b.orders[i])
 		}
 	}
+	return reserved
+}
 
+// Balance returns the settled cash reported by the exchange.
+func (b *Broker) Balance() int64 {
+	b.mu.RLock()
+	defer b.mu.RUnlock()
+	return b.balance
+}
+
+// Available returns the cash available for new buy orders:
+// settled balance minus cash reserved by open buy orders.
+func (b *Broker) Available() int64 {
+	b.mu.RLock()
+	defer b.mu.RUnlock()
+	return b.balance - b.reservedLocked()
+}
+
+func (b *Broker) Order(ctx context.Context, o order.Order, safe bool) error {
 	if o.Type() == order.Market && o.Price() != 0 {
 		b.logger.Error("invalid order price", "code", o.Item().Code, "price", o.Price(), "size", o.Size())
 		return fmt.Errorf("invalid order price, market order price must be set 0")
@@ -78,49 +119,57 @@ func (b *Broker) Order(ctx context.Context, o order.Order, safe bool) error {
 		return ErrPriceIsZero
 	}
 
-	value := int64(o.OrderPrice() + (o.OrderPrice() * (b.market.Commission() / 100)))
+	b.mu.Lock()
+	if safe {
+		if slices.ContainsFunc(b.orders, func(od order.Order) bool {
+			return od.Item().Code == o.Item().Code
+		}) {
+			b.mu.Unlock()
+			return errors.New("waiting for conclusion")
+		}
+	}
 
-	switch o.Action() {
-	case order.Buy:
-		if value > b.balance {
+	// Reserve cash for buy orders against available (settled minus reserved) cash.
+	if o.Action() == order.Buy {
+		if value := b.orderValue(o); value > b.balance-b.reservedLocked() {
+			b.mu.Unlock()
 			return ErrNotEnoughMoney
 		}
 	}
 
 	b.orders = append(b.orders, o)
+	b.mu.Unlock()
+
 	go b.submit(ctx, o)
 	return nil
 }
 
-// In goroutine
+// submit sends the order to the market in a goroutine. Cash accounting follows
+// the exchange: balance is updated from ChangeBalanceEvent and an order's
+// reservation is released once it leaves b.orders (complete/cancel/reject).
 func (b *Broker) submit(ctx context.Context, o order.Order) {
 	o.Submit()
 	b.notifyOrder(o.Copy())
-	start := b.balance
 
 	if err := b.market.Order(ctx, o); err != nil {
 		b.logger.Info("reject order", "order", o, "error", err)
 		o.Reject()
+		b.removeOrder(o)
 		b.notifyOrder(o.Copy())
-		return
 	}
-
-	//if o.Action() == order.Sell {
-	//	b.mu.Lock()
-	//	b.balance += int64(o.OrderPrice() - (o.OrderPrice() * (b.market.Commission() / 100)))
-	//	b.mu.Unlock()
-	//} else {
-	//	b.mu.Lock()
-	//	b.balance -= int64(o.OrderPrice() + (o.OrderPrice() * (b.market.Commission() / 100)))
-	//	b.mu.Unlock()
-	//}
-	zap.L().Debug("cash size change", zap.Int64("start", start), zap.Int64("end", b.balance))
 }
 
 func (b *Broker) notifyOrder(o order.Order) {
+	b.EventEngine.BroadCast(o)
+}
+
+// removeOrder drops an order from the open set, releasing its cash reservation.
+func (b *Broker) removeOrder(o order.Order) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
-	b.EventEngine.BroadCast(o)
+	b.orders = slices.DeleteFunc(b.orders, func(od order.Order) bool {
+		return od.ID() == o.ID()
+	})
 }
 
 func (b *Broker) Orders(code string) []order.Order {
@@ -145,51 +194,75 @@ func (b *Broker) Position(ticker string) (position.Position, bool) {
 	})
 }
 
-func (b *Broker) completeOrder(o order.Order) {
-	b.orders = slices.DeleteFunc(b.orders, func(od order.Order) bool {
-		return od.ID() == o.ID()
-	})
+// refreshPositions pulls the latest positions from the market. The market call
+// runs outside the lock to keep the critical section short.
+func (b *Broker) refreshPositions() {
+	positions := b.market.AccountPositions()
+	b.mu.Lock()
+	b.positions = positions
+	b.mu.Unlock()
 }
 
-func (b *Broker) Listen(ctx context.Context, e interface{}) {
-
-	if m, ok := e.(order.Order); ok {
-		if m.Status() == order.Submitted {
-			b.mu.Lock()
-			b.positions = b.market.AccountPositions()
-			b.mu.Unlock()
+func (b *Broker) Listen(ctx context.Context, e any) {
+	switch evt := e.(type) {
+	case order.Order:
+		if evt.Status() == order.Submitted {
+			b.refreshPositions()
 		}
+	case market.MarketEvent:
+		b.handleMarketEvent(evt)
+	}
+}
+
+func (b *Broker) handleMarketEvent(m market.MarketEvent) {
+	switch evt := m.(type) {
+	case market.ChangeOrderEvent:
+		b.logger.Info("market change order", "message", evt.Message, "id", evt.ID, "action", evt.Action)
+		b.applyOrderChange(evt)
+	case market.ChangeBalanceEvent:
+		b.logger.Info("market change balance", "message", evt.Message, "balance", evt.Balance)
+		b.mu.Lock()
+		b.balance = evt.Balance
+		b.mu.Unlock()
+	}
+}
+
+// applyOrderChange updates an open order from an exchange event. Completed and
+// canceled orders leave the open set, releasing their cash reservation.
+func (b *Broker) applyOrderChange(evt market.ChangeOrderEvent) {
+	b.mu.Lock()
+	idx := slices.IndexFunc(b.orders, func(od order.Order) bool {
+		return od.ID() == evt.ID
+	})
+	if idx < 0 {
+		b.mu.Unlock()
+		return
 	}
 
-	if m, ok := e.(market.MarketEvent); ok {
-		switch evt := m.(type) {
-		case market.ChangeOrderEvent:
-			b.logger.Info("market change order", "message", m.(market.ChangeOrderEvent).Message, "id", m.(market.ChangeOrderEvent).ID, "action", m.(market.ChangeOrderEvent).Action)
-			for i := range b.orders {
-				if b.orders[i].ID() == m.(market.ChangeOrderEvent).ID {
-					o := b.orders[i]
-					switch evt.Action {
-					case order.Accepted:
-						o.Accept()
-						b.logger.Info("order accepted", "id", o.ID(), "code", o.Item(), "price", o.Price(), "size", o.Size())
-					case order.Completed:
-						o.Complete()
-						b.completeOrder(o)
-						b.logger.Info("order completed", "id", o.ID(), "code", o.Item(), "price", o.Price(), "size", o.Size())
-					case order.Canceled:
-						o.Cancel()
-						b.completeOrder(o)
-						b.logger.Info("order canceled", "id", o.ID(), "code", o.Item(), "price", o.Price(), "size", o.Size())
-					}
-					b.notifyOrder(o)
-				}
-			}
-			b.mu.Lock()
-			b.positions = b.market.AccountPositions()
-			b.mu.Unlock()
-		case market.ChangeBalanceEvent:
-			b.logger.Info("market change balance", "message", m.(market.ChangeBalanceEvent).Message, "balance", m.(market.ChangeBalanceEvent).Balance)
-			b.balance = m.(market.ChangeBalanceEvent).Balance
-		}
+	o := b.orders[idx]
+	switch evt.Action {
+	case order.Accepted:
+		o.Accept()
+	case order.Completed:
+		o.Complete()
+	case order.Canceled:
+		o.Cancel()
+	case order.Expired:
+		o.Expire()
+	case order.Margin:
+		o.Margin()
+	case order.Rejected:
+		o.Reject()
 	}
+	// Terminal statuses end the order's lifecycle: drop it from the open set so
+	// its reserved cash is released. Non-terminal updates (e.g. Accepted) keep
+	// the order open and its reservation in place.
+	if isTerminalStatus(evt.Action) {
+		b.orders = slices.Delete(b.orders, idx, idx+1)
+	}
+	b.mu.Unlock()
+
+	b.logger.Info("order changed", "id", o.ID(), "code", o.Item().Code, "action", evt.Action)
+	b.notifyOrder(o.Copy())
+	b.refreshPositions()
 }

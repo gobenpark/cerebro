@@ -17,7 +17,7 @@
 package indicator
 
 import (
-	"sort"
+	"slices"
 	"sync"
 	"time"
 
@@ -49,18 +49,21 @@ func Resampler(cds Candles, tk Tick, compress time.Duration) Candles {
 	d := last.Date.Add(compress).Truncate(compress)
 
 	if tk.Date.After(d) {
-		last = &Candle{}
-		cds = append(cds, last)
+		cds = append(cds, &Candle{
+			Date:   tk.Date.Truncate(compress),
+			Code:   tk.Code,
+			Open:   tk.Price,
+			High:   tk.Price,
+			Low:    tk.Price,
+			Close:  tk.Price,
+			Volume: tk.Volume,
+		})
 		return cds
 	}
 	last.Close = tk.Price
 	last.Volume += tk.Volume
-	if last.Low > tk.Price {
-		last.Low = tk.Price
-	}
-	if last.High < tk.Price {
-		last.High = tk.Price
-	}
+	last.Low = min(last.Low, tk.Price)
+	last.High = max(last.High, tk.Price)
 	return cds
 }
 
@@ -85,14 +88,8 @@ func ResampleCandle(compress time.Duration, tick ...Tick) Candle {
 			candle.Open = tick[i].Price
 		}
 		candle.Date = tick[i].Date.Truncate(compress)
-		if candle.Low > tick[i].Price {
-			candle.Low = tick[i].Price
-		}
-
-		if candle.High < tick[i].Price {
-			candle.High = tick[i].Price
-		}
-
+		candle.Low = min(candle.Low, tick[i].Price)
+		candle.High = max(candle.High, tick[i].Price)
 		candle.Close = tick[i].Price
 		candle.Volume += tick[i].Volume
 	}
@@ -100,8 +97,8 @@ func ResampleCandle(compress time.Duration, tick ...Tick) Candle {
 }
 
 func Resample(tk []Tick, compress time.Duration) Candles {
-	sort.Slice(tk, func(i, j int) bool {
-		return tk[i].Date.Before(tk[j].Date)
+	slices.SortFunc(tk, func(a, b Tick) int {
+		return a.Date.Compare(b.Date)
 	})
 	cds := Candles{}
 	for i := range tk {
@@ -121,14 +118,8 @@ func Resample(tk []Tick, compress time.Duration) Candles {
 		if tk[i].Date.Before(edge) {
 			last.Close = tk[i].Price
 			last.Volume += tk[i].Volume
-
-			if last.Low > tk[i].Price {
-				last.Low = tk[i].Price
-			}
-
-			if last.High < tk[i].Price {
-				last.High = tk[i].Price
-			}
+			last.Low = min(last.Low, tk[i].Price)
+			last.High = max(last.High, tk[i].Price)
 			cds[len(cds)-1] = last
 		} else {
 			cds = append(cds, &Candle{

@@ -69,7 +69,7 @@ func (t Ticks) StandardDeviation() float64 {
 	total := 0.0
 	for i := range t {
 		diff := float64(t[i].Price) - mean
-		total += math.Pow(diff, 2)
+		total += diff * diff
 	}
 	variance := total / float64(t.Len()-1)
 	return math.Sqrt(variance)

@@ -28,7 +28,7 @@ type CandleType int
 
 type Strategy interface {
 	Next(it *item.Item, tick <-chan indicator.Tick, b *broker.Broker)
-	//NotifyOrder is when event rise order then called
+	// NotifyOrder is when event rise order then called
 	NotifyOrder(o order.Order)
 	NotifyTrade()
 	NotifyFund()

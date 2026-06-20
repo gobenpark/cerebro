@@ -28,7 +28,7 @@ var (
 	ErrOverDate = e.Error{Code: 1, Message: "raise unexpected error"}
 )
 
-// Rasampler is resample for realtime tick data
+// Resampler appends or updates the current candle bucket from a realtime tick.
 func Resampler(cds Candles, tk Tick, compress time.Duration) Candles {
 	if cds.Len() == 0 {
 		return Candles{

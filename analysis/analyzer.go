@@ -16,14 +16,11 @@
 package analysis
 
 import (
+	"context"
+
 	"github.com/gobenpark/cerebro/event"
 	"github.com/gobenpark/cerebro/indicator"
 	"github.com/gobenpark/cerebro/item"
-)
-
-import (
-	"context"
-
 	"github.com/gobenpark/cerebro/log"
 )
 

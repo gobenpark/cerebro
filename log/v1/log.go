@@ -17,9 +17,10 @@
 package log
 
 import (
-	"github.com/gobenpark/cerebro/log"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
+
+	"github.com/gobenpark/cerebro/log"
 )
 
 type Logger struct {
@@ -48,25 +49,25 @@ func NewLogger(lvl log.Level) (log.Logger, error) {
 
 func (l *Logger) Error(msg string, kv ...any) {
 	l.l.Errorw(msg, kv...)
-	l.l.Sync()
+	_ = l.l.Sync()
 }
 
 func (l *Logger) Info(msg string, kv ...any) {
 	l.l.Infow(msg, kv...)
-	l.l.Sync()
+	_ = l.l.Sync()
 }
 
 func (l *Logger) Warn(msg string, kv ...any) {
 	l.l.Warnw(msg, kv...)
-	l.l.Sync()
+	_ = l.l.Sync()
 }
 
 func (l *Logger) Debug(msg string, kv ...any) {
 	l.l.Debugw(msg, kv...)
-	l.l.Sync()
+	_ = l.l.Sync()
 }
 
 func (l *Logger) Panic(msg string, kv ...any) {
 	l.l.Panicw(msg, kv...)
-	l.l.Sync()
+	_ = l.l.Sync()
 }

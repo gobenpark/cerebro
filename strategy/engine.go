@@ -61,14 +61,14 @@ func (s *Engine) Spawn(ctx context.Context, it []*item.Item) {
 		s.channels[it[i].Code] = ch
 		s.mu.Unlock()
 
-		if err := s.manager(ctx, it[i]); err != nil {
+		if err := s.manager(it[i]); err != nil {
 			s.log.Error("manager", "err", err)
 			continue
 		}
 	}
 }
 
-func (s *Engine) manager(ctx context.Context, itm *item.Item) error {
+func (s *Engine) manager(itm *item.Item) error {
 	for i := range s.sts {
 		time.Sleep(time.Second)
 		if err := s.store.Subscribe(func() []*item.Item {

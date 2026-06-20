@@ -20,8 +20,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gobenpark/cerebro/item"
 	uuid "github.com/satori/go.uuid"
+
+	"github.com/gobenpark/cerebro/item"
 )
 
 type (
@@ -85,20 +86,20 @@ type Order interface {
 }
 
 type order struct {
-	createdAt     time.Time    `json:"createdAt"`
-	updatedAt     time.Time    `json:"updatedAt"`
-	item          *item.Item   `json:"item"`
-	uuid          string       `json:"uuid"`
-	action        Action       `json:"action"`
-	OrderType     OrderType    `json:"orderType"`
-	size          int64        `json:"size"`
-	price         int64        `json:"price"`
-	remainingSize int64        `json:"remainingSize"`
-	mu            sync.RWMutex `json:"-"`
-	status        Status       `json:"status"`
+	createdAt     time.Time
+	updatedAt     time.Time
+	item          *item.Item
+	uuid          string
+	action        Action
+	OrderType     OrderType `json:"orderType"`
+	size          int64
+	price         int64
+	remainingSize int64
+	mu            sync.RWMutex
+	status        Status
 }
 
-func NewOrder(item *item.Item, action Action, execType OrderType, size int64, price int64) Order {
+func NewOrder(item *item.Item, action Action, execType OrderType, size, price int64) Order {
 	return &order{
 		status:        Created,
 		action:        action,

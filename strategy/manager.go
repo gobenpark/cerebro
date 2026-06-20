@@ -43,7 +43,6 @@ func (m *Manager) Calculate(tk indicator.Tick) {
 		data := indicator.Resampler(cds, tk, 24*time.Hour)
 		fmt.Println(data[data.Len()-1])
 		m.cache.Set(fmt.Sprintf("%s:day", tk.Code), data)
-		//fmt.Println(cds)
 		return
 	}
 	m.cache.Set(fmt.Sprintf("%s:day", tk.Code), indicator.Resampler(v, tk, 24*time.Hour))

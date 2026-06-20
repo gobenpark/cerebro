@@ -59,6 +59,8 @@ linters:
         - octalLiteral
         - whyNoLint
         - hugeParam
+        - importShadow # `log log.Logger` / `item *item.Item` params are idiomatic here
+        - captLocal # K/D are conventional names for stochastic lines
     interfacebloat:
       max: 20
     lll:
@@ -86,6 +88,7 @@ linters:
           - dupl
           - lll
           - nakedret
+          - unparam # test helpers intentionally take fixed args for readability
 
 formatters:
   enable:

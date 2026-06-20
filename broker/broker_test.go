@@ -6,6 +6,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
+
 	"github.com/gobenpark/cerebro/broker"
 	eventmock "github.com/gobenpark/cerebro/event/mock"
 	"github.com/gobenpark/cerebro/item"
@@ -13,9 +17,6 @@ import (
 	marketmock "github.com/gobenpark/cerebro/market/mock"
 	"github.com/gobenpark/cerebro/order"
 	"github.com/gobenpark/cerebro/position"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-	"go.uber.org/mock/gomock"
 )
 
 type noopLogger struct{}

@@ -22,12 +22,13 @@ import (
 	"slices"
 	"sync"
 
+	"github.com/samber/lo"
+
 	"github.com/gobenpark/cerebro/event"
 	"github.com/gobenpark/cerebro/log"
 	"github.com/gobenpark/cerebro/market"
 	"github.com/gobenpark/cerebro/order"
 	"github.com/gobenpark/cerebro/position"
-	"github.com/samber/lo"
 )
 
 // Broker tracks cash and open orders. Cash accounting is exchange-authoritative:
@@ -253,6 +254,9 @@ func (b *Broker) applyOrderChange(evt market.ChangeOrderEvent) {
 		o.Margin()
 	case order.Rejected:
 		o.Reject()
+	default:
+		// None/Created/Submitted/Partial are not delivered as terminal or
+		// accepted exchange events; nothing to apply.
 	}
 	// Terminal statuses end the order's lifecycle: drop it from the open set so
 	// its reserved cash is released. Non-terminal updates (e.g. Accepted) keep

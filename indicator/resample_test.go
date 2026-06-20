@@ -4,9 +4,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gobenpark/cerebro/indicator"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gobenpark/cerebro/indicator"
 )
 
 func TestResample_GroupsTicksIntoBuckets(t *testing.T) {

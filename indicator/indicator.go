@@ -154,9 +154,12 @@ func (s Indicator) Mean(d time.Duration) Indicator {
 
 	go func() {
 		defer close(downstream)
+		defer ticker.Stop()
 	Done:
 		for {
 			select {
+			case <-s.ctx.Done():
+				break Done
 			case <-ticker.C:
 				sum := lo.Sum(tk)
 				if sum == 0 || len(tk) == 0 {
@@ -187,11 +190,15 @@ func (s Indicator) Filter(f func(value Packet) bool) Indicator {
 		defer close(downstream)
 		for msg := range s.value {
 			if f(msg) {
-				downstream <- msg
+				select {
+				case downstream <- msg:
+				case <-s.ctx.Done():
+					return
+				}
 			}
 		}
 	}()
-	return Indicator{value: downstream}
+	return Indicator{value: downstream, ctx: s.ctx}
 }
 
 // Roi is rate of increase or decrease per duration
@@ -205,9 +212,12 @@ func (s Indicator) ROI(d time.Duration) Indicator {
 
 	go func() {
 		defer close(downstream)
+		defer ticker.Stop()
 	Done:
 		for {
 			select {
+			case <-s.ctx.Done():
+				break Done
 			case <-ticker.C:
 				start = end
 			case v, ok := <-s.value:
@@ -263,8 +273,16 @@ func (s Indicator) LargeThen(i Indicator) {
 
 func (s Indicator) Transaction(f func(v Packet)) {
 	go func() {
-		for v := range s.value {
-			f(v)
+		for {
+			select {
+			case <-s.ctx.Done():
+				return
+			case v, ok := <-s.value:
+				if !ok {
+					return
+				}
+				f(v)
+			}
 		}
 	}()
 }
@@ -280,6 +298,7 @@ func CombineWithF(minimumWait time.Duration, f func(v ...float64) float64, indic
 
 		handler := func(i Indicator, idx int) {
 			timeout := time.NewTicker(minimumWait)
+			defer timeout.Stop()
 		Done:
 			for {
 				select {
@@ -328,6 +347,7 @@ func (s Indicator) Resample(d time.Duration) Indicator {
 
 	go func() {
 		defer close(downstream)
+		defer ticker.Stop()
 	Done:
 		for {
 			select {

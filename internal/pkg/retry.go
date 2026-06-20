@@ -20,23 +20,24 @@ import (
 	"time"
 )
 
-func Retry(ctx context.Context, max int, f func() error) error {
-	retries := 0
-	for {
+// Retry calls f up to attempts times with exponential backoff between tries.
+// It returns nil on the first success, the last error after all attempts fail,
+// or ctx.Err() if the context is canceled while waiting to retry.
+func Retry(ctx context.Context, attempts int, f func() error) error {
+	var err error
+	for retries := range attempts {
+		if err = f(); err == nil {
+			return nil
+		}
+
+		// Wait for the backoff, but stay responsive to cancellation.
+		timer := time.NewTimer((1 << retries) * time.Second)
 		select {
 		case <-ctx.Done():
-			return nil
-		default:
-			if err := f(); err != nil {
-				<-time.After((1 << retries) * time.Second)
-				retries++
-
-				if retries >= max {
-					return err
-				}
-				continue
-			}
+			timer.Stop()
+			return ctx.Err()
+		case <-timer.C:
 		}
-		return nil
 	}
+	return err
 }

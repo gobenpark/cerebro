@@ -38,7 +38,8 @@ type Engine struct {
 	channels    map[string]chan indicator.Tick
 	sts         []Strategy
 	timeout     time.Duration
-	mu          sync.Mutex
+	// mu guards channels, which Spawn writes and Listen reads concurrently.
+	mu sync.RWMutex
 }
 
 func NewEngine(log log.Logger, eventEngine *event.Engine, bk *broker.Broker, st []Strategy, store market.Market, timeout time.Duration) engine.Engine {
@@ -55,8 +56,11 @@ func NewEngine(log log.Logger, eventEngine *event.Engine, bk *broker.Broker, st 
 
 func (s *Engine) Spawn(ctx context.Context, it []*item.Item) {
 	for i := range it {
+		ch := make(chan indicator.Tick, 100)
+		s.mu.Lock()
+		s.channels[it[i].Code] = ch
+		s.mu.Unlock()
 
-		s.channels[it[i].Code] = make(chan indicator.Tick, 100)
 		if err := s.manager(ctx, it[i]); err != nil {
 			s.log.Error("manager", "err", err)
 			continue
@@ -72,7 +76,10 @@ func (s *Engine) manager(ctx context.Context, itm *item.Item) error {
 		}); err != nil {
 			return err
 		}
-		s.sts[i].Next(itm, s.channels[itm.Code], s.broker)
+		s.mu.RLock()
+		ch := s.channels[itm.Code]
+		s.mu.RUnlock()
+		s.sts[i].Next(itm, ch, s.broker)
 	}
 	return nil
 }
@@ -84,11 +91,13 @@ func (s *Engine) Listen(ctx context.Context, e any) {
 			st.NotifyOrder(et)
 		}
 	case indicator.Tick:
-		if c, ok := s.channels[et.Code]; ok {
+		s.mu.RLock()
+		c, ok := s.channels[et.Code]
+		s.mu.RUnlock()
+		if ok {
 			select {
 			case c <- et:
 			case <-ctx.Done():
-				break
 			}
 		}
 	}

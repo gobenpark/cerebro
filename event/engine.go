@@ -20,11 +20,17 @@ import (
 	"context"
 )
 
+// listenerBuffer bounds how many events may queue per listener before the
+// dispatch loop applies backpressure.
+const listenerBuffer = 64
+
 type Engine struct {
 	broadcast  chan any
 	Register   chan Listener
 	Unregister chan Listener
-	childEvent map[Listener]bool
+	// listeners maps each registered listener to its private delivery queue.
+	// Only Start touches this map, so it needs no lock.
+	listeners map[Listener]chan any
 }
 
 func NewEventEngine() *Engine {
@@ -32,29 +38,65 @@ func NewEventEngine() *Engine {
 		broadcast:  make(chan any, 10),
 		Register:   make(chan Listener, 2),
 		Unregister: make(chan Listener, 1),
-		childEvent: make(map[Listener]bool),
+		listeners:  make(map[Listener]chan any),
 	}
 }
 
-// Start event engine start function need goroutine
+// Start runs the dispatch loop; it must run in its own goroutine. Each listener
+// is fed by a dedicated worker goroutine so that a slow (or re-entrant) listener
+// cannot block the loop or other listeners — a listener may safely BroadCast
+// from within its own Listen.
 func (e *Engine) Start(ctx context.Context) {
-Done:
+	defer func() {
+		for cli, ch := range e.listeners {
+			close(ch)
+			delete(e.listeners, cli)
+		}
+	}()
+
 	for {
 		select {
 		case <-ctx.Done():
-			break Done
+			return
 		case evt := <-e.broadcast:
-			for c := range e.childEvent {
-				c.Listen(ctx, evt)
+			for _, ch := range e.listeners {
+				select {
+				case ch <- evt:
+				case <-ctx.Done():
+					return
+				}
 			}
 		case cli := <-e.Register:
-			if cli != nil {
-				e.childEvent[cli] = true
+			if cli == nil {
+				continue
 			}
+			ch := make(chan any, listenerBuffer)
+			e.listeners[cli] = ch
+			go deliver(ctx, cli, ch)
 		case cli := <-e.Unregister:
-			if cli != nil {
-				delete(e.childEvent, cli)
+			if cli == nil {
+				continue
 			}
+			if ch, ok := e.listeners[cli]; ok {
+				close(ch)
+				delete(e.listeners, cli)
+			}
+		}
+	}
+}
+
+// deliver feeds one listener its events in order until the queue is closed or
+// the context is canceled.
+func deliver(ctx context.Context, l Listener, ch <-chan any) {
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case evt, ok := <-ch:
+			if !ok {
+				return
+			}
+			l.Listen(ctx, evt)
 		}
 	}
 }

@@ -5,9 +5,10 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/maypok86/otter"
+
 	"github.com/gobenpark/cerebro/indicator"
 	"github.com/gobenpark/cerebro/market"
-	"github.com/maypok86/otter"
 )
 
 type Manager struct {

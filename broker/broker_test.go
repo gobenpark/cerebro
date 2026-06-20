@@ -41,6 +41,7 @@ func newBrokerUnderTest(t *testing.T, balance int64, commission float64) (*broke
 
 	bc := eventmock.NewMockBroadcaster(ctrl)
 	bc.EXPECT().BroadCast(gomock.Any()).AnyTimes()
+	bc.EXPECT().BroadCastContext(gomock.Any(), gomock.Any()).Return(true).AnyTimes()
 
 	return broker.NewDefaultBroker(bc, mk, noopLogger{}), mk
 }

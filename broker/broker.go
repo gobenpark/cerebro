@@ -48,6 +48,8 @@ type Broker struct {
 	balance int64
 	// mu guards orders, positions, and balance.
 	mu sync.RWMutex
+	// wg tracks in-flight submit goroutines so Wait can join them on shutdown.
+	wg sync.WaitGroup
 }
 
 func NewDefaultBroker(eventEngine event.Broadcaster, store market.Market, logger log.Logger) *Broker {
@@ -141,8 +143,16 @@ func (b *Broker) Order(ctx context.Context, o order.Order, safe bool) error {
 	b.orders = append(b.orders, o)
 	b.mu.Unlock()
 
-	go b.submit(ctx, o)
+	b.wg.Go(func() {
+		b.submit(ctx, o)
+	})
 	return nil
+}
+
+// Wait blocks until all in-flight order submissions have completed. Callers must
+// keep the event dispatcher alive until Wait returns, since submit broadcasts.
+func (b *Broker) Wait() {
+	b.wg.Wait()
 }
 
 // submit sends the order to the market in a goroutine. Cash accounting follows
@@ -150,18 +160,19 @@ func (b *Broker) Order(ctx context.Context, o order.Order, safe bool) error {
 // reservation is released once it leaves b.orders (complete/cancel/reject).
 func (b *Broker) submit(ctx context.Context, o order.Order) {
 	o.Submit()
-	b.notifyOrder(o.Copy())
+	b.notifyOrder(ctx, o.Copy())
 
 	if err := b.market.Order(ctx, o); err != nil {
 		b.logger.Info("reject order", "order", o, "error", err)
 		o.Reject()
 		b.removeOrder(o)
-		b.notifyOrder(o.Copy())
+		b.notifyOrder(ctx, o.Copy())
 	}
 }
 
-func (b *Broker) notifyOrder(o order.Order) {
-	b.EventEngine.BroadCast(o)
+func (b *Broker) notifyOrder(ctx context.Context, o order.Order) {
+	// Drop the notification if shutdown is underway; the dispatcher may be draining.
+	b.EventEngine.BroadCastContext(ctx, o)
 }
 
 // removeOrder drops an order from the open set, releasing its cash reservation.
@@ -211,15 +222,15 @@ func (b *Broker) Listen(ctx context.Context, e any) {
 			b.refreshPositions()
 		}
 	case market.MarketEvent:
-		b.handleMarketEvent(evt)
+		b.handleMarketEvent(ctx, evt)
 	}
 }
 
-func (b *Broker) handleMarketEvent(m market.MarketEvent) {
+func (b *Broker) handleMarketEvent(ctx context.Context, m market.MarketEvent) {
 	switch evt := m.(type) {
 	case market.ChangeOrderEvent:
 		b.logger.Info("market change order", "message", evt.Message, "id", evt.ID, "action", evt.Action)
-		b.applyOrderChange(evt)
+		b.applyOrderChange(ctx, evt)
 	case market.ChangeBalanceEvent:
 		b.logger.Info("market change balance", "message", evt.Message, "balance", evt.Balance)
 		b.mu.Lock()
@@ -230,7 +241,7 @@ func (b *Broker) handleMarketEvent(m market.MarketEvent) {
 
 // applyOrderChange updates an open order from an exchange event. Completed and
 // canceled orders leave the open set, releasing their cash reservation.
-func (b *Broker) applyOrderChange(evt market.ChangeOrderEvent) {
+func (b *Broker) applyOrderChange(ctx context.Context, evt market.ChangeOrderEvent) {
 	b.mu.Lock()
 	idx := slices.IndexFunc(b.orders, func(od order.Order) bool {
 		return od.ID() == evt.ID
@@ -267,6 +278,6 @@ func (b *Broker) applyOrderChange(evt market.ChangeOrderEvent) {
 	b.mu.Unlock()
 
 	b.logger.Info("order changed", "id", o.ID(), "code", o.Item().Code, "action", evt.Action)
-	b.notifyOrder(o.Copy())
+	b.notifyOrder(ctx, o.Copy())
 	b.refreshPositions()
 }

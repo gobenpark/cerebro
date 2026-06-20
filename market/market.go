@@ -32,10 +32,10 @@ const (
 type Market interface {
 	Stocks(ctx context.Context) []*item.Item
 	Candles(ctx context.Context, code string, level CandleType) (indicator.Candles, error)
-	Subscribe(event interface{}) error
+	Subscribe(event any) error
 	Order(ctx context.Context, o order.Order) error
 	AccountPositions() []position.Position
 	AccountBalance() int64
-	Events(ctx context.Context) <-chan interface{}
+	Events(ctx context.Context) <-chan any
 	Commission() float64
 }

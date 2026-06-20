@@ -1,6 +1,6 @@
 package signals
 
-type Operator interface{}
+type Operator any
 
 type op struct{}
 

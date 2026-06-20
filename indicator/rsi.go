@@ -52,7 +52,7 @@ func (r *rsiIndicator) Calculate(candles Candles) {
 
 	rsi := make([]float64, candles.Len())
 
-	for i := 0; i < len(rsi); i++ {
+	for i := range rsi {
 		rsi[i] = 100 - (100 / (1 + meanGains[i]/meanLosses[i]))
 	}
 }

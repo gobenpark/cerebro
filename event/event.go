@@ -20,13 +20,12 @@ package event
 
 import "context"
 
-type Event interface {
-}
+type Event any
 
 type Listener interface {
-	Listen(ctx context.Context, e interface{})
+	Listen(ctx context.Context, e any)
 }
 
 type Broadcaster interface {
-	BroadCast(e interface{})
+	BroadCast(e any)
 }

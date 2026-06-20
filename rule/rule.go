@@ -1,7 +1,6 @@
 package rule
 
-type Rule interface {
-}
+type Rule any
 
 type rule struct {
 }

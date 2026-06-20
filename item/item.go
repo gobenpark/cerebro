@@ -22,10 +22,10 @@ const (
 
 type Item struct {
 	mu       sync.RWMutex
-	Code     string                 `json:"code"`
-	Name     string                 `json:"name"`
-	Type     StockType              `json:"type"`
-	Metadata map[string]interface{} `json:"metadata"`
+	Code     string         `json:"code"`
+	Name     string         `json:"name"`
+	Type     StockType      `json:"type"`
+	Metadata map[string]any `json:"metadata"`
 	status   Status
 }
 

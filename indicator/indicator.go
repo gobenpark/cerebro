@@ -274,7 +274,7 @@ func CombineWithF(minimumWait time.Duration, f func(v ...float64) float64, indic
 	go func() {
 		var wg sync.WaitGroup
 		size := uint32(len(indicators))
-		var counter uint32
+		var counter atomic.Uint32
 		var mutex sync.Mutex
 		s := make([]float64, size)
 
@@ -284,7 +284,7 @@ func CombineWithF(minimumWait time.Duration, f func(v ...float64) float64, indic
 			for {
 				select {
 				case <-timeout.C:
-					atomic.StoreUint32(&counter, 0)
+					counter.Store(0)
 					mutex.Lock()
 					s = make([]float64, size)
 					mutex.Unlock()
@@ -295,24 +295,24 @@ func CombineWithF(minimumWait time.Duration, f func(v ...float64) float64, indic
 
 					mutex.Lock()
 					if s[idx] == 0 {
-						atomic.AddUint32(&counter, 1)
+						counter.Add(1)
 					}
 
 					s[idx] = v.Value
-					if atomic.LoadUint32(&counter) == size {
+					if counter.Load() == size {
 						downstream <- Packet{Value: f(s...), Tick: v.Tick}
-						atomic.StoreUint32(&counter, 0)
+						counter.Store(0)
 						s = make([]float64, size)
 					}
 					mutex.Unlock()
 				}
 			}
-			wg.Done()
 		}
 
 		for i := range indicators {
-			wg.Add(1)
-			go handler(indicators[i], i)
+			wg.Go(func() {
+				handler(indicators[i], i)
+			})
 		}
 		wg.Wait()
 		defer close(downstream)

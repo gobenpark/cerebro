@@ -27,9 +27,9 @@ const (
 )
 
 type Logger interface {
-	Error(msg string, kv ...interface{})
-	Info(msg string, kv ...interface{})
-	Warn(msg string, kv ...interface{})
-	Debug(msg string, kv ...interface{})
-	Panic(msg string, kv ...interface{})
+	Error(msg string, kv ...any)
+	Info(msg string, kv ...any)
+	Warn(msg string, kv ...any)
+	Debug(msg string, kv ...any)
+	Panic(msg string, kv ...any)
 }

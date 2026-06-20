@@ -30,7 +30,7 @@ func Tee[T any](ctx context.Context, in <-chan T) (_, _ <-chan T) {
 
 		for val := range OrDone(ctx, in) {
 			var out1, out2 = out1, out2
-			for i := 0; i < 2; i++ {
+			for range 2 {
 				select {
 				case <-ctx.Done():
 				case out1 <- val:

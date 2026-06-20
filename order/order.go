@@ -254,7 +254,7 @@ func (o *order) Copy() Order {
 }
 
 func (o *order) MarshalJSON() ([]byte, error) {
-	data := map[string]interface{}{
+	data := map[string]any{
 		"item":      o.item,
 		"price":     o.price,
 		"size":      o.size,

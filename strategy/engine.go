@@ -77,7 +77,7 @@ func (s *Engine) manager(ctx context.Context, itm *item.Item) error {
 	return nil
 }
 
-func (s *Engine) Listen(ctx context.Context, e interface{}) {
+func (s *Engine) Listen(ctx context.Context, e any) {
 	switch et := e.(type) {
 	case order.Order:
 		for _, st := range s.sts {

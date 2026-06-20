@@ -125,7 +125,7 @@ func (c Candles) BollingerBand(period int) (bottom []Indicate[float64], mid []In
 	top = make([]Indicate[float64], candleLength)
 	bottom = make([]Indicate[float64], candleLength)
 
-	for i := 0; i < candleLength; i++ {
+	for i := range candleLength {
 		if i < period {
 			bottom[i], mid[i], top[i] = Indicate[float64]{}, Indicate[float64]{}, Indicate[float64]{}
 			continue
@@ -171,7 +171,7 @@ func (c Candles) VolumeRatio(nday int) []Indicate[float64] {
 		return nil
 	}
 
-	for i := 0; i < candleLength; i++ {
+	for i := range candleLength {
 		if i < nday {
 			value[i] = Indicate[float64]{
 				Data: 0,
@@ -267,17 +267,13 @@ func (c Candles) StochasticFast(k, d, period int) (K, D []Indicate[float64]) {
 			continue
 		}
 
+		window := c[i-period : i+1]
 		high := c[i-period].Close
 		low := c[i-period].Close
 
-		for j := range c[i-period : i+1] {
-			if high < c[i-period : i+1][j].High {
-				high = c[i-period : i+1][j].High
-			}
-
-			if low > c[i-period : i+1][j].Low {
-				low = c[i-period : i+1][j].Low
-			}
+		for j := range window {
+			high = max(high, window[j].High)
+			low = min(low, window[j].Low)
 		}
 		K[i] = Indicate[float64]{
 			Data: ((float64(c[i].Close) - float64(low)) / (float64(high) - float64(low))) * 100,

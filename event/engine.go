@@ -21,7 +21,7 @@ import (
 )
 
 type Engine struct {
-	broadcast  chan interface{}
+	broadcast  chan any
 	Register   chan Listener
 	Unregister chan Listener
 	childEvent map[Listener]bool
@@ -29,7 +29,7 @@ type Engine struct {
 
 func NewEventEngine() *Engine {
 	return &Engine{
-		broadcast:  make(chan interface{}, 10),
+		broadcast:  make(chan any, 10),
 		Register:   make(chan Listener, 2),
 		Unregister: make(chan Listener, 1),
 		childEvent: make(map[Listener]bool),
@@ -59,6 +59,6 @@ Done:
 	}
 }
 
-func (e *Engine) BroadCast(evt interface{}) {
+func (e *Engine) BroadCast(evt any) {
 	e.broadcast <- evt
 }

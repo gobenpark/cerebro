@@ -44,5 +44,5 @@ func NewEngine(log log.Logger, analyzer Analyzer) *Engine {
 func (e *Engine) Spawn(ctx context.Context, item []*item.Item) {
 }
 
-func (e *Engine) Listen(ctx context.Context, i interface{}) {
+func (e *Engine) Listen(ctx context.Context, i any) {
 }

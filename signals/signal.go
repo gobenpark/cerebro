@@ -25,7 +25,7 @@ type Engine struct {
 	mu sync.RWMutex
 }
 
-func (e2 *Engine) Listen(e interface{}) {
+func (e2 *Engine) Listen(e any) {
 	panic("implement me")
 }
 

@@ -57,6 +57,9 @@ func (e *Engine) Start(ctx context.Context) {
 	for {
 		select {
 		case <-ctx.Done():
+			// Flush events already queued in broadcast to listeners so a shutdown
+			// right after a broadcast doesn't silently drop the last notifications.
+			e.drainToListeners()
 			return
 		case evt := <-e.broadcast:
 			for _, ch := range e.listeners {
@@ -85,13 +88,43 @@ func (e *Engine) Start(ctx context.Context) {
 	}
 }
 
+// drainToListeners best-effort flushes the remaining broadcast queue into each
+// listener's buffer during shutdown. Sends are non-blocking, so a listener whose
+// buffer is full drops the overflow rather than stalling teardown.
+func (e *Engine) drainToListeners() {
+	for {
+		select {
+		case evt := <-e.broadcast:
+			for _, ch := range e.listeners {
+				select {
+				case ch <- evt:
+				default:
+				}
+			}
+		default:
+			return
+		}
+	}
+}
+
 // deliver feeds one listener its events in order until the queue is closed or
-// the context is canceled.
+// the context is canceled. On cancellation it drains buffered events first so
+// they still reach the listener.
 func deliver(ctx context.Context, l Listener, ch <-chan any) {
 	for {
 		select {
 		case <-ctx.Done():
-			return
+			for {
+				select {
+				case evt, ok := <-ch:
+					if !ok {
+						return
+					}
+					l.Listen(ctx, evt)
+				default:
+					return
+				}
+			}
 		case evt, ok := <-ch:
 			if !ok {
 				return
@@ -103,4 +136,17 @@ func deliver(ctx context.Context, l Listener, ch <-chan any) {
 
 func (e *Engine) BroadCast(evt any) {
 	e.broadcast <- evt
+}
+
+// BroadCastContext sends evt to the dispatch loop, returning false if ctx is
+// canceled before the send completes. Use this from producers that must not
+// block once the engine is shutting down (the loop stops draining broadcast on
+// cancellation).
+func (e *Engine) BroadCastContext(ctx context.Context, evt any) bool {
+	select {
+	case e.broadcast <- evt:
+		return true
+	case <-ctx.Done():
+		return false
+	}
 }

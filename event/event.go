@@ -28,4 +28,7 @@ type Listener interface {
 
 type Broadcaster interface {
 	BroadCast(e any)
+	// BroadCastContext sends e but gives up (returning false) if ctx is canceled,
+	// so producers don't block broadcasting once the dispatcher is shutting down.
+	BroadCastContext(ctx context.Context, e any) bool
 }

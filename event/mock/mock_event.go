@@ -87,3 +87,17 @@ func (mr *MockBroadcasterMockRecorder) BroadCast(e any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BroadCast", reflect.TypeOf((*MockBroadcaster)(nil).BroadCast), e)
 }
+
+// BroadCastContext mocks base method.
+func (m *MockBroadcaster) BroadCastContext(ctx context.Context, e any) bool {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "BroadCastContext", ctx, e)
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+// BroadCastContext indicates an expected call of BroadCastContext.
+func (mr *MockBroadcasterMockRecorder) BroadCastContext(ctx, e any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BroadCastContext", reflect.TypeOf((*MockBroadcaster)(nil).BroadCastContext), ctx, e)
+}

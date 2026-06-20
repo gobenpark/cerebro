@@ -35,11 +35,15 @@ type Engine struct {
 	store       market.Market
 	broker      *broker.Broker
 	eventEngine *event.Engine
-	channels    map[string]chan indicator.Tick
-	sts         []Strategy
-	timeout     time.Duration
-	// mu guards channels, which Spawn writes and Listen reads concurrently.
+	// channels maps an item code to one tick channel per strategy, so Listen can
+	// fan a tick out to every strategy instead of letting them steal from a shared one.
+	channels map[string][]chan indicator.Tick
+	sts      []Strategy
+	timeout  time.Duration
+	// mu guards channels, which manager writes and Listen reads concurrently.
 	mu sync.RWMutex
+	// wg tracks the per-strategy Next goroutines so Wait can join them on shutdown.
+	wg sync.WaitGroup
 }
 
 func NewEngine(log log.Logger, eventEngine *event.Engine, bk *broker.Broker, st []Strategy, store market.Market, timeout time.Duration) engine.Engine {
@@ -49,39 +53,73 @@ func NewEngine(log log.Logger, eventEngine *event.Engine, bk *broker.Broker, st 
 		store:       store,
 		timeout:     timeout,
 		eventEngine: eventEngine,
-		channels:    map[string]chan indicator.Tick{},
+		channels:    map[string][]chan indicator.Tick{},
 		sts:         st,
 	}
 }
 
 func (s *Engine) Spawn(ctx context.Context, it []*item.Item) {
-	for i := range it {
-		ch := make(chan indicator.Tick, 100)
-		s.mu.Lock()
-		s.channels[it[i].Code] = ch
-		s.mu.Unlock()
+	// Drop channels from any previous run; their Next goroutines have exited, so
+	// Listen must not keep sending to them (a full buffer would block delivery).
+	s.mu.Lock()
+	s.channels = map[string][]chan indicator.Tick{}
+	s.mu.Unlock()
 
-		if err := s.manager(it[i]); err != nil {
+	for i := range it {
+		if err := s.manager(ctx, it[i]); err != nil {
 			s.log.Error("manager", "err", err)
 			continue
 		}
 	}
 }
 
-func (s *Engine) manager(itm *item.Item) error {
+func (s *Engine) manager(ctx context.Context, itm *item.Item) error {
+	if len(s.sts) == 0 {
+		return nil
+	}
+
+	// Throttle, then subscribe once per item — the per-strategy channels fan a
+	// single market feed out to every strategy, so a second Subscribe would just
+	// duplicate ticks. The throttle stays cancellation-aware so shutdown is prompt.
+	timer := time.NewTimer(time.Second)
+	select {
+	case <-ctx.Done():
+		timer.Stop()
+		return ctx.Err()
+	case <-timer.C:
+	}
+
+	if err := s.store.Subscribe(func() []*item.Item {
+		return []*item.Item{itm}
+	}); err != nil {
+		return err
+	}
+
 	for i := range s.sts {
-		time.Sleep(time.Second)
-		if err := s.store.Subscribe(func() []*item.Item {
-			return []*item.Item{itm}
-		}); err != nil {
-			return err
+		// Stop registering further runners once shutdown has started.
+		if ctx.Err() != nil {
+			return ctx.Err()
 		}
-		s.mu.RLock()
-		ch := s.channels[itm.Code]
-		s.mu.RUnlock()
-		s.sts[i].Next(itm, ch, s.broker)
+
+		// Each strategy gets its own channel so Listen can fan a tick out to all
+		// of them, instead of strategies stealing from a shared channel.
+		ch := make(chan indicator.Tick, 100)
+		s.mu.Lock()
+		s.channels[itm.Code] = append(s.channels[itm.Code], ch)
+		s.mu.Unlock()
+
+		// Next runs until ctx is canceled, so each strategy runs in its own
+		// goroutine; otherwise manager would block on the first one.
+		s.wg.Go(func() {
+			s.sts[i].Next(ctx, itm, ch, s.broker)
+		})
 	}
 	return nil
+}
+
+// Wait blocks until every Next goroutine has returned.
+func (s *Engine) Wait() {
+	s.wg.Wait()
 }
 
 func (s *Engine) Listen(ctx context.Context, e any) {
@@ -92,12 +130,16 @@ func (s *Engine) Listen(ctx context.Context, e any) {
 		}
 	case indicator.Tick:
 		s.mu.RLock()
-		c, ok := s.channels[et.Code]
+		chs := make([]chan indicator.Tick, len(s.channels[et.Code]))
+		copy(chs, s.channels[et.Code])
 		s.mu.RUnlock()
-		if ok {
+		// Fan the tick out to every strategy. Sends are non-blocking: a strategy
+		// that isn't keeping up (or has exited during shutdown) drops the tick
+		// instead of stalling delivery to the other strategies or the dispatcher.
+		for _, c := range chs {
 			select {
 			case c <- et:
-			case <-ctx.Done():
+			default:
 			}
 		}
 	}

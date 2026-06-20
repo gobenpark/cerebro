@@ -18,6 +18,8 @@ package strategy
 //go:generate mockgen -source=./strategy.go -destination=./mock/mock_strategy.go
 
 import (
+	"context"
+
 	"github.com/gobenpark/cerebro/broker"
 	"github.com/gobenpark/cerebro/indicator"
 	"github.com/gobenpark/cerebro/item"
@@ -27,7 +29,9 @@ import (
 type CandleType int
 
 type Strategy interface {
-	Next(it *item.Item, tick <-chan indicator.Tick, b *broker.Broker)
+	// Next receives ticks on the tick channel until ctx is canceled. Implementations
+	// must return when ctx.Done() fires so the engine can shut down cleanly.
+	Next(ctx context.Context, it *item.Item, tick <-chan indicator.Tick, b *broker.Broker)
 	// NotifyOrder is when event rise order then called
 	NotifyOrder(o order.Order)
 	NotifyTrade()

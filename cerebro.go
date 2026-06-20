@@ -18,6 +18,7 @@ package cerebro
 import (
 	"context"
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/gobenpark/cerebro/broker"
@@ -62,6 +63,16 @@ type Cerebro struct {
 	startTime string
 
 	engines []engine.Engine
+	// wg tracks the producer goroutines (spawn, market events) started by Start.
+	wg sync.WaitGroup
+	// eventCancel stops the event dispatcher; it runs on its own context so the
+	// dispatcher can outlive producers and be torn down last during shutdown.
+	eventCancel context.CancelFunc
+	// eventWg tracks the event dispatcher goroutine.
+	eventWg sync.WaitGroup
+	// shutdownOnce makes Shutdown idempotent; it may be triggered both explicitly
+	// and by parent-context cancellation.
+	shutdownOnce sync.Once
 }
 
 // NewCerebro generate new cerebro with cerebro option
@@ -95,12 +106,7 @@ func NewCerebro(opts ...Option) *Cerebro {
 
 // Start run cerebro
 func (c *Cerebro) Start(ctx context.Context) error {
-	ctx, cancel := context.WithCancel(ctx)
-	c.cancel = cancel
-
-	c.log.Info("Cerebro starting ...")
-	go c.eventEngine.Start(ctx)
-
+	// Validate before spawning anything so a bad config leaks no goroutines.
 	if len(c.target) == 0 {
 		return fmt.Errorf("error need target setting")
 	}
@@ -108,6 +114,17 @@ func (c *Cerebro) Start(ctx context.Context) error {
 	if c.strategies == nil {
 		return fmt.Errorf("error empty strategies")
 	}
+
+	ctx, cancel := context.WithCancel(ctx)
+	c.cancel = cancel
+
+	// The dispatcher runs on its own context so it can keep draining broadcasts
+	// until every producer (spawn, events, strategies, broker) has stopped. It is
+	// detached from parent cancellation and stopped only by Shutdown.
+	eventCtx, eventCancel := context.WithCancel(context.WithoutCancel(ctx))
+	c.eventCancel = eventCancel
+
+	c.log.Info("Cerebro starting ...")
 
 	positions := c.market.AccountPositions()
 	for i := range positions {
@@ -118,35 +135,78 @@ func (c *Cerebro) Start(ctx context.Context) error {
 		}
 	}
 
+	c.eventWg.Go(func() {
+		c.eventEngine.Start(eventCtx)
+	})
+
 	for i := range c.engines {
-		go func(idx int) {
-			c.eventEngine.Register <- c.engines[idx]
-			c.engines[idx].Spawn(ctx, c.target)
-		}(i)
+		c.wg.Go(func() {
+			// Register may block if the dispatch loop is gone; honor cancellation.
+			select {
+			case c.eventEngine.Register <- c.engines[i]:
+			case <-ctx.Done():
+				return
+			}
+			c.engines[i].Spawn(ctx, c.target)
+		})
 	}
 
-	go func() {
+	c.wg.Go(func() {
 		ch := c.market.Events(ctx)
-	Done:
 		for {
 			select {
 			case e, ok := <-ch:
 				if !ok {
 					c.log.Info("event channel closed")
-					break Done
+					return
 				}
-				c.eventEngine.BroadCast(e)
+				// Stop if the dispatch loop is gone, otherwise this send blocks forever.
+				if !c.eventEngine.BroadCastContext(ctx, e) {
+					return
+				}
 			case <-ctx.Done():
 				c.log.Info("context done")
-				break Done
+				return
 			}
 		}
-	}()
+	})
+
+	// Register the cancellation hook only after every goroutine and shutdown field
+	// exists, so an already-canceled context can't consume shutdownOnce before the
+	// producers/dispatcher are set up. Canceling the parent context now triggers a
+	// graceful, ordered shutdown.
+	context.AfterFunc(ctx, c.Shutdown)
 
 	return nil
 }
 
+// Shutdown stops cerebro and blocks until everything has drained. Producers are
+// torn down in order — spawn/events, then strategy Next goroutines, then broker
+// submissions — all while the event dispatcher keeps draining. Only once no
+// producer can broadcast anymore is the dispatcher itself stopped.
 func (c *Cerebro) Shutdown() {
+	c.shutdownOnce.Do(c.shutdown)
+}
+
+func (c *Cerebro) shutdown() {
 	c.log.Info("shutdown")
-	c.cancel()
+	if c.cancel != nil {
+		c.cancel()
+	}
+
+	// 1. Producers on the run context: spawn finishes registering Next goroutines,
+	//    the market-events loop exits.
+	c.wg.Wait()
+	// 2. Long-running strategy Next goroutines.
+	for _, e := range c.engines {
+		e.Wait()
+	}
+	// 3. In-flight broker submissions (they broadcast order updates).
+	c.broker.Wait()
+
+	// 4. No producer remains, so stop the dispatcher and wait for it.
+	if c.eventCancel != nil {
+		c.eventCancel()
+	}
+	c.eventWg.Wait()
 }

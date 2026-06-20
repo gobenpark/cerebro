@@ -8,7 +8,6 @@ require (
 )
 
 require (
-	github.com/maypok86/otter v1.1.1
 	github.com/samber/lo v1.38.1
 	go.uber.org/goleak v1.2.0
 	go.uber.org/mock v0.6.0
@@ -17,9 +16,6 @@ require (
 
 require (
 	github.com/davecgh/go-spew v1.1.1 // indirect
-	github.com/dolthub/maphash v0.1.0 // indirect
-	github.com/dolthub/swiss v0.2.1 // indirect
-	github.com/gammazero/deque v0.2.1 // indirect
 	github.com/kr/pretty v0.3.0 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/rogpeppe/go-internal v1.10.0 // indirect

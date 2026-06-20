@@ -15,48 +15,8 @@
  */
 package indicator
 
-type rsiIndicator struct {
-	period int
-}
-
-func NewRsiIndicator(period int) *rsiIndicator {
-	if period == 0 {
-		period = 10
-	}
-
-	return &rsiIndicator{period: period}
-}
-
-// //// self.line[0] = self.line[-1] * self.alpha1 + self.data[0] * self.alpha
-func (r *rsiIndicator) Calculate(candles Candles) {
-	if candles.Len() < r.period {
-		return
-	}
-
-	gains := make([]float64, candles.Len())
-	losses := make([]float64, candles.Len())
-
-	for i := 1; i < candles.Len(); i++ {
-		diff := candles[i].Close - candles[i-1].Close
-		if diff > 0 {
-			gains[i] = float64(diff)
-			losses[i] = 0
-		} else {
-			losses[i] = float64(-diff)
-			gains[i] = 0
-		}
-	}
-
-	meanGains := Rma(r.period, gains)
-	meanLosses := Rma(r.period, losses)
-
-	rsi := make([]float64, candles.Len())
-
-	for i := range rsi {
-		rsi[i] = 100 - (100 / (1 + meanGains[i]/meanLosses[i]))
-	}
-}
-
+// Rma is a running (Wilder-style) moving average: a simple average until the
+// window fills, then exponential smoothing with weight (period-1)/period.
 func Rma(period int, values []float64) []float64 {
 	result := make([]float64, len(values))
 	sum := float64(0)

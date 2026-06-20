@@ -20,7 +20,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/gobenpark/cerebro/analysis"
 	"github.com/gobenpark/cerebro/broker"
 	"github.com/gobenpark/cerebro/engine"
 	"github.com/gobenpark/cerebro/event"
@@ -48,8 +47,6 @@ type Cerebro struct {
 	market market.Market
 
 	log log.Logger
-
-	analyzer analysis.Analyzer
 
 	o observer.Observer
 
@@ -91,10 +88,7 @@ func NewCerebro(opts ...Option) *Cerebro {
 	}
 
 	c.broker = broker.NewDefaultBroker(c.eventEngine, c.market, c.log)
-	c.engines = append(c.engines,
-		strategy.NewEngine(c.log, c.eventEngine, c.broker, c.strategies, c.market, c.timeout),
-		analysis.NewEngine(c.log, c.analyzer),
-	)
+	c.engines = append(c.engines, strategy.NewEngine(c.log, c.eventEngine, c.broker, c.strategies, c.market, c.timeout))
 
 	return c
 }

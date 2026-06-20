@@ -21,9 +21,6 @@ const (
 	PanicLevel
 	// FatalLevel logs a message, then calls os.Exit(1).
 	FatalLevel
-
-	_minLevel = DebugLevel
-	_maxLevel = FatalLevel
 )
 
 type Logger interface {

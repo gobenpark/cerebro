@@ -45,18 +45,14 @@ type Cerebro struct {
 
 	target []*item.Item
 
-	market         market.Market
-	strategyEngine engine.Engine
+	market market.Market
 
 	log log.Logger
-
-	analyzerEngine *analysis.Engine
 
 	analyzer analysis.Analyzer
 
 	o observer.Observer
 
-	signalEngine engine.Engine
 	// broker buy, sell and manage order
 	order chan order.Order
 	// eventEngine engine of management all event
@@ -95,8 +91,10 @@ func NewCerebro(opts ...Option) *Cerebro {
 	}
 
 	c.broker = broker.NewDefaultBroker(c.eventEngine, c.market, c.log)
-	c.engines = append(c.engines, strategy.NewEngine(c.log, c.eventEngine, c.broker, c.strategies, c.market, c.timeout))
-	c.engines = append(c.engines, analysis.NewEngine(c.log, c.analyzer))
+	c.engines = append(c.engines,
+		strategy.NewEngine(c.log, c.eventEngine, c.broker, c.strategies, c.market, c.timeout),
+		analysis.NewEngine(c.log, c.analyzer),
+	)
 
 	return c
 }

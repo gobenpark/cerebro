@@ -21,17 +21,10 @@ import (
 	"github.com/gobenpark/cerebro/item"
 	"github.com/gobenpark/cerebro/log"
 	"github.com/gobenpark/cerebro/market"
-	"github.com/gobenpark/cerebro/observer"
 	"github.com/gobenpark/cerebro/strategy"
 )
 
 type Option func(*Cerebro)
-
-func WithObserver(o observer.Observer) Option {
-	return func(c *Cerebro) {
-		c.o = o
-	}
-}
 
 func WithMarket(s market.Market) Option {
 	return func(c *Cerebro) {
@@ -42,12 +35,6 @@ func WithMarket(s market.Market) Option {
 func WithTargetItem(codes ...*item.Item) Option {
 	return func(c *Cerebro) {
 		c.target = codes
-	}
-}
-
-func WithPreload(b bool) Option {
-	return func(c *Cerebro) {
-		c.preload = b
 	}
 }
 
@@ -66,11 +53,5 @@ func WithStrategy(st ...strategy.Strategy) Option {
 func WithStrategyTimeout(du time.Duration) Option {
 	return func(c *Cerebro) {
 		c.timeout = du
-	}
-}
-
-func WithStartTime(ti string) Option {
-	return func(c *Cerebro) {
-		c.startTime = ti
 	}
 }

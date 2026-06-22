@@ -24,9 +24,17 @@ import (
 // dispatch loop applies backpressure.
 const listenerBuffer = 64
 
+// registration hands a listener to the dispatch loop together with an ack channel
+// that the loop closes once the listener is live. Register blocks on that ack, so
+// a producer can register and then broadcast without racing its own registration.
+type registration struct {
+	listener Listener
+	ack      chan struct{}
+}
+
 type Engine struct {
 	broadcast  chan any
-	Register   chan Listener
+	register   chan registration
 	Unregister chan Listener
 	// listeners maps each registered listener to its private delivery queue.
 	// Only Start touches this map, so it needs no lock.
@@ -36,7 +44,7 @@ type Engine struct {
 func NewEventEngine() *Engine {
 	return &Engine{
 		broadcast:  make(chan any, 10),
-		Register:   make(chan Listener, 2),
+		register:   make(chan registration),
 		Unregister: make(chan Listener, 1),
 		listeners:  make(map[Listener]chan any),
 	}
@@ -69,13 +77,13 @@ func (e *Engine) Start(ctx context.Context) {
 					return
 				}
 			}
-		case cli := <-e.Register:
-			if cli == nil {
-				continue
-			}
+		case reg := <-e.register:
 			ch := make(chan any, listenerBuffer)
-			e.listeners[cli] = ch
-			go deliver(ctx, cli, ch)
+			e.listeners[reg.listener] = ch
+			go deliver(ctx, reg.listener, ch)
+			// Signal Register that the listener is live and will receive every
+			// broadcast from here on.
+			close(reg.ack)
 		case cli := <-e.Unregister:
 			if cli == nil {
 				continue
@@ -131,6 +139,28 @@ func deliver(ctx context.Context, l Listener, ch <-chan any) {
 			}
 			l.Listen(ctx, evt)
 		}
+	}
+}
+
+// Register adds l to the listener set and blocks until the dispatch loop has it
+// live, returning false only if ctx is canceled first. Registering synchronously
+// lets a producer guarantee that events it broadcasts immediately afterwards are
+// delivered to l instead of racing ahead of the registration.
+func (e *Engine) Register(ctx context.Context, l Listener) bool {
+	if l == nil {
+		return true
+	}
+	ack := make(chan struct{})
+	select {
+	case e.register <- registration{listener: l, ack: ack}:
+	case <-ctx.Done():
+		return false
+	}
+	select {
+	case <-ack:
+		return true
+	case <-ctx.Done():
+		return false
 	}
 }
 

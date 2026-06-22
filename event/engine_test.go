@@ -30,15 +30,15 @@ func TestEngine_DeliversToRegisteredListener(t *testing.T) {
 	go eng.Start(ctx)
 
 	got := make(chan any, 1)
-	eng.Register <- &captureListener{fn: func(_ context.Context, e any) {
+	eng.Register(ctx, &captureListener{fn: func(_ context.Context, e any) {
 		select {
 		case got <- e:
 		default:
 		}
-	}}
+	}})
 
-	// Registration is processed asynchronously by Start, so retry the broadcast
-	// until the listener is wired up and delivers.
+	// Register blocks until the listener is live, but delivery still runs on a
+	// worker goroutine, so poll until the broadcast has been forwarded.
 	assert.Eventually(t, func() bool {
 		eng.BroadCast("hello")
 		select {
@@ -64,14 +64,14 @@ func TestEngine_ListenerCanBroadcastWithoutDeadlock(t *testing.T) {
 
 	echoed := make(chan struct{})
 	var once sync.Once
-	eng.Register <- &captureListener{fn: func(_ context.Context, e any) {
+	eng.Register(ctx, &captureListener{fn: func(_ context.Context, e any) {
 		switch e {
 		case "trigger":
 			eng.BroadCast("echo") // re-entrant broadcast
 		case "echo":
 			once.Do(func() { close(echoed) })
 		}
-	}}
+	}})
 
 	assert.Eventually(t, func() bool {
 		eng.BroadCast("trigger")

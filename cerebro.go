@@ -28,7 +28,6 @@ import (
 	"github.com/gobenpark/cerebro/log"
 	log2 "github.com/gobenpark/cerebro/log/v1"
 	"github.com/gobenpark/cerebro/market"
-	"github.com/gobenpark/cerebro/observer"
 	"github.com/gobenpark/cerebro/order"
 	"github.com/gobenpark/cerebro/strategy"
 )
@@ -38,8 +37,6 @@ import (
 type Cerebro struct {
 	cancel   context.CancelFunc
 	logLevel log.Level
-	// preload bool value, decide use candle history
-	preload bool
 	// broker buy, sell and manage order
 	broker *broker.Broker
 
@@ -49,8 +46,6 @@ type Cerebro struct {
 
 	log log.Logger
 
-	o observer.Observer
-
 	// broker buy, sell and manage order
 	order chan order.Order
 	// eventEngine engine of management all event
@@ -59,8 +54,6 @@ type Cerebro struct {
 	strategies []strategy.Strategy
 
 	timeout time.Duration
-
-	startTime string
 
 	engines []engine.Engine
 	// wg tracks the producer goroutines (spawn, market events) started by Start.
@@ -139,14 +132,21 @@ func (c *Cerebro) Start(ctx context.Context) error {
 		c.eventEngine.Start(eventCtx)
 	})
 
+	// Register every listener synchronously BEFORE the market-events pump starts.
+	// Register blocks until the dispatcher has the listener live, so an event the
+	// market emits immediately cannot race ahead of registration and be dropped.
+	// The broker applies order/balance events (releasing reserved cash, updating
+	// balance); each strategy engine fans ticks and order updates out to its
+	// strategies. If ctx is already canceled, Register is a no-op and the AfterFunc
+	// hook below tears everything down.
+	c.eventEngine.Register(ctx, c.broker)
+	for i := range c.engines {
+		c.eventEngine.Register(ctx, c.engines[i])
+	}
+
+	// Listeners are live; now spawn the strategy producers.
 	for i := range c.engines {
 		c.wg.Go(func() {
-			// Register may block if the dispatch loop is gone; honor cancellation.
-			select {
-			case c.eventEngine.Register <- c.engines[i]:
-			case <-ctx.Done():
-				return
-			}
 			c.engines[i].Spawn(ctx, c.target)
 		})
 	}

@@ -39,6 +39,7 @@ linters:
     - nolintlint
     - prealloc
     - staticcheck
+    - testifylint
     - unparam
     - unused
   settings:
@@ -73,6 +74,11 @@ linters:
       require-explanation: false
       require-specific: false
       allow-unused: false
+    testifylint:
+      disable:
+        # We intentionally use assert.Error/ErrorIs for error *verifications* that
+        # are followed by independent state checks, so both failures surface.
+        - require-error
     staticcheck:
       # stylecheck (ST*) is merged into staticcheck in v2.
       checks:

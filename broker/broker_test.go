@@ -187,3 +187,28 @@ func TestListen_AcceptedOrderKeepsReservation(t *testing.T) {
 
 	eqDec(t, 99_000, bk.Available(), "accepted (non-terminal) order keeps its reservation")
 }
+
+// TestListen_PartialFillReducesReservation verifies a partial fill keeps the order
+// open and shrinks its cash reservation to the unfilled remainder.
+func TestListen_PartialFillReducesReservation(t *testing.T) {
+	is := assert.New(t)
+	must := require.New(t)
+
+	bk, mk := newBrokerUnderTest(t, 100_000, 0)
+	submitted := make(chan struct{})
+	mk.EXPECT().
+		Order(gomock.Any(), gomock.Any()).
+		Return(nil).
+		Do(func(context.Context, order.Order) { close(submitted) })
+
+	o := buyLimit("AAA", 10, 100) // value 1000
+	must.NoError(bk.Order(context.Background(), o, false))
+	eqDec(t, 99_000, bk.Available())
+	<-submitted
+
+	// 4 of 10 fill: remaining 6 @ 100 -> reservation drops from 1000 to 600.
+	bk.Listen(context.Background(), market.ChangeOrderEvent{ID: o.ID(), Action: order.Partial, FilledSize: decimal.NewFromInt(4)})
+
+	eqDec(t, 99_400, bk.Available(), "partial fill releases the filled portion's reservation")
+	is.Len(bk.Orders("AAA"), 1, "a partially filled order stays open")
+}

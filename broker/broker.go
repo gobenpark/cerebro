@@ -64,10 +64,13 @@ func NewDefaultBroker(eventEngine event.Broadcaster, store market.Market, logger
 	}
 }
 
-// orderValue returns the cash an order commits, including commission.
-// Commission() is a percentage, so the fee is value * commission / 100.
+// orderValue returns the cash an open order still commits, including commission.
+// It is based on the unfilled remainder (RemainPrice), so a partial fill releases
+// the reservation for the portion that has already settled. For a fresh order the
+// remainder equals the full size. Commission() is a percentage, so the fee is
+// value * commission / 100.
 func (b *Broker) orderValue(o order.Order) decimal.Decimal {
-	value := o.OrderPrice()
+	value := o.RemainPrice()
 	fee := value.Mul(b.market.Commission()).Div(decimal.NewFromInt(100))
 	return value.Add(fee)
 }
@@ -269,9 +272,12 @@ func (b *Broker) applyOrderChange(ctx context.Context, evt market.ChangeOrderEve
 		o.Margin()
 	case order.Rejected:
 		o.Reject()
+	case order.Partial:
+		// A partial fill reduces the remaining size; the order stays open and its
+		// reservation shrinks to the unfilled remainder (see orderValue).
+		o.Partial(evt.FilledSize)
 	default:
-		// None/Created/Submitted/Partial are not delivered as terminal or
-		// accepted exchange events; nothing to apply.
+		// None/Created/Submitted are not delivered as exchange events; nothing to apply.
 	}
 	// Terminal statuses end the order's lifecycle: drop it from the open set so
 	// its reserved cash is released. Non-terminal updates (e.g. Accepted) keep

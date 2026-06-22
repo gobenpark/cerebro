@@ -14,6 +14,9 @@ type ChangeOrderEvent struct {
 	Message string
 	ID      string
 	Action  order.Status
+	// FilledSize is the quantity filled by this event. It is applied to the
+	// order's remaining size on a Partial fill; other actions ignore it.
+	FilledSize decimal.Decimal
 }
 
 func (o ChangeOrderEvent) String() string {

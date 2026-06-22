@@ -132,26 +132,26 @@ func (o *order) SetID(id string) {
 }
 
 func (o *order) Exec() OrderType {
-	o.mu.Lock()
-	defer o.mu.Unlock()
+	o.mu.RLock()
+	defer o.mu.RUnlock()
 	return o.OrderType
 }
 
 func (o *order) Action() Action {
-	o.mu.Lock()
-	defer o.mu.Unlock()
+	o.mu.RLock()
+	defer o.mu.RUnlock()
 	return o.action
 }
 
 func (o *order) Item() *item.Item {
-	o.mu.Lock()
-	defer o.mu.Unlock()
+	o.mu.RLock()
+	defer o.mu.RUnlock()
 	return o.item
 }
 
 func (o *order) ID() string {
-	o.mu.Lock()
-	defer o.mu.Unlock()
+	o.mu.RLock()
+	defer o.mu.RUnlock()
 	return o.uuid
 }
 
@@ -203,6 +203,7 @@ func (o *order) Complete() {
 	defer o.mu.Unlock()
 	o.remainingSize = 0
 	o.status = Completed
+	o.updatedAt = time.Now()
 }
 
 func (o *order) Status() Status {
@@ -214,32 +215,32 @@ func (o *order) Status() Status {
 }
 
 func (o *order) OrderPrice() float64 {
-	o.mu.Lock()
-	defer o.mu.Unlock()
+	o.mu.RLock()
+	defer o.mu.RUnlock()
 	return float64(o.price) * float64(o.size)
 }
 
 func (o *order) RemainPrice() float64 {
-	o.mu.Lock()
-	defer o.mu.Unlock()
+	o.mu.RLock()
+	defer o.mu.RUnlock()
 	return float64(o.price) * float64(o.remainingSize)
 }
 
 func (o *order) Price() int64 {
-	o.mu.Lock()
-	defer o.mu.Unlock()
+	o.mu.RLock()
+	defer o.mu.RUnlock()
 	return o.price
 }
 
 func (o *order) Size() int64 {
-	o.mu.Lock()
-	defer o.mu.Unlock()
+	o.mu.RLock()
+	defer o.mu.RUnlock()
 	return o.size
 }
 
 func (o *order) Copy() Order {
-	o.mu.Lock()
-	defer o.mu.Unlock()
+	o.mu.RLock()
+	defer o.mu.RUnlock()
 	return &order{
 		status:        o.status,
 		action:        o.action,

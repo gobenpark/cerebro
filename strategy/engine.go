@@ -17,6 +17,7 @@ package strategy
 
 import (
 	"context"
+	"slices"
 	"sync"
 	"time"
 
@@ -75,9 +76,7 @@ func (s *Engine) manager(ctx context.Context, itm *item.Item) error {
 		return nil
 	}
 
-	// Throttle, then subscribe once per item — the per-strategy channels fan a
-	// single market feed out to every strategy, so a second Subscribe would just
-	// duplicate ticks. The throttle stays cancellation-aware so shutdown is prompt.
+	// Throttle so a burst of items doesn't hammer the feed; stays cancellation-aware.
 	timer := time.NewTimer(time.Second)
 	select {
 	case <-ctx.Done():
@@ -86,27 +85,39 @@ func (s *Engine) manager(ctx context.Context, itm *item.Item) error {
 	case <-timer.C:
 	}
 
+	// Register the per-strategy tick channels BEFORE subscribing, so the feed has
+	// somewhere to deliver and no early tick is dropped. Each strategy gets its own
+	// channel so Listen fans one feed out to all of them, instead of strategies
+	// stealing from a shared channel.
+	chans := make([]chan indicator.Tick, len(s.sts))
+	s.mu.Lock()
+	for i := range chans {
+		chans[i] = make(chan indicator.Tick, 100)
+		s.channels[itm.Code] = append(s.channels[itm.Code], chans[i])
+	}
+	s.mu.Unlock()
+
+	// Subscribe only after the channels exist. If it fails, roll the channels back
+	// so a failed market leaves nothing registered — no runners have started yet.
 	if err := s.store.Subscribe(func() []*item.Item {
 		return []*item.Item{itm}
 	}); err != nil {
+		s.mu.Lock()
+		s.channels[itm.Code] = slices.DeleteFunc(s.channels[itm.Code], func(c chan indicator.Tick) bool {
+			return slices.Contains(chans, c)
+		})
+		s.mu.Unlock()
 		return err
 	}
 
+	// Subscription succeeded: start a Next runner per strategy. Next runs until ctx
+	// is canceled, so each runs in its own goroutine.
 	for i := range s.sts {
-		// Stop registering further runners once shutdown has started.
+		// Stop launching further runners once shutdown has started.
 		if ctx.Err() != nil {
 			return ctx.Err()
 		}
-
-		// Each strategy gets its own channel so Listen can fan a tick out to all
-		// of them, instead of strategies stealing from a shared channel.
-		ch := make(chan indicator.Tick, 100)
-		s.mu.Lock()
-		s.channels[itm.Code] = append(s.channels[itm.Code], ch)
-		s.mu.Unlock()
-
-		// Next runs until ctx is canceled, so each strategy runs in its own
-		// goroutine; otherwise manager would block on the first one.
+		ch := chans[i]
 		s.wg.Go(func() {
 			s.sts[i].Next(ctx, itm, ch, s.broker)
 		})

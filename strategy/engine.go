@@ -22,7 +22,6 @@ import (
 
 	"github.com/gobenpark/cerebro/broker"
 	"github.com/gobenpark/cerebro/engine"
-	"github.com/gobenpark/cerebro/event"
 	"github.com/gobenpark/cerebro/indicator"
 	"github.com/gobenpark/cerebro/item"
 	"github.com/gobenpark/cerebro/log"
@@ -31,10 +30,9 @@ import (
 )
 
 type Engine struct {
-	log         log.Logger
-	store       market.Market
-	broker      *broker.Broker
-	eventEngine *event.Engine
+	log    log.Logger
+	store  market.Market
+	broker *broker.Broker
 	// channels maps an item code to one tick channel per strategy, so Listen can
 	// fan a tick out to every strategy instead of letting them steal from a shared one.
 	channels map[string][]chan indicator.Tick
@@ -46,15 +44,14 @@ type Engine struct {
 	wg sync.WaitGroup
 }
 
-func NewEngine(log log.Logger, eventEngine *event.Engine, bk *broker.Broker, st []Strategy, store market.Market, timeout time.Duration) engine.Engine {
+func NewEngine(log log.Logger, bk *broker.Broker, st []Strategy, store market.Market, timeout time.Duration) engine.Engine {
 	return &Engine{
-		broker:      bk,
-		log:         log,
-		store:       store,
-		timeout:     timeout,
-		eventEngine: eventEngine,
-		channels:    map[string][]chan indicator.Tick{},
-		sts:         st,
+		broker:   bk,
+		log:      log,
+		store:    store,
+		timeout:  timeout,
+		channels: map[string][]chan indicator.Tick{},
+		sts:      st,
 	}
 }
 

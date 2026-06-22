@@ -76,7 +76,6 @@ type Order interface {
 	Partial(size decimal.Decimal)
 	Complete()
 	Status() Status
-	Exec() OrderType
 	OrderPrice() decimal.Decimal
 	Action() Action
 	Price() decimal.Decimal
@@ -130,12 +129,6 @@ func (o *order) SetID(id string) {
 	o.mu.Lock()
 	defer o.mu.Unlock()
 	o.uuid = id
-}
-
-func (o *order) Exec() OrderType {
-	o.mu.RLock()
-	defer o.mu.RUnlock()
-	return o.OrderType
 }
 
 func (o *order) Action() Action {

@@ -65,7 +65,7 @@ import (
 //
 //	Stocks(ctx) []*item.Item
 //	Candles(ctx, code, level) (indicator.Candles, error)
-//	Subscribe(event any) error
+//	Subscribe(handler market.TickEventHandler) error
 //	Order(ctx, o order.Order) error
 //	AccountPositions() []position.Position
 //	AccountBalance() decimal.Decimal
@@ -80,7 +80,8 @@ func (e *exchange) Candles(ctx context.Context, code string, level market.Candle
 }
 
 // Subscribe is called once per target item; start streaming its ticks here.
-func (e *exchange) Subscribe(event any) error { panic("implement me") }
+// The handler reports which items to subscribe.
+func (e *exchange) Subscribe(handler market.TickEventHandler) error { panic("implement me") }
 
 // Order submits an order to the exchange.
 func (e *exchange) Order(ctx context.Context, o order.Order) error { panic("implement me") }

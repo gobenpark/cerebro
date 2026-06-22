@@ -7,7 +7,6 @@ import (
 
 	"go.uber.org/goleak"
 
-	"github.com/gobenpark/cerebro/event"
 	"github.com/gobenpark/cerebro/indicator"
 	"github.com/gobenpark/cerebro/item"
 	"github.com/gobenpark/cerebro/strategy"
@@ -28,7 +27,7 @@ func (noopLogger) Panic(string, ...any) {}
 func TestEngine_ConcurrentSpawnAndListen(t *testing.T) {
 	defer goleak.VerifyNone(t)
 
-	eng := strategy.NewEngine(noopLogger{}, event.NewEventEngine(), nil, nil, nil, 0)
+	eng := strategy.NewEngine(noopLogger{}, nil, nil, nil, 0)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 

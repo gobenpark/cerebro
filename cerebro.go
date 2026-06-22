@@ -28,7 +28,6 @@ import (
 	"github.com/gobenpark/cerebro/log"
 	log2 "github.com/gobenpark/cerebro/log/v1"
 	"github.com/gobenpark/cerebro/market"
-	"github.com/gobenpark/cerebro/order"
 	"github.com/gobenpark/cerebro/strategy"
 )
 
@@ -46,8 +45,6 @@ type Cerebro struct {
 
 	log log.Logger
 
-	// broker buy, sell and manage order
-	order chan order.Order
 	// eventEngine engine of management all event
 	eventEngine *event.Engine
 
@@ -71,7 +68,6 @@ type Cerebro struct {
 // NewCerebro generate new cerebro with cerebro option
 func NewCerebro(opts ...Option) *Cerebro {
 	c := &Cerebro{
-		order:       make(chan order.Order, 1),
 		eventEngine: event.NewEventEngine(),
 	}
 
@@ -92,7 +88,7 @@ func NewCerebro(opts ...Option) *Cerebro {
 	}
 
 	c.broker = broker.NewDefaultBroker(c.eventEngine, c.market, c.log)
-	c.engines = append(c.engines, strategy.NewEngine(c.log, c.eventEngine, c.broker, c.strategies, c.market, c.timeout))
+	c.engines = append(c.engines, strategy.NewEngine(c.log, c.broker, c.strategies, c.market, c.timeout))
 
 	return c
 }

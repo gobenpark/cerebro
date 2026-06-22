@@ -33,9 +33,8 @@ type registration struct {
 }
 
 type Engine struct {
-	broadcast  chan any
-	register   chan registration
-	Unregister chan Listener
+	broadcast chan any
+	register  chan registration
 	// listeners maps each registered listener to its private delivery queue.
 	// Only Start touches this map, so it needs no lock.
 	listeners map[Listener]chan any
@@ -43,10 +42,9 @@ type Engine struct {
 
 func NewEventEngine() *Engine {
 	return &Engine{
-		broadcast:  make(chan any, 10),
-		register:   make(chan registration),
-		Unregister: make(chan Listener, 1),
-		listeners:  make(map[Listener]chan any),
+		broadcast: make(chan any, 10),
+		register:  make(chan registration),
+		listeners: make(map[Listener]chan any),
 	}
 }
 
@@ -84,14 +82,6 @@ func (e *Engine) Start(ctx context.Context) {
 			// Signal Register that the listener is live and will receive every
 			// broadcast from here on.
 			close(reg.ack)
-		case cli := <-e.Unregister:
-			if cli == nil {
-				continue
-			}
-			if ch, ok := e.listeners[cli]; ok {
-				close(ch)
-				delete(e.listeners, cli)
-			}
 		}
 	}
 }

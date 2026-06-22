@@ -146,15 +146,15 @@ func (mr *MockMarketMockRecorder) Stocks(ctx any) *gomock.Call {
 }
 
 // Subscribe mocks base method.
-func (m *MockMarket) Subscribe(event any) error {
+func (m *MockMarket) Subscribe(handler market.TickEventHandler) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Subscribe", event)
+	ret := m.ctrl.Call(m, "Subscribe", handler)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // Subscribe indicates an expected call of Subscribe.
-func (mr *MockMarketMockRecorder) Subscribe(event any) *gomock.Call {
+func (mr *MockMarketMockRecorder) Subscribe(handler any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Subscribe", reflect.TypeOf((*MockMarket)(nil).Subscribe), event)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Subscribe", reflect.TypeOf((*MockMarket)(nil).Subscribe), handler)
 }

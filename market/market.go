@@ -16,9 +16,9 @@ import (
 type (
 	CandleType int
 
-	TickEventHandler    func() []*item.Item
-	AccountEventHandler func()
-	OrderEventHandler   func()
+	// TickEventHandler returns the items whose realtime tick feed should be
+	// subscribed. It is passed to Subscribe.
+	TickEventHandler func() []*item.Item
 )
 
 const (
@@ -34,7 +34,7 @@ const (
 type Market interface {
 	Stocks(ctx context.Context) []*item.Item
 	Candles(ctx context.Context, code string, level CandleType) (indicator.Candles, error)
-	Subscribe(event any) error
+	Subscribe(handler TickEventHandler) error
 	Order(ctx context.Context, o order.Order) error
 	AccountPositions() []position.Position
 	AccountBalance() decimal.Decimal

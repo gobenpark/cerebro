@@ -118,8 +118,10 @@ func (s *Engine) manager(ctx context.Context, itm *item.Item) error {
 			return ctx.Err()
 		}
 		ch := chans[i]
+		// Hand each strategy a broker scoped to its name so its orders are attributed.
+		bk := s.broker.Scoped(s.sts[i].Name())
 		s.wg.Go(func() {
-			s.sts[i].Next(ctx, itm, ch, s.broker)
+			s.sts[i].Next(ctx, itm, ch, bk)
 		})
 	}
 	return nil
@@ -133,8 +135,13 @@ func (s *Engine) Wait() {
 func (s *Engine) Listen(ctx context.Context, e any) {
 	switch et := e.(type) {
 	case order.Order:
+		// Route the order update to its owning strategy only. Unattributed orders
+		// (no strategy tag) go to every strategy, preserving prior behavior.
+		owner := et.Strategy()
 		for _, st := range s.sts {
-			st.NotifyOrder(et)
+			if owner == "" || st.Name() == owner {
+				st.NotifyOrder(et)
+			}
 		}
 	case indicator.Tick:
 		s.mu.RLock()

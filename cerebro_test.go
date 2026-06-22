@@ -40,7 +40,7 @@ import (
 // the engine has a goroutine to join on shutdown, and the notify hooks are no-ops.
 type stubStrategy struct{}
 
-func (stubStrategy) Next(ctx context.Context, _ *item.Item, _ <-chan indicator.Tick, _ *broker.Broker) {
+func (stubStrategy) Next(ctx context.Context, _ *item.Item, _ <-chan indicator.Tick, _ broker.Submitter) {
 	<-ctx.Done()
 }
 func (stubStrategy) NotifyOrder(order.Order) {}

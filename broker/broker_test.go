@@ -221,6 +221,21 @@ func TestListen_CompletedFillRefreshesPositions(t *testing.T) {
 	is.True(decimal.NewFromInt(10).Equal(pos.Size), "completed fill must be reflected in positions")
 }
 
+// TestScoped_StampsStrategyOnOrder verifies a scoped broker tags every order it
+// submits with the strategy's name, so fills can be attributed back to it.
+func TestScoped_StampsStrategyOnOrder(t *testing.T) {
+	is := assert.New(t)
+	must := require.New(t)
+
+	bk, mk := newBrokerUnderTest(t, 100_000, 0)
+	mk.EXPECT().Order(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
+
+	o := buyLimit("AAA", 1, 100)
+	must.NoError(bk.Scoped("alpha").Order(context.Background(), o, false))
+
+	is.Equal("alpha", o.Strategy())
+}
+
 // TestOrder_RiskGateRejectsBeforeReserving verifies the pre-trade risk gate
 // rejects a violating order before any cash is reserved or it is submitted.
 func TestOrder_RiskGateRejectsBeforeReserving(t *testing.T) {

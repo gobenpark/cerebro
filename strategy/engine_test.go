@@ -6,6 +6,8 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/shopspring/decimal"
+	"github.com/stretchr/testify/assert"
 	"go.uber.org/goleak"
 	"go.uber.org/mock/gomock"
 
@@ -21,7 +23,7 @@ import (
 type stubStrategy struct{}
 
 func (stubStrategy) Name() string { return "stub" }
-func (stubStrategy) Next(ctx context.Context, _ *item.Item, _ <-chan indicator.Tick, _ *broker.Broker) {
+func (stubStrategy) Next(ctx context.Context, _ *item.Item, _ <-chan indicator.Tick, _ broker.Submitter) {
 	<-ctx.Done()
 }
 func (stubStrategy) NotifyOrder(order.Order) {}
@@ -84,4 +86,45 @@ func TestEngine_SubscribeFailureStartsNoRunners(t *testing.T) {
 	// start, so Wait returns immediately because nothing was launched.
 	eng.Spawn(ctx, []*item.Item{{Code: "AAA"}})
 	eng.Wait()
+}
+
+// recordingStrategy records the orders it is notified about.
+type recordingStrategy struct {
+	name string
+	mu   sync.Mutex
+	got  int
+}
+
+func (s *recordingStrategy) Name() string { return s.name }
+func (s *recordingStrategy) Next(context.Context, *item.Item, <-chan indicator.Tick, broker.Submitter) {
+}
+func (s *recordingStrategy) NotifyOrder(order.Order) { s.mu.Lock(); s.got++; s.mu.Unlock() }
+func (s *recordingStrategy) NotifyTrade()            {}
+func (s *recordingStrategy) NotifyFund()             {}
+func (s *recordingStrategy) count() int              { s.mu.Lock(); defer s.mu.Unlock(); return s.got }
+
+// TestEngine_NotifyOrderRoutesToOwningStrategy verifies an attributed order is
+// delivered only to its owning strategy, while an unattributed one goes to all.
+func TestEngine_NotifyOrderRoutesToOwningStrategy(t *testing.T) {
+	is := assert.New(t)
+
+	a := &recordingStrategy{name: "a"}
+	b := &recordingStrategy{name: "b"}
+	eng := strategy.NewEngine(noopLogger{}, nil, []strategy.Strategy{a, b}, nil, 0)
+
+	mk := func(owner string) order.Order {
+		o := order.NewOrder(&item.Item{Code: "AAA"}, order.Buy, order.Limit, decimal.NewFromInt(1), decimal.NewFromInt(100))
+		if owner != "" {
+			o.SetStrategy(owner)
+		}
+		return o
+	}
+
+	eng.Listen(context.Background(), mk("a"))
+	is.Equal(1, a.count(), "owning strategy is notified")
+	is.Equal(0, b.count(), "other strategy is not notified")
+
+	eng.Listen(context.Background(), mk("")) // unattributed -> all
+	is.Equal(2, a.count())
+	is.Equal(1, b.count())
 }

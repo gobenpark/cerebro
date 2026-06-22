@@ -83,6 +83,10 @@ type Order interface {
 	RemainPrice() decimal.Decimal
 	Copy() Order
 	SetID(id string)
+	// Strategy is the name of the strategy that placed the order, set by the
+	// broker handle the strategy submits through. Empty for unattributed orders.
+	Strategy() string
+	SetStrategy(name string)
 }
 
 type order struct {
@@ -95,6 +99,7 @@ type order struct {
 	size          decimal.Decimal
 	price         decimal.Decimal
 	remainingSize decimal.Decimal
+	strategy      string
 	mu            sync.RWMutex
 	status        Status
 }
@@ -129,6 +134,18 @@ func (o *order) SetID(id string) {
 	o.mu.Lock()
 	defer o.mu.Unlock()
 	o.uuid = id
+}
+
+func (o *order) Strategy() string {
+	o.mu.RLock()
+	defer o.mu.RUnlock()
+	return o.strategy
+}
+
+func (o *order) SetStrategy(name string) {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	o.strategy = name
 }
 
 func (o *order) Action() Action {
@@ -246,6 +263,7 @@ func (o *order) Copy() Order {
 		createdAt:     o.createdAt,
 		updatedAt:     o.updatedAt,
 		remainingSize: o.remainingSize,
+		strategy:      o.strategy,
 	}
 }
 

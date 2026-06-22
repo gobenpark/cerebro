@@ -121,7 +121,7 @@ type MyStrategy struct{}
 
 func (s *MyStrategy) Name() string { return "my-strategy" }
 
-func (s *MyStrategy) Next(ctx context.Context, it *item.Item, tick <-chan indicator.Tick, b *broker.Broker) {
+func (s *MyStrategy) Next(ctx context.Context, it *item.Item, tick <-chan indicator.Tick, b broker.Submitter) {
 	for {
 		select {
 		case <-ctx.Done():

@@ -40,7 +40,7 @@ type buyOnceStrategy struct{ once sync.Once }
 
 func (s *buyOnceStrategy) Name() string { return "buy-once" }
 
-func (s *buyOnceStrategy) Next(ctx context.Context, it *item.Item, tick <-chan indicator.Tick, b *broker.Broker) {
+func (s *buyOnceStrategy) Next(ctx context.Context, it *item.Item, tick <-chan indicator.Tick, b broker.Submitter) {
 	for {
 		select {
 		case <-ctx.Done():

@@ -30,8 +30,10 @@ type CandleType int
 
 type Strategy interface {
 	// Next receives ticks on the tick channel until ctx is canceled. Implementations
-	// must return when ctx.Done() fires so the engine can shut down cleanly.
-	Next(ctx context.Context, it *item.Item, tick <-chan indicator.Tick, b *broker.Broker)
+	// must return when ctx.Done() fires so the engine can shut down cleanly. The
+	// broker handle is scoped to this strategy: orders it submits are attributed to
+	// Name().
+	Next(ctx context.Context, it *item.Item, tick <-chan indicator.Tick, b broker.Submitter)
 	// NotifyOrder is when event rise order then called
 	NotifyOrder(o order.Order)
 	NotifyTrade()

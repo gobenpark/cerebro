@@ -72,6 +72,34 @@ func (b *Broker) snapshotLocked() risk.Snapshot {
 	}
 }
 
+// Submitter is the broker surface a strategy uses. A scoped Submitter tags every
+// order with the strategy's name so fills can be attributed back to it.
+type Submitter interface {
+	Order(ctx context.Context, o order.Order, safe bool) error
+	Available() decimal.Decimal
+	Balance() decimal.Decimal
+	Position(ticker string) (position.Position, bool)
+	Orders(code string) []order.Order
+}
+
+var _ Submitter = (*Broker)(nil)
+
+// Scoped returns a Submitter that stamps strategy onto every order before
+// submitting it through the broker.
+func (b *Broker) Scoped(strategy string) Submitter {
+	return &scopedBroker{Broker: b, strategy: strategy}
+}
+
+type scopedBroker struct {
+	*Broker
+	strategy string
+}
+
+func (s *scopedBroker) Order(ctx context.Context, o order.Order, safe bool) error {
+	o.SetStrategy(s.strategy)
+	return s.Broker.Order(ctx, o, safe)
+}
+
 func NewDefaultBroker(eventEngine event.Broadcaster, store market.Market, logger log.Logger) *Broker {
 	return &Broker{
 		orders:      []order.Order{},

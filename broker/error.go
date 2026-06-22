@@ -19,11 +19,7 @@ package broker
 import "errors"
 
 var (
-	ErrNotEnoughStock      = errors.New("Not Enough Stock")
-	ErrNotEnoughMoney      = errors.New("Not Enough Money")
-	ErrPositionExists      = errors.New("Broker Position is Exists")
-	ErrPositionNotExists   = errors.New("Broker Position is not Exists")
-	ErrLowSizeThenPosition = errors.New("Low Size then position")
-	ErrPriceIsZero         = errors.New("Price is Zero")
-	ErrOrderSizeIsZero     = errors.New("Order Size is Zero")
+	ErrNotEnoughMoney  = errors.New("Not Enough Money")
+	ErrPriceIsZero     = errors.New("Price is Zero")
+	ErrOrderSizeIsZero = errors.New("Order Size is Zero")
 )

@@ -22,12 +22,6 @@ import (
 	"time"
 
 	"github.com/shopspring/decimal"
-
-	e "github.com/gobenpark/cerebro/error"
-)
-
-var (
-	ErrOverDate = e.Error{Code: 1, Message: "raise unexpected error"}
 )
 
 // Resampler appends or updates the current candle bucket from a realtime tick.

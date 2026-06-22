@@ -9,6 +9,7 @@ require (
 
 require (
 	github.com/samber/lo v1.38.1
+	github.com/shopspring/decimal v1.4.0
 	go.uber.org/goleak v1.2.0
 	go.uber.org/mock v0.6.0
 	go.uber.org/zap v1.25.0

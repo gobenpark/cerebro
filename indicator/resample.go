@@ -21,6 +21,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/shopspring/decimal"
+
 	e "github.com/gobenpark/cerebro/error"
 )
 
@@ -62,8 +64,8 @@ func Resampler(cds Candles, tk Tick, compress time.Duration) Candles {
 	}
 	last.Close = tk.Price
 	last.Volume += tk.Volume
-	last.Low = min(last.Low, tk.Price)
-	last.High = max(last.High, tk.Price)
+	last.Low = decimal.Min(last.Low, tk.Price)
+	last.High = decimal.Max(last.High, tk.Price)
 	return cds
 }
 
@@ -84,12 +86,12 @@ func ResampleCandle(compress time.Duration, tick ...Tick) Candle {
 			}
 		})
 
-		if candle.Open == 0 {
+		if candle.Open.IsZero() {
 			candle.Open = tick[i].Price
 		}
 		candle.Date = tick[i].Date.Truncate(compress)
-		candle.Low = min(candle.Low, tick[i].Price)
-		candle.High = max(candle.High, tick[i].Price)
+		candle.Low = decimal.Min(candle.Low, tick[i].Price)
+		candle.High = decimal.Max(candle.High, tick[i].Price)
 		candle.Close = tick[i].Price
 		candle.Volume += tick[i].Volume
 	}
@@ -118,8 +120,8 @@ func Resample(tk []Tick, compress time.Duration) Candles {
 		if tk[i].Date.Before(edge) {
 			last.Close = tk[i].Price
 			last.Volume += tk[i].Volume
-			last.Low = min(last.Low, tk[i].Price)
-			last.High = max(last.High, tk[i].Price)
+			last.Low = decimal.Min(last.Low, tk[i].Price)
+			last.High = decimal.Max(last.High, tk[i].Price)
 			cds[len(cds)-1] = last
 		} else {
 			cds = append(cds, &Candle{

@@ -5,6 +5,8 @@ package market
 import (
 	"context"
 
+	"github.com/shopspring/decimal"
+
 	"github.com/gobenpark/cerebro/indicator"
 	"github.com/gobenpark/cerebro/item"
 	"github.com/gobenpark/cerebro/order"
@@ -35,7 +37,7 @@ type Market interface {
 	Subscribe(event any) error
 	Order(ctx context.Context, o order.Order) error
 	AccountPositions() []position.Position
-	AccountBalance() int64
+	AccountBalance() decimal.Decimal
 	Events(ctx context.Context) <-chan any
-	Commission() float64
+	Commission() decimal.Decimal
 }

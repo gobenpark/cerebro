@@ -1,6 +1,8 @@
 package market
 
 import (
+	"github.com/shopspring/decimal"
+
 	"github.com/gobenpark/cerebro/order"
 )
 
@@ -20,7 +22,7 @@ func (o ChangeOrderEvent) String() string {
 
 type ChangeBalanceEvent struct {
 	Message string
-	Balance int64
+	Balance decimal.Decimal
 }
 
 func (o ChangeBalanceEvent) String() string {

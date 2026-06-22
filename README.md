@@ -52,6 +52,8 @@ package main
 import (
 	"context"
 
+	"github.com/shopspring/decimal"
+
 	"github.com/gobenpark/cerebro/indicator"
 	"github.com/gobenpark/cerebro/item"
 	"github.com/gobenpark/cerebro/market"
@@ -66,9 +68,9 @@ import (
 //	Subscribe(event any) error
 //	Order(ctx, o order.Order) error
 //	AccountPositions() []position.Position
-//	AccountBalance() int64
+//	AccountBalance() decimal.Decimal
 //	Events(ctx) <-chan any
-//	Commission() float64
+//	Commission() decimal.Decimal
 type exchange struct{}
 
 func (e *exchange) Stocks(ctx context.Context) []*item.Item { panic("implement me") }
@@ -84,14 +86,14 @@ func (e *exchange) Subscribe(event any) error { panic("implement me") }
 func (e *exchange) Order(ctx context.Context, o order.Order) error { panic("implement me") }
 
 func (e *exchange) AccountPositions() []position.Position { panic("implement me") }
-func (e *exchange) AccountBalance() int64                 { panic("implement me") }
+func (e *exchange) AccountBalance() decimal.Decimal       { panic("implement me") }
 
 // Events streams market events to Cerebro: indicator.Tick for price updates and
 // market.ChangeOrderEvent / market.ChangeBalanceEvent for fills and settlement.
 func (e *exchange) Events(ctx context.Context) <-chan any { panic("implement me") }
 
 // Commission is the percentage fee applied to an order's value.
-func (e *exchange) Commission() float64 { panic("implement me") }
+func (e *exchange) Commission() decimal.Decimal { panic("implement me") }
 ```
 
 ### 2. Implement your own strategy
@@ -105,6 +107,8 @@ package main
 
 import (
 	"context"
+
+	"github.com/shopspring/decimal"
 
 	"github.com/gobenpark/cerebro/broker"
 	"github.com/gobenpark/cerebro/indicator"
@@ -127,8 +131,9 @@ func (s *MyStrategy) Next(ctx context.Context, it *item.Item, tick <-chan indica
 			}
 
 			// Example: buy 10 units at the current price when cash allows.
-			if b.Available() >= tk.Price*10 {
-				o := order.NewOrder(it, order.Buy, order.Limit, 10, tk.Price)
+			qty := decimal.NewFromInt(10)
+			if b.Available().GreaterThanOrEqual(tk.Price.Mul(qty)) {
+				o := order.NewOrder(it, order.Buy, order.Limit, qty, tk.Price)
 				if err := b.Order(ctx, o, true /* safe: one open order per code */); err != nil {
 					// e.g. broker.ErrNotEnoughMoney
 				}
@@ -230,6 +235,8 @@ Cerebro is composed of a few cooperating parts:
   - Envelope
   - Volume Ratio
   - RMA (Wilder moving average)
+- **Decimal money** — prices, sizes, balances, and order values use
+  `shopspring/decimal`, so financial math carries no float64 rounding error.
 - **Resampling** — build candles from raw ticks (`indicator.Resample`,
   `indicator.Resampler`).
 - **Concurrency** — event-driven core with per-listener dispatch and graceful,

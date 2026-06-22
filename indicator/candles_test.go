@@ -4,6 +4,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -12,15 +13,25 @@ import (
 
 var testBase = time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
 
+// dec is a shorthand for an integer-valued decimal used across the indicator tests.
+func dec(v int64) decimal.Decimal { return decimal.NewFromInt(v) }
+
+// eqDec asserts got equals the integer amount want, comparing numerically so a
+// different decimal scale does not fail the check.
+func eqDec(t *testing.T, want int64, got decimal.Decimal) {
+	t.Helper()
+	assert.Truef(t, decimal.NewFromInt(want).Equal(got), "want %d, got %s", want, got.String())
+}
+
 // closeCandles builds candles whose OHLC all equal the given close prices.
 func closeCandles(closes ...int64) indicator.Candles {
 	cds := make(indicator.Candles, len(closes))
 	for i, c := range closes {
 		cds[i] = &indicator.Candle{
-			Open:  c,
-			High:  c,
-			Low:   c,
-			Close: c,
+			Open:  dec(c),
+			High:  dec(c),
+			Low:   dec(c),
+			Close: dec(c),
 			Date:  testBase.Add(time.Duration(i) * time.Hour),
 		}
 	}
@@ -73,7 +84,7 @@ func TestCandles_StochasticFastAveragesDOverDPeriod(t *testing.T) {
 	is := assert.New(t)
 
 	ohlc := func(high, low, cl int64) *indicator.Candle {
-		return &indicator.Candle{High: high, Low: low, Close: cl, Date: testBase}
+		return &indicator.Candle{High: dec(high), Low: dec(low), Close: dec(cl), Date: testBase}
 	}
 	cds := indicator.Candles{
 		ohlc(20, 10, 15),

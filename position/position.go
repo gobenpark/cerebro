@@ -16,14 +16,16 @@
 package position
 
 import (
+	"github.com/shopspring/decimal"
+
 	"github.com/gobenpark/cerebro/item"
 	"github.com/gobenpark/cerebro/order"
 )
 
 type Position struct {
 	Item  *item.Item
-	Size  int64 `json:"size"`
-	Price int64 `json:"price"`
+	Size  decimal.Decimal `json:"size"`
+	Price decimal.Decimal `json:"price"`
 }
 
 func NewPosition(o order.Order) Position {

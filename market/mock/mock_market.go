@@ -18,6 +18,7 @@ import (
 	market "github.com/gobenpark/cerebro/market"
 	order "github.com/gobenpark/cerebro/order"
 	position "github.com/gobenpark/cerebro/position"
+	decimal "github.com/shopspring/decimal"
 	gomock "go.uber.org/mock/gomock"
 )
 
@@ -46,10 +47,10 @@ func (m *MockMarket) EXPECT() *MockMarketMockRecorder {
 }
 
 // AccountBalance mocks base method.
-func (m *MockMarket) AccountBalance() int64 {
+func (m *MockMarket) AccountBalance() decimal.Decimal {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "AccountBalance")
-	ret0, _ := ret[0].(int64)
+	ret0, _ := ret[0].(decimal.Decimal)
 	return ret0
 }
 
@@ -89,10 +90,10 @@ func (mr *MockMarketMockRecorder) Candles(ctx, code, level any) *gomock.Call {
 }
 
 // Commission mocks base method.
-func (m *MockMarket) Commission() float64 {
+func (m *MockMarket) Commission() decimal.Decimal {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Commission")
-	ret0, _ := ret[0].(float64)
+	ret0, _ := ret[0].(decimal.Decimal)
 	return ret0
 }
 

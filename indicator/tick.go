@@ -18,6 +18,8 @@ package indicator
 import (
 	"math"
 	"time"
+
+	"github.com/shopspring/decimal"
 )
 
 type Spread string
@@ -32,7 +34,7 @@ type Tick struct {
 	Code      string            `json:"code"`
 	AskBid    Spread            `json:"askBid"`
 	DiffRate  float64           `json:"diffRate"`
-	Price     int64             `json:"price"`
+	Price     decimal.Decimal   `json:"price"`
 	AccVolume int64             `json:"accVolume"`
 	Volume    int64             `json:"volume"`
 	Metadata  map[string]string `json:"metadata"`
@@ -58,7 +60,7 @@ func (t Ticks) Mean() float64 {
 	}
 	var sum float64
 	for _, v := range t {
-		sum += float64(v.Price)
+		sum += v.Price.InexactFloat64()
 	}
 
 	return sum / float64(t.Len())
@@ -68,7 +70,7 @@ func (t Ticks) StandardDeviation() float64 {
 	mean := t.Mean()
 	total := 0.0
 	for i := range t {
-		diff := float64(t[i].Price) - mean
+		diff := t[i].Price.InexactFloat64() - mean
 		total += diff * diff
 	}
 	variance := total / float64(t.Len()-1)

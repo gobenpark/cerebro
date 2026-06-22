@@ -21,6 +21,7 @@ import (
 	"time"
 
 	uuid "github.com/satori/go.uuid"
+	"github.com/shopspring/decimal"
 
 	"github.com/gobenpark/cerebro/item"
 )
@@ -72,15 +73,15 @@ type Order interface {
 	Margin()
 	Submit()
 	Accept()
-	Partial(size int64)
+	Partial(size decimal.Decimal)
 	Complete()
 	Status() Status
 	Exec() OrderType
-	OrderPrice() float64
+	OrderPrice() decimal.Decimal
 	Action() Action
-	Price() int64
-	Size() int64
-	RemainPrice() float64
+	Price() decimal.Decimal
+	Size() decimal.Decimal
+	RemainPrice() decimal.Decimal
 	Copy() Order
 	SetID(id string)
 }
@@ -92,14 +93,14 @@ type order struct {
 	uuid          string
 	action        Action
 	OrderType     OrderType `json:"orderType"`
-	size          int64
-	price         int64
-	remainingSize int64
+	size          decimal.Decimal
+	price         decimal.Decimal
+	remainingSize decimal.Decimal
 	mu            sync.RWMutex
 	status        Status
 }
 
-func NewOrder(item *item.Item, action Action, execType OrderType, size, price int64) Order {
+func NewOrder(item *item.Item, action Action, execType OrderType, size, price decimal.Decimal) Order {
 	return &order{
 		status:        Created,
 		action:        action,
@@ -183,10 +184,10 @@ func (o *order) Margin() {
 	o.updatedAt = time.Now()
 }
 
-func (o *order) Partial(size int64) {
+func (o *order) Partial(size decimal.Decimal) {
 	o.mu.Lock()
 	defer o.mu.Unlock()
-	o.remainingSize -= size
+	o.remainingSize = o.remainingSize.Sub(size)
 	o.status = Partial
 	o.updatedAt = time.Now()
 }
@@ -201,7 +202,7 @@ func (o *order) Submit() {
 func (o *order) Complete() {
 	o.mu.Lock()
 	defer o.mu.Unlock()
-	o.remainingSize = 0
+	o.remainingSize = decimal.Zero
 	o.status = Completed
 	o.updatedAt = time.Now()
 }
@@ -214,25 +215,25 @@ func (o *order) Status() Status {
 	return value
 }
 
-func (o *order) OrderPrice() float64 {
+func (o *order) OrderPrice() decimal.Decimal {
 	o.mu.RLock()
 	defer o.mu.RUnlock()
-	return float64(o.price) * float64(o.size)
+	return o.price.Mul(o.size)
 }
 
-func (o *order) RemainPrice() float64 {
+func (o *order) RemainPrice() decimal.Decimal {
 	o.mu.RLock()
 	defer o.mu.RUnlock()
-	return float64(o.price) * float64(o.remainingSize)
+	return o.price.Mul(o.remainingSize)
 }
 
-func (o *order) Price() int64 {
+func (o *order) Price() decimal.Decimal {
 	o.mu.RLock()
 	defer o.mu.RUnlock()
 	return o.price
 }
 
-func (o *order) Size() int64 {
+func (o *order) Size() decimal.Decimal {
 	o.mu.RLock()
 	defer o.mu.RUnlock()
 	return o.size

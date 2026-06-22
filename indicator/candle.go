@@ -19,6 +19,8 @@ import (
 	"errors"
 	"io"
 	"time"
+
+	"github.com/shopspring/decimal"
 )
 
 type readOp int8
@@ -64,16 +66,16 @@ func (c CandleType) Duration() time.Duration {
 const maxInt = int(^uint(0) >> 1)
 
 type Candle struct {
-	Date          time.Time  `json:"date"`
-	Code          string     `json:"code"`
-	Type          CandleType `gorm:"-"`
-	Open          int64      `json:"open"`
-	High          int64      `json:"high"`
-	Low           int64      `json:"low"`
-	Close         int64      `json:"close"`
-	Volume        int64      `json:"volume"`
-	Amount        int64      `json:"amount"`
-	IndicateValue int64      `json:"indicateValue"`
+	Date          time.Time       `json:"date"`
+	Code          string          `json:"code"`
+	Type          CandleType      `gorm:"-"`
+	Open          decimal.Decimal `json:"open"`
+	High          decimal.Decimal `json:"high"`
+	Low           decimal.Decimal `json:"low"`
+	Close         decimal.Decimal `json:"close"`
+	Volume        int64           `json:"volume"`
+	Amount        int64           `json:"amount"`
+	IndicateValue int64           `json:"indicateValue"`
 }
 
 type TradeHistory struct {

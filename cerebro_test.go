@@ -20,6 +20,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
@@ -65,12 +66,12 @@ func TestStart_WiresBrokerAsEventListener(t *testing.T) {
 	// even one immediate event must reach it. (An asynchronous registration could
 	// race ahead of this lone event and silently drop it.)
 	events := make(chan any, 1)
-	events <- market.ChangeBalanceEvent{Message: "settled", Balance: 50_000}
+	events <- market.ChangeBalanceEvent{Message: "settled", Balance: decimal.NewFromInt(50_000)}
 	var ro <-chan any = events
 
 	mk.EXPECT().AccountPositions().Return([]position.Position{}).AnyTimes()
-	mk.EXPECT().AccountBalance().Return(int64(100_000)).AnyTimes()
-	mk.EXPECT().Commission().Return(0.0).AnyTimes()
+	mk.EXPECT().AccountBalance().Return(decimal.NewFromInt(100_000)).AnyTimes()
+	mk.EXPECT().Commission().Return(decimal.Zero).AnyTimes()
 	mk.EXPECT().Events(gomock.Any()).Return(ro).AnyTimes()
 	mk.EXPECT().Subscribe(gomock.Any()).Return(nil).AnyTimes()
 
@@ -81,13 +82,13 @@ func TestStart_WiresBrokerAsEventListener(t *testing.T) {
 		WithLogLevel(log.FatalLevel),
 	)
 
-	must.Equal(int64(100_000), c.broker.Balance(), "broker seeds its balance from the market")
+	must.True(decimal.NewFromInt(100_000).Equal(c.broker.Balance()), "broker seeds its balance from the market")
 
 	ctx, cancel := context.WithCancel(context.Background())
 	must.NoError(c.Start(ctx))
 
 	is.Eventually(func() bool {
-		return c.broker.Balance() == 50_000
+		return c.broker.Balance().Equal(decimal.NewFromInt(50_000))
 	}, 2*time.Second, 10*time.Millisecond,
 		"market balance event must reach the broker through the event engine")
 

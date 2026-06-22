@@ -37,18 +37,18 @@ func (c Candles) Swap(i, j int) {
 }
 
 func (c Candles) Mean() float64 {
-	total := int64(0)
+	total := 0.0
 	for i := range c {
-		total += c[i].Close
+		total += c[i].Close.InexactFloat64()
 	}
-	return float64(total) / float64(c.Len())
+	return total / float64(c.Len())
 }
 
 func (c Candles) StandardDeviation() float64 {
 	mean := c.Mean()
 	total := 0.0
 	for i := range c {
-		diff := float64(c[i].Close) - mean
+		diff := c[i].Close.InexactFloat64() - mean
 		total += diff * diff
 	}
 	variance := total / float64(c.Len()-1)
@@ -86,7 +86,7 @@ func (c Candles) MACD(fast, slow, signal int) (macdLine, signalLine []Indicate[f
 	}
 
 	cds := lo.Map[*Candle](c, func(item *Candle, index int) float64 {
-		return float64(item.Close)
+		return item.Close.InexactFloat64()
 	})
 
 	f := ema(cds, fast)
@@ -152,11 +152,11 @@ func (c Candles) VolumeRatio(nday int) []Indicate[float64] {
 		down := 0.0
 		for i := 1; i < cds.Len(); i++ {
 			switch {
-			case cds[i-1].Close < cds[i].Close:
+			case cds[i-1].Close.LessThan(cds[i].Close):
 				up += float64(cds[i].Volume)
-			case cds[i-1].Close > cds[i].Close:
+			case cds[i-1].Close.GreaterThan(cds[i].Close):
 				down += float64(cds[i].Volume)
-			case cds[i-1].Close == cds[i].Close:
+			default:
 				up += float64(cds[i].Volume) / 2
 				down += float64(cds[i].Volume) / 2
 			}
@@ -263,15 +263,15 @@ func (c Candles) StochasticFast(d, period int) (K, D []Indicate[float64]) {
 		}
 
 		window := c[i-period : i+1]
-		high := c[i-period].Close
-		low := c[i-period].Close
+		high := c[i-period].Close.InexactFloat64()
+		low := c[i-period].Close.InexactFloat64()
 
 		for j := range window {
-			high = max(high, window[j].High)
-			low = min(low, window[j].Low)
+			high = max(high, window[j].High.InexactFloat64())
+			low = min(low, window[j].Low.InexactFloat64())
 		}
 		K[i] = Indicate[float64]{
-			Data: ((float64(c[i].Close) - float64(low)) / (float64(high) - float64(low))) * 100,
+			Data: ((c[i].Close.InexactFloat64() - low) / (high - low)) * 100,
 			Date: c[i].Date,
 		}
 	}

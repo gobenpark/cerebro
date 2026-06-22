@@ -23,6 +23,7 @@ import (
 	"sync"
 
 	"github.com/samber/lo"
+	"github.com/shopspring/decimal"
 
 	"github.com/gobenpark/cerebro/event"
 	"github.com/gobenpark/cerebro/log"
@@ -45,7 +46,7 @@ type Broker struct {
 	positions []position.Position
 	// balance is the settled cash reported by the exchange. It is seeded from
 	// AccountBalance() and updated from market.ChangeBalanceEvent.
-	balance int64
+	balance decimal.Decimal
 	// mu guards orders, positions, and balance.
 	mu sync.RWMutex
 	// wg tracks in-flight submit goroutines so Wait can join them on shutdown.
@@ -64,8 +65,11 @@ func NewDefaultBroker(eventEngine event.Broadcaster, store market.Market, logger
 }
 
 // orderValue returns the cash an order commits, including commission.
-func (b *Broker) orderValue(o order.Order) int64 {
-	return int64(o.OrderPrice() + (o.OrderPrice() * (b.market.Commission() / 100)))
+// Commission() is a percentage, so the fee is value * commission / 100.
+func (b *Broker) orderValue(o order.Order) decimal.Decimal {
+	value := o.OrderPrice()
+	fee := value.Mul(b.market.Commission()).Div(decimal.NewFromInt(100))
+	return value.Add(fee)
 }
 
 // isTerminalStatus reports whether a status ends an order's lifecycle, meaning
@@ -81,18 +85,18 @@ func isTerminalStatus(s order.Status) bool {
 
 // reservedLocked returns the cash committed by open buy orders.
 // Callers must hold b.mu (read or write).
-func (b *Broker) reservedLocked() int64 {
-	var reserved int64
+func (b *Broker) reservedLocked() decimal.Decimal {
+	reserved := decimal.Zero
 	for i := range b.orders {
 		if b.orders[i].Action() == order.Buy {
-			reserved += b.orderValue(b.orders[i])
+			reserved = reserved.Add(b.orderValue(b.orders[i]))
 		}
 	}
 	return reserved
 }
 
 // Balance returns the settled cash reported by the exchange.
-func (b *Broker) Balance() int64 {
+func (b *Broker) Balance() decimal.Decimal {
 	b.mu.RLock()
 	defer b.mu.RUnlock()
 	return b.balance
@@ -100,24 +104,24 @@ func (b *Broker) Balance() int64 {
 
 // Available returns the cash available for new buy orders:
 // settled balance minus cash reserved by open buy orders.
-func (b *Broker) Available() int64 {
+func (b *Broker) Available() decimal.Decimal {
 	b.mu.RLock()
 	defer b.mu.RUnlock()
-	return b.balance - b.reservedLocked()
+	return b.balance.Sub(b.reservedLocked())
 }
 
 func (b *Broker) Order(ctx context.Context, o order.Order, safe bool) error {
-	if o.Type() == order.Market && o.Price() != 0 {
+	if o.Type() == order.Market && !o.Price().IsZero() {
 		b.logger.Error("invalid order price", "code", o.Item().Code, "price", o.Price(), "size", o.Size())
 		return fmt.Errorf("invalid order price, market order price must be set 0")
 	}
 
-	if o.Type() == order.Limit && o.Size() == 0 {
+	if o.Type() == order.Limit && o.Size().IsZero() {
 		b.logger.Error("invalid order size", "code", o.Item().Code, "price", o.Price(), "size", o.Size())
 		return ErrOrderSizeIsZero
 	}
 
-	if o.Type() == order.Limit && o.Price() == 0 {
+	if o.Type() == order.Limit && o.Price().IsZero() {
 		b.logger.Error("invalid order price", "code", o.Item().Code, "price", o.Price(), "size", o.Size())
 		return ErrPriceIsZero
 	}
@@ -134,7 +138,7 @@ func (b *Broker) Order(ctx context.Context, o order.Order, safe bool) error {
 
 	// Reserve cash for buy orders against available (settled minus reserved) cash.
 	if o.Action() == order.Buy {
-		if value := b.orderValue(o); value > b.balance-b.reservedLocked() {
+		if value := b.orderValue(o); value.GreaterThan(b.balance.Sub(b.reservedLocked())) {
 			b.mu.Unlock()
 			return ErrNotEnoughMoney
 		}

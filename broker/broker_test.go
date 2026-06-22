@@ -18,6 +18,7 @@ import (
 	marketmock "github.com/gobenpark/cerebro/market/mock"
 	"github.com/gobenpark/cerebro/order"
 	"github.com/gobenpark/cerebro/position"
+	"github.com/gobenpark/cerebro/risk"
 )
 
 type noopLogger struct{}
@@ -186,6 +187,52 @@ func TestListen_AcceptedOrderKeepsReservation(t *testing.T) {
 	bk.Listen(context.Background(), market.ChangeOrderEvent{ID: o.ID(), Action: order.Accepted})
 
 	eqDec(t, 99_000, bk.Available(), "accepted (non-terminal) order keeps its reservation")
+}
+
+// TestListen_CompletedFillRefreshesPositions verifies a fill is reflected in the
+// broker's positions when the order completes, so a risk snapshot taken right
+// after the fill notification sees the new exposure rather than missing it.
+func TestListen_CompletedFillRefreshesPositions(t *testing.T) {
+	is := assert.New(t)
+	must := require.New(t)
+
+	ctrl := gomock.NewController(t)
+	mk := marketmock.NewMockMarket(ctrl)
+	mk.EXPECT().AccountBalance().Return(decimal.NewFromInt(100_000)).AnyTimes()
+	mk.EXPECT().Commission().Return(decimal.Zero).AnyTimes()
+	mk.EXPECT().Order(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
+	// The exchange reports the position once the order has filled.
+	mk.EXPECT().AccountPositions().Return([]position.Position{
+		{Item: &item.Item{Code: "AAA"}, Size: decimal.NewFromInt(10), Price: decimal.NewFromInt(100)},
+	}).AnyTimes()
+
+	bc := eventmock.NewMockBroadcaster(ctrl)
+	bc.EXPECT().BroadCast(gomock.Any()).AnyTimes()
+	bc.EXPECT().BroadCastContext(gomock.Any(), gomock.Any()).Return(true).AnyTimes()
+
+	bk := broker.NewDefaultBroker(bc, mk, noopLogger{})
+
+	o := buyLimit("AAA", 10, 100)
+	must.NoError(bk.Order(context.Background(), o, false))
+	bk.Listen(context.Background(), market.ChangeOrderEvent{ID: o.ID(), Action: order.Completed})
+
+	pos, ok := bk.Position("AAA")
+	must.True(ok)
+	is.True(decimal.NewFromInt(10).Equal(pos.Size), "completed fill must be reflected in positions")
+}
+
+// TestOrder_RiskGateRejectsBeforeReserving verifies the pre-trade risk gate
+// rejects a violating order before any cash is reserved or it is submitted.
+func TestOrder_RiskGateRejectsBeforeReserving(t *testing.T) {
+	is := assert.New(t)
+
+	bk, _ := newBrokerUnderTest(t, 100_000, 0)
+	bk.SetRisk(risk.New(risk.MaxOrderValue(decimal.NewFromInt(500))))
+
+	err := bk.Order(context.Background(), buyLimit("AAA", 10, 100), false) // value 1000 > 500
+
+	is.ErrorIs(err, risk.ErrOrderTooBig)
+	eqDec(t, 100_000, bk.Available(), "a risk-rejected order reserves no cash")
 }
 
 // TestListen_PartialFillReducesReservation verifies a partial fill keeps the order

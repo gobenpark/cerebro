@@ -30,6 +30,7 @@ import (
 	"github.com/gobenpark/cerebro/market"
 	"github.com/gobenpark/cerebro/order"
 	"github.com/gobenpark/cerebro/position"
+	"github.com/gobenpark/cerebro/risk"
 )
 
 // Broker tracks cash and open orders. Cash accounting is exchange-authoritative:
@@ -51,6 +52,24 @@ type Broker struct {
 	mu sync.RWMutex
 	// wg tracks in-flight submit goroutines so Wait can join them on shutdown.
 	wg sync.WaitGroup
+	// risk is the optional pre-trade gate consulted in Order; nil means no gate.
+	risk *risk.Manager
+}
+
+// SetRisk installs the pre-trade risk gate. It is set once at construction before
+// any order flows, so it needs no synchronization.
+func (b *Broker) SetRisk(rm *risk.Manager) { b.risk = rm }
+
+// snapshotLocked captures the account state the risk rules vet an order against.
+// Callers must hold b.mu so the snapshot (including pending orders) is consistent
+// with the reservation done in the same critical section.
+func (b *Broker) snapshotLocked() risk.Snapshot {
+	return risk.Snapshot{
+		Balance:   b.balance,
+		Available: b.balance.Sub(b.reservedLocked()),
+		Positions: slices.Clone(b.positions),
+		Open:      slices.Clone(b.orders),
+	}
 }
 
 func NewDefaultBroker(eventEngine event.Broadcaster, store market.Market, logger log.Logger) *Broker {
@@ -130,6 +149,15 @@ func (b *Broker) Order(ctx context.Context, o order.Order, safe bool) error {
 	}
 
 	b.mu.Lock()
+	// Pre-trade risk gate: vet against the current account state — including
+	// pending orders — atomically with the reservation below, before submitting.
+	if b.risk != nil {
+		if err := b.risk.Check(o, b.snapshotLocked()); err != nil {
+			b.mu.Unlock()
+			b.logger.Info("order rejected by risk gate", "code", o.Item().Code, "error", err)
+			return err
+		}
+	}
 	if safe {
 		if slices.ContainsFunc(b.orders, func(od order.Order) bool {
 			return od.Item().Code == o.Item().Code
@@ -249,6 +277,13 @@ func (b *Broker) handleMarketEvent(ctx context.Context, m market.MarketEvent) {
 // applyOrderChange updates an open order from an exchange event. Completed and
 // canceled orders leave the open set, releasing their cash reservation.
 func (b *Broker) applyOrderChange(ctx context.Context, evt market.ChangeOrderEvent) {
+	// Pull the latest positions outside the lock (the market call is slow), then
+	// apply the order-state change and the position refresh under one lock. Doing
+	// both atomically means a fill's exposure is never momentarily absent from
+	// both the open set and positions, which would let the risk gate under-count
+	// it if a strategy places an order in reaction to the fill notification.
+	positions := b.market.AccountPositions()
+
 	b.mu.Lock()
 	idx := slices.IndexFunc(b.orders, func(od order.Order) bool {
 		return od.ID() == evt.ID
@@ -285,9 +320,9 @@ func (b *Broker) applyOrderChange(ctx context.Context, evt market.ChangeOrderEve
 	if isTerminalStatus(evt.Action) {
 		b.orders = slices.Delete(b.orders, idx, idx+1)
 	}
+	b.positions = positions
 	b.mu.Unlock()
 
 	b.logger.Info("order changed", "id", o.ID(), "code", o.Item().Code, "action", evt.Action)
 	b.notifyOrder(ctx, o.Copy())
-	b.refreshPositions()
 }

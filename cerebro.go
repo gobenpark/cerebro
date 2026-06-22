@@ -28,6 +28,7 @@ import (
 	"github.com/gobenpark/cerebro/log"
 	log2 "github.com/gobenpark/cerebro/log/v1"
 	"github.com/gobenpark/cerebro/market"
+	"github.com/gobenpark/cerebro/risk"
 	"github.com/gobenpark/cerebro/strategy"
 )
 
@@ -49,6 +50,9 @@ type Cerebro struct {
 	eventEngine *event.Engine
 
 	strategies []strategy.Strategy
+
+	// risk is the optional pre-trade gate; installed on the broker when set.
+	risk *risk.Manager
 
 	timeout time.Duration
 
@@ -88,6 +92,9 @@ func NewCerebro(opts ...Option) *Cerebro {
 	}
 
 	c.broker = broker.NewDefaultBroker(c.eventEngine, c.market, c.log)
+	if c.risk != nil {
+		c.broker.SetRisk(c.risk)
+	}
 	c.engines = append(c.engines, strategy.NewEngine(c.log, c.broker, c.strategies, c.market, c.timeout))
 
 	return c

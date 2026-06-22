@@ -21,6 +21,7 @@ import (
 	"github.com/gobenpark/cerebro/item"
 	"github.com/gobenpark/cerebro/log"
 	"github.com/gobenpark/cerebro/market"
+	"github.com/gobenpark/cerebro/risk"
 	"github.com/gobenpark/cerebro/strategy"
 )
 
@@ -53,5 +54,14 @@ func WithStrategy(st ...strategy.Strategy) Option {
 func WithStrategyTimeout(du time.Duration) Option {
 	return func(c *Cerebro) {
 		c.timeout = du
+	}
+}
+
+// WithRisk installs a pre-trade risk gate built from the given rules. Without it
+// there is no gate (existing behavior). The kill switch is reachable at runtime
+// via Cerebro.Kill / Cerebro.Resume.
+func WithRisk(rules ...risk.Rule) Option {
+	return func(c *Cerebro) {
+		c.risk = risk.New(rules...)
 	}
 }

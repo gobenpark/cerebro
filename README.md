@@ -1,9 +1,8 @@
-## Live Trader
+## Cerebro
 
-> This project is still in progress and is not a full version.
+> ⚠️ This project is still in progress and is not yet a stable release. The public API may change.
 
-
-golang live trading framework
+A Go live-trading framework
 ---
 [![made-with-Go](https://img.shields.io/badge/Made%20with-Go-1f425f.svg)](http://golang.org)
 [![codecov](https://codecov.io/gh/gobenpark/cerebro/branch/master/graph/badge.svg?token=4UWNV7BMZ3)](https://codecov.io/gh/gobenpark/cerebro)
@@ -13,238 +12,249 @@ golang live trading framework
 [![Godoc](http://img.shields.io/badge/go-documentation-blue.svg?style=flat-square)](https://godoc.org/github.com/gobenpark/cerebro)
 [![LICENSE](https://img.shields.io/github/license/gobenpark/cerebro.svg?style=flat-square)](https://github.com/gobenpark/cerebro/blob/master/LICENSE)
 
-## Introduce
-This project was inspired by [backtrader](https://www.backtrader.com)
+## Introduction
 
+This project was inspired by [backtrader](https://www.backtrader.com).
 
-python backtrader is a great project but it has disadvantage of python GIL 
-so i want solve by golang
-
+`backtrader` is a great Python project, but it is constrained by Python's GIL.
+Cerebro aims to solve that with Go's concurrency model: an event-driven core
+where the market feed, strategies, and broker run as independent, context-aware
+goroutines that shut down gracefully in order.
 
 ## Installation
 
-`go get github.com/gobenpark/cerebro`
+```bash
+go get github.com/gobenpark/cerebro
+```
 
-## Usage
+Requires Go 1.26+.
 
-🙏 Plz wait for beta version 
+## How it works
 
-### 1. first implement interface `store.Store` 
+To run Cerebro you provide two things:
+
+1. A **`market.Market`** implementation — your adapter to a real exchange
+   (Binance, Upbit, a brokerage API, …). It feeds candles/ticks and order/balance
+   events into Cerebro and executes the orders the broker submits.
+2. One or more **`strategy.Strategy`** implementations — your trading logic. Each
+   strategy receives ticks and places orders through the `*broker.Broker` handed
+   to it.
+
+Cerebro wires these together with an internal **broker** (cash/position
+accounting) and an **event engine** (per-listener event dispatch), then runs the
+whole graph until the context is canceled.
+
+### 1. Implement the `market.Market` interface
 
 ```go
 package main
 
 import (
 	"context"
-	"sort"
-	"time"
 
-	"github.com/gobenpark/proto/stock"
-	"github.com/gobenpark/cerebro/container"
+	"github.com/gobenpark/cerebro/indicator"
+	"github.com/gobenpark/cerebro/item"
+	"github.com/gobenpark/cerebro/market"
 	"github.com/gobenpark/cerebro/order"
-	"github.com/rs/zerolog/log"
-	uuid "github.com/satori/go.uuid"
+	"github.com/gobenpark/cerebro/position"
 )
 
-type store struct {
-	name string
-	uid  string
-	cli  Client
+// market.Market interface:
+//
+//	Stocks(ctx) []*item.Item
+//	Candles(ctx, code, level) (indicator.Candles, error)
+//	Subscribe(event any) error
+//	Order(ctx, o order.Order) error
+//	AccountPositions() []position.Position
+//	AccountBalance() int64
+//	Events(ctx) <-chan any
+//	Commission() float64
+type exchange struct{}
+
+func (e *exchange) Stocks(ctx context.Context) []*item.Item { panic("implement me") }
+
+func (e *exchange) Candles(ctx context.Context, code string, level market.CandleType) (indicator.Candles, error) {
+	panic("implement me")
 }
 
-func NewStore(name string) *store {
-	cli, err := stock.NewSocketClient(context.Background(), "localhost:50051")
-	if err != nil {
-		panic(err)
-	}
+// Subscribe is called once per target item; start streaming its ticks here.
+func (e *exchange) Subscribe(event any) error { panic("implement me") }
 
-	return &store{name, uuid.NewV4().String(), cli}
-}
+// Order submits an order to the exchange.
+func (e *exchange) Order(ctx context.Context, o order.Order) error { panic("implement me") }
 
-func (s *store) LoadHistory(ctx context.Context, code string, du time.Duration) ([]container.Candle, error) {
-	panic("implement me ")
-}
+func (e *exchange) AccountPositions() []position.Position { panic("implement me") }
+func (e *exchange) AccountBalance() int64                 { panic("implement me") }
 
-func (s *store) LoadTick(ctx context.Context, code string) (<-chan container.Tick, error) {
-	panic("implement me ")
-}
+// Events streams market events to Cerebro: indicator.Tick for price updates and
+// market.ChangeOrderEvent / market.ChangeBalanceEvent for fills and settlement.
+func (e *exchange) Events(ctx context.Context) <-chan any { panic("implement me") }
 
-func (s *store) Order(code string, ot order.OType, size int64, price float64) error {
-	panic("implement me ")
-}
-
-func (s *store) Cancel(id string) error {
-	panic("implement me ")
-}
-
-func (s *store) Uid() string {
-	return s.uid
-}
+// Commission is the percentage fee applied to an order's value.
+func (e *exchange) Commission() float64 { panic("implement me") }
 ```
 
-### 2. implement your own strategy 
+### 2. Implement your own strategy
 
-`Next(broker,container)` is incomming tick or candle data 
-in this part you can every using indicator and buy, sell using broker 
-
-```go
-
-import (
-	"fmt"
-
-	"github.com/gobenpark/cerebro/broker"
-	"github.com/gobenpark/cerebro/container"
-	"github.com/gobenpark/cerebro/indicators"
-	"github.com/gobenpark/cerebro/order"
-)
-
-type Bighands struct {
-	Broker broker.Broker
-	indi   indicators.Indicator
-}
-
-func (s *Bighands) Next(broker *broker.Broker, container container.Container) {
-	rsi := indicators.NewRsi(14)
-	rsi.Calculate(container)
-	fmt.Println(rsi.Get()[0])
-
-	fmt.Println(broker.GetCash())
-
-	obv := indicators.NewObv()
-
-	obv.Calculate(container)
-	fmt.Println(obv.Get()[0])
-	fmt.Println(container.Code())
-
-	
-	sma := indicators.NewSma(20)
-	sma.Calculate(container)
-	fmt.Println(sma.Get()[0])
-	fmt.Println(container.Code())
-}
-
-func (s *Bighands) NotifyOrder(o *order.Order) {
-	switch o.Status() {
-	case order.Submitted:
-		fmt.Printf("%s:%s\n", o.Code, "Submitted")
-		fmt.Println(o.ExecutedAt)
-	case order.Expired:
-		fmt.Println("expired")
-		fmt.Println(o.ExecutedAt)
-	case order.Rejected:
-		fmt.Println("rejected")
-		fmt.Println(o.ExecutedAt)
-	case order.Canceled:
-		fmt.Println("canceled")
-		fmt.Println(o.ExecutedAt)
-	case order.Completed:
-		fmt.Printf("%s:%s\n", o.Code, "Completed")
-		fmt.Println(o.ExecutedAt)
-		fmt.Println(o.Price)
-		fmt.Println(o.Code)
-		fmt.Println(o.Size)
-	case order.Partial:
-		fmt.Println("partial")
-		fmt.Println(o.ExecutedAt)
-	}
-}
-
-func (s *Bighands) NotifyTrade() {
-	panic("implement me")
-}
-
-func (s *Bighands) NotifyCashValue() {
-	panic("implement me")
-}
-
-func (s *Bighands) NotifyFund() {
-	panic("implement me")
-}
-
-```
-
-### 3. using cerebro !!
+`Next` runs in its own goroutine and receives ticks until the context is
+canceled. Use the indicators on `indicator.Candles` and place orders through the
+broker. `NotifyOrder` is called whenever one of your orders changes state.
 
 ```go
 package main
 
 import (
-	"time"
+	"context"
+
 	"github.com/gobenpark/cerebro/broker"
-	"github.com/gobenpark/cerebro/cerebro"
-	"github.com/gobenpark/cerebro/strategy"
+	"github.com/gobenpark/cerebro/indicator"
+	"github.com/gobenpark/cerebro/item"
+	"github.com/gobenpark/cerebro/order"
 )
 
-func main() {
-	bk := broker.NewBroker(100000, 0.0005)
+type MyStrategy struct{}
 
-	upbit := NewStore("binance")
+func (s *MyStrategy) Name() string { return "my-strategy" }
 
-	smart := &strategy.Bighands{
-		Broker: bk,
-	}
+func (s *MyStrategy) Next(ctx context.Context, it *item.Item, tick <-chan indicator.Tick, b *broker.Broker) {
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case tk, ok := <-tick:
+			if !ok {
+				return
+			}
 
-	cb := cerebro.NewCerebro(
-		cerebro.WithBroker(bk),
-		cerebro.WithStore(upbit, "KRW-MFT", "KRW-LBC"),
-		cerebro.WithStrategy(smart),
-		cerebro.WithResample("KRW-MFT", time.Minute*3, true),
-		cerebro.WithResample("KRW-LBC", time.Minute*3, true),
-		cerebro.WithLive(true),
-		cerebro.WithPreload(true),
-	)
-
-	err := cb.Start()
-	if err != nil {
-		panic(err)
+			// Example: buy 10 units at the current price when cash allows.
+			if b.Available() >= tk.Price*10 {
+				o := order.NewOrder(it, order.Buy, order.Limit, 10, tk.Price)
+				if err := b.Order(ctx, o, true /* safe: one open order per code */); err != nil {
+					// e.g. broker.ErrNotEnoughMoney
+				}
+			}
+		}
 	}
 }
 
+func (s *MyStrategy) NotifyOrder(o order.Order) {
+	switch o.Status() {
+	case order.Submitted:
+		// order accepted by the broker and sent to the exchange
+	case order.Completed:
+		// fully filled
+	case order.Canceled, order.Expired, order.Rejected, order.Margin:
+		// terminal, non-filled outcomes
+	}
+}
+
+func (s *MyStrategy) NotifyTrade() {}
+func (s *MyStrategy) NotifyFund()  {}
 ```
 
+### 3. Wire it up with Cerebro
+
+```go
+package main
+
+import (
+	"context"
+	"os"
+	"os/signal"
+	"time"
+
+	"github.com/gobenpark/cerebro"
+	"github.com/gobenpark/cerebro/item"
+	"github.com/gobenpark/cerebro/log"
+)
+
+func main() {
+	cb := cerebro.NewCerebro(
+		cerebro.WithMarket(&exchange{}),
+		cerebro.WithStrategy(&MyStrategy{}),
+		cerebro.WithTargetItem(
+			&item.Item{Code: "KRW-BTC"},
+			&item.Item{Code: "KRW-ETH"},
+		),
+		cerebro.WithStrategyTimeout(5*time.Second),
+		cerebro.WithLogLevel(log.InfoLevel),
+	)
+
+	// Start returns immediately after spawning the producers. Cancel the context
+	// (or call cb.Shutdown()) to trigger a graceful, ordered shutdown.
+	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
+	defer cancel()
+
+	if err := cb.Start(ctx); err != nil {
+		panic(err)
+	}
+
+	<-ctx.Done() // wait for Ctrl-C
+	cb.Shutdown() // blocks until every component has drained
+}
+```
+
+#### Options
+
+| Option | Description |
+| --- | --- |
+| `WithMarket(market.Market)` | Exchange adapter (required). |
+| `WithStrategy(...strategy.Strategy)` | One or more strategies (required). |
+| `WithTargetItem(...*item.Item)` | Items to trade (required). |
+| `WithStrategyTimeout(time.Duration)` | Per-strategy `Next` timeout budget. |
+| `WithLogLevel(log.Level)` | Log verbosity. |
 
 ## Concepts
 
-Live Trader have several part of trading components 
+Cerebro is composed of a few cooperating parts:
 
-1. **Cerebro**
-: the **Cerebro**  managements all trading components and make dependency graph
+1. **Cerebro** — the orchestrator. It builds the dependency graph, starts every
+   component, and tears them down in order on shutdown.
+2. **Market** — a user-implemented adapter to an external exchange (candles,
+   ticks, order execution, account state, and an event stream).
+3. **Strategy** — your trading logic. Each strategy runs as its own goroutine and
+   receives a private tick channel, so one slow strategy never starves another.
+4. **Broker** — tracks cash, positions, and open orders. Accounting is
+   exchange-authoritative: settled balance comes from the exchange, while open buy
+   orders reserve cash so the broker never over-commits before settlement.
+5. **Event engine** — fans market and order events out to each listener through a
+   dedicated per-listener queue, with context-aware broadcast and drain on
+   shutdown.
 
-2. **Store** components is user base implements for external real server 
-ex) Binance , upbit , etc 
-   
-3. **Strategy** is user base own strategy
+## Features
 
-## Feature
-1. Indicator
-    - bollinger band
-    - RSI
-    - Simple Moving Average
-    - On Balance Bolume
-    
+- **Indicators** (methods on `indicator.Candles`)
+  - Bollinger Band
+  - MACD
+  - Stochastic (Fast / Slow)
+  - Envelope
+  - Volume Ratio
+  - RMA (Wilder moving average)
+- **Resampling** — build candles from raw ticks (`indicator.Resample`,
+  `indicator.Resampler`).
+- **Concurrency** — event-driven core with per-listener dispatch and graceful,
+  ordered shutdown (producers stop first, the dispatcher last).
 
-## TODO
+## Roadmap
 
-1. new feature Observer is observing price and volume for find big hands 
-2. new feature Signal
-3. support news, etc information base trading 
-4. multi store one cerebro 
-5. feature broker slippage
-6. Chart 
+1. Observer for detecting unusual price/volume activity ("big hands")
+2. Signal abstraction
+3. News / external-information based trading
+4. Broker slippage modeling
+5. Charting
 
+## Versioning
 
+This project follows [Semantic Versioning](https://semver.org):
 
+1. **MAJOR** for incompatible API changes,
+2. **MINOR** for backwards-compatible functionality,
+3. **PATCH** for backwards-compatible bug fixes.
 
-## Version
-
-1. MAJOR version when you make incompatible API changes,
-2. MINOR version when you add functionality in a backwards compatible manner, and
-3. PATCH version when you make backwards compatible bug fixes.
-Additional labels for pre-release and build metadata are available as extensions to the MAJOR.MINOR.PATCH format.
-
-https://semver.org
-
-
+Additional labels for pre-release and build metadata are available as extensions
+to the `MAJOR.MINOR.PATCH` format.
 
 ## Contribute
-if you have any idea and want to talk this project send me mail (qjadn0914@naver.com) or issue   
+
+Have an idea or want to discuss the project? Open an issue or send a mail to
+qjadn0914@naver.com.

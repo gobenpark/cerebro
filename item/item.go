@@ -5,15 +5,7 @@ import (
 	"sync"
 )
 
-type (
-	StockType int
-	Status    int
-)
-
-const (
-	KOSPI = iota + 1
-	KOSDAQ
-)
+type Status int
 
 const (
 	Unactivate Status = iota
@@ -24,7 +16,6 @@ type Item struct {
 	mu       sync.RWMutex
 	Code     string         `json:"code"`
 	Name     string         `json:"name"`
-	Type     StockType      `json:"type"`
 	Metadata map[string]any `json:"metadata"`
 	status   Status
 }

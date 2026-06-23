@@ -54,6 +54,11 @@ type Cerebro struct {
 	// risk is the optional pre-trade gate; installed on the broker when set.
 	risk *risk.Manager
 
+	// policies maps a strategy name to its reactive exit policy (WithRiskPolicy).
+	policies map[string]risk.Policy
+	// monitor evaluates the policies against attributed fills; nil when none are set.
+	monitor *risk.Monitor
+
 	timeout time.Duration
 
 	engines []engine.Engine
@@ -95,6 +100,19 @@ func NewCerebro(opts ...Option) *Cerebro {
 	if c.risk != nil {
 		c.broker.SetRisk(c.risk)
 	}
+	// Build a reactive monitor for any configured exit policy. Empty policies (no
+	// trigger set) are dropped so a misconfigured option is inert rather than fatal.
+	active := map[string]risk.Policy{}
+	for name, p := range c.policies {
+		if p.Enabled() {
+			active[name] = p
+		}
+	}
+	if len(active) > 0 {
+		c.monitor = risk.NewMonitor(c.log, active, func(name string) risk.Submitter {
+			return c.broker.Scoped(name)
+		})
+	}
 	c.engines = append(c.engines, strategy.NewEngine(c.log, c.broker, c.strategies, c.market, c.timeout))
 
 	return c
@@ -109,6 +127,23 @@ func (c *Cerebro) Start(ctx context.Context) error {
 
 	if c.strategies == nil {
 		return fmt.Errorf("error empty strategies")
+	}
+
+	// A policy must name a registered strategy, else its exits could never trigger
+	// (no fills would be attributed to an unknown name). Fail fast on a typo.
+	if len(c.policies) > 0 {
+		known := make(map[string]struct{}, len(c.strategies))
+		for _, st := range c.strategies {
+			known[st.Name()] = struct{}{}
+		}
+		for name, p := range c.policies {
+			if !p.Enabled() {
+				continue // a disabled (empty) policy is dropped as inert; don't reject it
+			}
+			if _, ok := known[name]; !ok {
+				return fmt.Errorf("risk policy references unknown strategy %q", name)
+			}
+		}
 	}
 
 	ctx, cancel := context.WithCancel(ctx)
@@ -143,6 +178,10 @@ func (c *Cerebro) Start(ctx context.Context) error {
 	// strategies. If ctx is already canceled, Register is a no-op and the AfterFunc
 	// hook below tears everything down.
 	c.eventEngine.Register(ctx, c.broker)
+	if c.monitor != nil {
+		// The monitor watches attributed fills and ticks to enforce exit policies.
+		c.eventEngine.Register(ctx, c.monitor)
+	}
 	for i := range c.engines {
 		c.eventEngine.Register(ctx, c.engines[i])
 	}

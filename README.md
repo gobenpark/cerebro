@@ -233,6 +233,7 @@ func main() {
 | `WithTargetItem(...*item.Item)` | Items to trade (required). |
 | `WithStrategyTimeout(time.Duration)` | Per-strategy `Next` timeout budget. |
 | `WithRisk(...risk.Rule)` | Pre-trade risk gate (position/order/rate limits). |
+| `WithRiskPolicy(name, risk.Policy)` | Per-strategy reactive exit (stop-loss / trailing-stop / take-profit). |
 | `WithLogLevel(log.Level)` | Log verbosity. |
 
 ## Concepts
@@ -268,6 +269,9 @@ Cerebro is composed of a few cooperating parts:
   Quickstart). `Done()` signals when a backtest run finishes.
 - **Risk gate** — compose pre-trade rules via `cerebro.WithRisk` (`MaxPositionPct`,
   `MaxOrderValue`, `MaxOpenPositions`, `OrderRateLimit`, or custom `risk.Func`).
+- **Reactive exit policies** — attach a per-strategy stop-loss / trailing-stop /
+  take-profit with `cerebro.WithRiskPolicy`. A monitor tracks each strategy's
+  attributed position and submits a market exit on its behalf when a trigger fires.
 - **Strategy attribution** — each strategy submits through a broker handle scoped
   to its `Name()`, so orders and their fills are attributed back to it.
 - **Resampling** — build candles from raw ticks (`indicator.Resample`,
@@ -279,11 +283,10 @@ Cerebro is composed of a few cooperating parts:
 
 Toward production live-trading safety:
 
-1. Reactive stop-loss / trailing-stop monitor (per-strategy, using attribution)
-2. Realized PnL tracking and run reporting
-3. Persistence and crash recovery (a `Storage` interface)
-4. Runtime kill switch / control surface
-5. Broker slippage modeling
+1. Realized PnL tracking and run reporting
+2. Persistence and crash recovery (a `Storage` interface)
+3. Runtime kill switch / control surface
+4. Broker slippage modeling
 
 ## Versioning
 

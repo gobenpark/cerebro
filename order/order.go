@@ -81,6 +81,7 @@ type Order interface {
 	Price() decimal.Decimal
 	Size() decimal.Decimal
 	RemainPrice() decimal.Decimal
+	RemainingSize() decimal.Decimal
 	Copy() Order
 	SetID(id string)
 	// Strategy is the name of the strategy that placed the order, set by the
@@ -235,6 +236,12 @@ func (o *order) RemainPrice() decimal.Decimal {
 	o.mu.RLock()
 	defer o.mu.RUnlock()
 	return o.price.Mul(o.remainingSize)
+}
+
+func (o *order) RemainingSize() decimal.Decimal {
+	o.mu.RLock()
+	defer o.mu.RUnlock()
+	return o.remainingSize
 }
 
 func (o *order) Price() decimal.Decimal {

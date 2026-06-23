@@ -65,3 +65,19 @@ func WithRisk(rules ...risk.Rule) Option {
 		c.risk = risk.New(rules...)
 	}
 }
+
+// WithRiskPolicy attaches a reactive exit policy to the strategy named name. On
+// every tick a monitor evaluates that strategy's attributed position against the
+// policy and, when a stop-loss, trailing-stop, or take-profit trigger fires,
+// submits a market exit order on the strategy's behalf.
+//
+// name must match a strategy's Name(); Start rejects a policy for an unknown
+// strategy. Calling it again for the same name replaces the previous policy.
+func WithRiskPolicy(name string, p risk.Policy) Option {
+	return func(c *Cerebro) {
+		if c.policies == nil {
+			c.policies = map[string]risk.Policy{}
+		}
+		c.policies[name] = p
+	}
+}

@@ -176,6 +176,25 @@ func TestReplay_UntargetedCodeNeitherEmitsNorHangs(t *testing.T) {
 	is.NotContains(codes, "BBB", "unsubscribed code must not emit (and must not hang the run)")
 }
 
+func TestReplay_DoneClosesWhenReplayFinishes(t *testing.T) {
+	r := New(WithCandles("AAA", indicator.Candles{{Code: "AAA", Close: dec(100)}}))
+	_ = r.Subscribe(func() []*item.Item { return []*item.Item{{Code: "AAA"}} })
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	ch := r.Events(ctx)
+	go func() { //nolint:revive // drain so the emitter can run to completion
+		for range ch {
+		}
+	}()
+
+	select {
+	case <-r.Done():
+	case <-time.After(time.Second):
+		t.Fatal("Done did not close after the replay finished")
+	}
+}
+
 func TestReplay_OtherCodeIsNotFilled(t *testing.T) {
 	is := assert.New(t)
 	must := require.New(t)

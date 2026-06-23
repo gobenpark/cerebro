@@ -56,6 +56,9 @@ type Replay struct {
 	// emits nor blocks the others — no data loss, no hang.
 	subscribed map[string]struct{}
 	ready      map[string]chan struct{}
+	// done is closed when the replay loop ends (every code's candles exhausted, or
+	// the context is canceled), giving callers a clean "backtest finished" signal.
+	done chan struct{}
 }
 
 // Ensure Replay satisfies the market interface at compile time.
@@ -84,6 +87,7 @@ func New(opts ...Option) *Replay {
 		data:       map[string]indicator.Candles{},
 		positions:  map[string]position.Position{},
 		subscribed: map[string]struct{}{},
+		done:       make(chan struct{}),
 	}
 	for _, o := range opts {
 		o(r)
@@ -168,7 +172,12 @@ func (r *Replay) Events(ctx context.Context) <-chan any {
 	return ch
 }
 
+// Done is closed once the replay loop has finished (all subscribed codes' candles
+// have been replayed, or the context was canceled). Useful to detect backtest end.
+func (r *Replay) Done() <-chan struct{} { return r.done }
+
 func (r *Replay) run(ctx context.Context, ch chan any) {
+	defer close(r.done)
 	defer close(ch)
 
 	r.mu.Lock()

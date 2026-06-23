@@ -222,6 +222,13 @@ func (c *Cerebro) Start(ctx context.Context) error {
 	return nil
 }
 
+// Report returns a per-strategy snapshot of realized PnL, fees, and open
+// positions, built from attributed fills. It is safe to call at any time and is
+// handy to print at the end of a run.
+func (c *Cerebro) Report() []broker.StrategyReport {
+	return c.broker.Report()
+}
+
 // Shutdown stops cerebro and blocks until everything has drained. Producers are
 // torn down in order — spawn/events, then strategy Next goroutines, then broker
 // submissions — all while the event dispatcher keeps draining. Only once no

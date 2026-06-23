@@ -59,6 +59,18 @@ func buyLimit(code string, size, price int64) order.Order {
 	return order.NewOrder(&item.Item{Code: code}, order.Buy, order.Limit, decimal.NewFromInt(size), decimal.NewFromInt(price))
 }
 
+func sellLimit(code string, size, price int64) order.Order {
+	return order.NewOrder(&item.Item{Code: code}, order.Sell, order.Limit, decimal.NewFromInt(size), decimal.NewFromInt(price))
+}
+
+// completedFill is the exchange event for a full fill of o at the given price.
+func completedFill(o order.Order, price, size int64) market.ChangeOrderEvent {
+	return market.ChangeOrderEvent{
+		ID: o.ID(), Action: order.Completed,
+		Price: decimal.NewFromInt(price), FilledSize: decimal.NewFromInt(size),
+	}
+}
+
 func TestNewDefaultBroker_SeedsBalanceFromMarket(t *testing.T) {
 	bk, _ := newBrokerUnderTest(t, 100_000, 0)
 
@@ -273,4 +285,143 @@ func TestListen_PartialFillReducesReservation(t *testing.T) {
 
 	eqDec(t, 99_400, bk.Available(), "partial fill releases the filled portion's reservation")
 	is.Len(bk.Orders("AAA"), 1, "a partially filled order stays open")
+}
+
+// TestPnL_RealizedOnClose verifies a round trip books realized PnL only when the
+// position closes, attributed to the strategy that traded it.
+func TestPnL_RealizedOnClose(t *testing.T) {
+	must := require.New(t)
+
+	bk, mk := newBrokerUnderTest(t, 100_000, 0)
+	mk.EXPECT().Order(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
+	ctx := context.Background()
+
+	buy := buyLimit("AAA", 10, 100)
+	must.NoError(bk.Scoped("alpha").Order(ctx, buy, false))
+	bk.Listen(ctx, completedFill(buy, 100, 10))
+	eqDec(t, 0, bk.RealizedPnL("alpha"), "an open position has no realized PnL")
+
+	sell := sellLimit("AAA", 10, 120)
+	must.NoError(bk.Scoped("alpha").Order(ctx, sell, false))
+	bk.Listen(ctx, completedFill(sell, 120, 10))
+	eqDec(t, 200, bk.RealizedPnL("alpha"), "(120-100)*10")
+	eqDec(t, 200, bk.TotalRealizedPnL())
+}
+
+// TestPnL_ReportTracksFeesAndOpenPosition checks commission accrual and that a
+// partial close leaves the average entry of the remaining position unchanged.
+func TestPnL_ReportTracksFeesAndOpenPosition(t *testing.T) {
+	is := assert.New(t)
+	must := require.New(t)
+
+	bk, mk := newBrokerUnderTest(t, 100_000, 1) // 1% commission
+	mk.EXPECT().Order(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
+	ctx := context.Background()
+
+	buy := buyLimit("AAA", 10, 100) // fee 1% of 1000 = 10
+	must.NoError(bk.Scoped("alpha").Order(ctx, buy, false))
+	bk.Listen(ctx, completedFill(buy, 100, 10))
+
+	sell := sellLimit("AAA", 4, 120) // fee 1% of 480 = 4.8; realized (120-100)*4 = 80
+	must.NoError(bk.Scoped("alpha").Order(ctx, sell, false))
+	bk.Listen(ctx, completedFill(sell, 120, 4))
+
+	rep := bk.Report()
+	must.Len(rep, 1)
+	is.Equal("alpha", rep[0].Strategy)
+	eqDec(t, 80, rep[0].Realized, "(120-100)*4")
+	is.True(decimal.NewFromFloat(14.8).Equal(rep[0].Fees), "buy fee 10 + sell fee 4.8")
+	must.Len(rep[0].Positions, 1, "6 units remain open")
+	eqDec(t, 6, rep[0].Positions[0].Size)
+	eqDec(t, 100, rep[0].Positions[0].Price, "a partial close does not move the average entry")
+}
+
+// TestPnL_MarketFillUsesEventPrice guards that a market order — which carries no
+// price of its own — is valued at the exchange's reported fill price.
+func TestPnL_MarketFillUsesEventPrice(t *testing.T) {
+	must := require.New(t)
+
+	bk, mk := newBrokerUnderTest(t, 100_000, 0)
+	mk.EXPECT().Order(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
+	ctx := context.Background()
+
+	buy := order.NewOrder(&item.Item{Code: "AAA"}, order.Buy, order.Market, decimal.NewFromInt(10), decimal.Zero)
+	must.NoError(bk.Scoped("alpha").Order(ctx, buy, false))
+	bk.Listen(ctx, completedFill(buy, 100, 10)) // fills at 100
+
+	sell := order.NewOrder(&item.Item{Code: "AAA"}, order.Sell, order.Market, decimal.NewFromInt(10), decimal.Zero)
+	must.NoError(bk.Scoped("alpha").Order(ctx, sell, false))
+	bk.Listen(ctx, completedFill(sell, 130, 10)) // fills at 130
+
+	eqDec(t, 300, bk.RealizedPnL("alpha"), "(130-100)*10 from the event fill prices")
+}
+
+// TestPnL_StrategiesAreIsolated verifies one strategy's close does not touch
+// another strategy's position in the same code.
+func TestPnL_StrategiesAreIsolated(t *testing.T) {
+	must := require.New(t)
+
+	bk, mk := newBrokerUnderTest(t, 1_000_000, 0)
+	mk.EXPECT().Order(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
+	ctx := context.Background()
+
+	a := buyLimit("AAA", 10, 100)
+	must.NoError(bk.Scoped("alpha").Order(ctx, a, false))
+	bk.Listen(ctx, completedFill(a, 100, 10))
+
+	bb := buyLimit("AAA", 10, 100)
+	must.NoError(bk.Scoped("beta").Order(ctx, bb, false))
+	bk.Listen(ctx, completedFill(bb, 100, 10))
+
+	s := sellLimit("AAA", 10, 120)
+	must.NoError(bk.Scoped("alpha").Order(ctx, s, false))
+	bk.Listen(ctx, completedFill(s, 120, 10))
+
+	eqDec(t, 200, bk.RealizedPnL("alpha"))
+	eqDec(t, 0, bk.RealizedPnL("beta"), "beta still holds; nothing realized")
+}
+
+// TestPnL_PartialThenCompleteCountsFillOnce verifies a partial fill followed by a
+// completion accrues the full acquired size exactly once.
+func TestPnL_PartialThenCompleteCountsFillOnce(t *testing.T) {
+	must := require.New(t)
+
+	bk, mk := newBrokerUnderTest(t, 100_000, 0)
+	mk.EXPECT().Order(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
+	ctx := context.Background()
+
+	buy := buyLimit("AAA", 10, 100)
+	must.NoError(bk.Scoped("alpha").Order(ctx, buy, false))
+	bk.Listen(ctx, market.ChangeOrderEvent{
+		ID: buy.ID(), Action: order.Partial,
+		Price: decimal.NewFromInt(100), FilledSize: decimal.NewFromInt(4),
+	})
+	bk.Listen(ctx, completedFill(buy, 100, 6)) // the remaining 6 fill
+
+	sell := sellLimit("AAA", 10, 120)
+	must.NoError(bk.Scoped("alpha").Order(ctx, sell, false))
+	bk.Listen(ctx, completedFill(sell, 120, 10))
+
+	eqDec(t, 200, bk.RealizedPnL("alpha"), "10 acquired (4+6), each closed at +20")
+}
+
+// TestPnL_OversellClampsToHeld guards the defensive clamp: a reported sell larger
+// than the held quantity realizes PnL on only what is actually held.
+func TestPnL_OversellClampsToHeld(t *testing.T) {
+	must := require.New(t)
+
+	bk, mk := newBrokerUnderTest(t, 100_000, 0)
+	mk.EXPECT().Order(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
+	ctx := context.Background()
+
+	buy := buyLimit("AAA", 10, 100)
+	must.NoError(bk.Scoped("alpha").Order(ctx, buy, false))
+	bk.Listen(ctx, completedFill(buy, 100, 10))
+
+	sell := sellLimit("AAA", 15, 120)
+	must.NoError(bk.Scoped("alpha").Order(ctx, sell, false))
+	bk.Listen(ctx, completedFill(sell, 120, 15))
+
+	eqDec(t, 200, bk.RealizedPnL("alpha"), "(120-100)*10; the 5-unit oversell is ignored")
+	must.Empty(bk.Report()[0].Positions, "position is flat")
 }

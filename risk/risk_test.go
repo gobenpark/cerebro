@@ -49,6 +49,15 @@ func TestMaxPositionPct(t *testing.T) {
 	is.ErrorIs(r.Check(buy("AAA", 100, 100), s), risk.ErrPositionCap) // 15_000 + 10_000 > 20_000
 }
 
+func TestMaxLoss(t *testing.T) {
+	is := assert.New(t)
+	r := risk.MaxLoss(dec(1000)) // stop opening once the loss reaches 1000
+
+	is.NoError(r.Check(buy("AAA", 1, 1), risk.Snapshot{Realized: dec(-500)}), "within the loss budget")
+	is.ErrorIs(r.Check(buy("AAA", 1, 1), risk.Snapshot{Realized: dec(-1000)}), risk.ErrLossLimit, "loss limit reached")
+	is.NoError(r.Check(sell("AAA", 1, 1), risk.Snapshot{Realized: dec(-2000)}), "sells (exits) are never blocked")
+}
+
 func TestMaxOpenPositions(t *testing.T) {
 	is := assert.New(t)
 	r := risk.MaxOpenPositions(2)

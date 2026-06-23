@@ -20,12 +20,14 @@ import (
 	"errors"
 	"fmt"
 	"slices"
+	"sort"
 	"sync"
 
 	"github.com/samber/lo"
 	"github.com/shopspring/decimal"
 
 	"github.com/gobenpark/cerebro/event"
+	"github.com/gobenpark/cerebro/item"
 	"github.com/gobenpark/cerebro/log"
 	"github.com/gobenpark/cerebro/market"
 	"github.com/gobenpark/cerebro/order"
@@ -48,12 +50,42 @@ type Broker struct {
 	// balance is the settled cash reported by the exchange. It is seeded from
 	// AccountBalance() and updated from market.ChangeBalanceEvent.
 	balance decimal.Decimal
-	// mu guards orders, positions, and balance.
+	// lots tracks each strategy's open long position per code, rebuilt from the
+	// attributed fills the broker observes. size is the held quantity and cost is
+	// the price*size acquisition cost (commission excluded), so the average entry
+	// is cost/size. It is the source of truth for realized PnL and reporting.
+	lots map[string]map[string]*lot
+	// realized accumulates each strategy's realized PnL (price gains/losses on
+	// closed quantity); fees accumulates the commission it has paid. Net realized
+	// performance is realized minus fees.
+	realized map[string]decimal.Decimal
+	fees     map[string]decimal.Decimal
+	// filled tracks cumulative filled size per order id, so a partial-then-complete
+	// sequence books each increment once. It is keyed off the immutable order Size,
+	// not the order's remaining size, which a market adapter may mutate on the
+	// shared order object before the broker observes the fill event.
+	filled map[string]decimal.Decimal
+	// mu guards orders, positions, balance, and the PnL ledger (lots/realized/fees).
 	mu sync.RWMutex
 	// wg tracks in-flight submit goroutines so Wait can join them on shutdown.
 	wg sync.WaitGroup
 	// risk is the optional pre-trade gate consulted in Order; nil means no gate.
 	risk *risk.Manager
+}
+
+// lot is one strategy's open position in one code.
+type lot struct {
+	item *item.Item
+	size decimal.Decimal // held quantity
+	cost decimal.Decimal // acquisition cost of the held quantity (price*size, no fees)
+}
+
+// StrategyReport is a per-strategy view of trading performance at a point in time.
+type StrategyReport struct {
+	Strategy  string
+	Realized  decimal.Decimal // realized PnL (price gains/losses on closed quantity)
+	Fees      decimal.Decimal // cumulative commission paid
+	Positions []position.Position
 }
 
 // SetRisk installs the pre-trade risk gate. It is set once at construction before
@@ -67,9 +99,115 @@ func (b *Broker) snapshotLocked() risk.Snapshot {
 	return risk.Snapshot{
 		Balance:   b.balance,
 		Available: b.balance.Sub(b.reservedLocked()),
+		Realized:  b.totalRealizedLocked(),
 		Positions: slices.Clone(b.positions),
 		Open:      slices.Clone(b.orders),
 	}
+}
+
+var hundred = decimal.NewFromInt(100)
+
+// recordFillLocked folds one fill into the per-strategy PnL ledger. Caller holds
+// b.mu. A buy grows the lot; a sell realizes PnL on the closed quantity at the
+// lot's average cost and shrinks (or clears) it. Commission is a percentage, so
+// the fee is value * commission / 100.
+func (b *Broker) recordFillLocked(strategy string, it *item.Item, action order.Action, size, price decimal.Decimal) {
+	lots := b.lots[strategy]
+	if lots == nil {
+		lots = map[string]*lot{}
+		b.lots[strategy] = lots
+	}
+	l := lots[it.Code]
+	if l == nil {
+		l = &lot{item: it}
+		lots[it.Code] = l
+	}
+	commission := b.market.Commission()
+
+	switch action {
+	case order.Buy:
+		b.fees[strategy] = b.fees[strategy].Add(price.Mul(size).Mul(commission).Div(hundred))
+		l.cost = l.cost.Add(price.Mul(size))
+		l.size = l.size.Add(size)
+	case order.Sell:
+		// Never close more than is held (a defensive guard; the exchange/replay
+		// should not report an oversell).
+		sold := decimal.Min(size, l.size)
+		if sold.GreaterThan(decimal.Zero) {
+			avg := l.cost.Div(l.size)
+			b.fees[strategy] = b.fees[strategy].Add(price.Mul(sold).Mul(commission).Div(hundred))
+			b.realized[strategy] = b.realized[strategy].Add(price.Sub(avg).Mul(sold))
+			l.cost = l.cost.Sub(avg.Mul(sold))
+			l.size = l.size.Sub(sold)
+		}
+		if l.size.LessThanOrEqual(decimal.Zero) {
+			delete(lots, it.Code)
+			if len(lots) == 0 {
+				delete(b.lots, strategy)
+			}
+		}
+	default:
+		// Cancel/Edit are not fills and do not move the position.
+	}
+}
+
+// totalRealizedLocked sums realized PnL across strategies. Caller holds b.mu.
+func (b *Broker) totalRealizedLocked() decimal.Decimal {
+	sum := decimal.Zero
+	for _, v := range b.realized {
+		sum = sum.Add(v)
+	}
+	return sum
+}
+
+// RealizedPnL returns the realized PnL accumulated by one strategy.
+func (b *Broker) RealizedPnL(strategy string) decimal.Decimal {
+	b.mu.RLock()
+	defer b.mu.RUnlock()
+	return b.realized[strategy]
+}
+
+// TotalRealizedPnL returns realized PnL across every strategy.
+func (b *Broker) TotalRealizedPnL() decimal.Decimal {
+	b.mu.RLock()
+	defer b.mu.RUnlock()
+	return b.totalRealizedLocked()
+}
+
+// Report returns a per-strategy snapshot of realized PnL, fees, and open
+// positions, sorted by strategy name for stable output.
+func (b *Broker) Report() []StrategyReport {
+	b.mu.RLock()
+	defer b.mu.RUnlock()
+
+	names := map[string]struct{}{}
+	for s := range b.realized {
+		names[s] = struct{}{}
+	}
+	for s := range b.fees {
+		names[s] = struct{}{}
+	}
+	for s := range b.lots {
+		names[s] = struct{}{}
+	}
+
+	out := make([]StrategyReport, 0, len(names))
+	for s := range names {
+		rep := StrategyReport{Strategy: s, Realized: b.realized[s], Fees: b.fees[s]}
+		for _, l := range b.lots[s] {
+			avg := decimal.Zero
+			if l.size.GreaterThan(decimal.Zero) {
+				avg = l.cost.Div(l.size)
+			}
+			rep.Positions = append(rep.Positions, position.Position{Item: l.item, Size: l.size, Price: avg})
+		}
+		sort.Slice(rep.Positions, func(i, j int) bool {
+			return rep.Positions[i].Item.Code < rep.Positions[j].Item.Code
+		})
+		out = append(out, rep)
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].Strategy < out[j].Strategy })
+	return out
 }
 
 // Submitter is the broker surface a strategy uses. A scoped Submitter tags every
@@ -108,6 +246,10 @@ func NewDefaultBroker(eventEngine event.Broadcaster, store market.Market, logger
 		logger:      logger,
 		positions:   store.AccountPositions(),
 		balance:     store.AccountBalance(),
+		lots:        map[string]map[string]*lot{},
+		realized:    map[string]decimal.Decimal{},
+		fees:        map[string]decimal.Decimal{},
+		filled:      map[string]decimal.Decimal{},
 	}
 }
 
@@ -322,10 +464,18 @@ func (b *Broker) applyOrderChange(ctx context.Context, evt market.ChangeOrderEve
 	}
 
 	o := b.orders[idx]
+	// Capture the size newly filled by this event before mutating the order, so the
+	// PnL ledger counts each increment exactly once (a partial then a completion add
+	// up to the full size).
+	var fillInc decimal.Decimal
 	switch evt.Action {
 	case order.Accepted:
 		o.Accept()
 	case order.Completed:
+		// Completion fills whatever remains; derive it from the immutable order size
+		// minus what already filled, not from the (possibly externally mutated)
+		// remaining size.
+		fillInc = o.Size().Sub(b.filled[evt.ID])
 		o.Complete()
 	case order.Canceled:
 		o.Cancel()
@@ -338,15 +488,29 @@ func (b *Broker) applyOrderChange(ctx context.Context, evt market.ChangeOrderEve
 	case order.Partial:
 		// A partial fill reduces the remaining size; the order stays open and its
 		// reservation shrinks to the unfilled remainder (see orderValue).
+		fillInc = evt.FilledSize
+		b.filled[evt.ID] = b.filled[evt.ID].Add(evt.FilledSize)
 		o.Partial(evt.FilledSize)
 	default:
 		// None/Created/Submitted are not delivered as exchange events; nothing to apply.
+	}
+	// Fold the fill into the per-strategy PnL ledger. The exchange's fill price is
+	// preferred; for limit orders the order's own price is an exact fallback.
+	if fillInc.GreaterThan(decimal.Zero) {
+		price := evt.Price
+		if price.IsZero() {
+			price = o.Price()
+		}
+		if price.GreaterThan(decimal.Zero) {
+			b.recordFillLocked(o.Strategy(), o.Item(), o.Action(), fillInc, price)
+		}
 	}
 	// Terminal statuses end the order's lifecycle: drop it from the open set so
 	// its reserved cash is released. Non-terminal updates (e.g. Accepted) keep
 	// the order open and its reservation in place.
 	if isTerminalStatus(evt.Action) {
 		b.orders = slices.Delete(b.orders, idx, idx+1)
+		delete(b.filled, evt.ID)
 	}
 	b.positions = positions
 	b.mu.Unlock()

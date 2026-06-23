@@ -269,7 +269,10 @@ func (r *Replay) matchAndFill(code string, price decimal.Decimal) []any {
 		o.Complete()
 		events = append(events,
 			market.ChangeBalanceEvent{Message: "fill", Balance: r.balance},
-			market.ChangeOrderEvent{ID: o.ID(), Action: order.Completed, Message: "filled"},
+			market.ChangeOrderEvent{
+				ID: o.ID(), Action: order.Completed, Message: "filled",
+				FilledSize: o.Size(), Price: fillPrice,
+			},
 		)
 	}
 	r.pending = still

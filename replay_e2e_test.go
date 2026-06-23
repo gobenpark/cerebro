@@ -175,6 +175,13 @@ func TestCerebro_RiskPolicyExits(t *testing.T) {
 
 	cancel()
 	cb.Shutdown()
+
+	// The round trip is attributed to the strategy and booked as realized PnL.
+	rep := cb.Report()
+	must.Len(rep, 1)
+	is.Equal("buy-once", rep[0].Strategy)
+	is.True(decimal.NewFromInt(-60).Equal(rep[0].Realized), "stop-loss realizes (94-100)*10 = -60")
+	is.Empty(rep[0].Positions, "the position is flat after the exit")
 }
 
 // TestStart_RejectsPolicyForUnknownStrategy guards the wiring check: a policy that

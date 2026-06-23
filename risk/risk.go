@@ -37,12 +37,14 @@ var (
 	ErrOrderTooBig = errors.New("order value exceeds limit")
 	ErrTooManyOpen = errors.New("too many open positions")
 	ErrRateLimited = errors.New("order rate limit exceeded")
+	ErrLossLimit   = errors.New("realized loss limit exceeded")
 )
 
 // Snapshot is the account state a Rule sees when vetting an order.
 type Snapshot struct {
 	Balance   decimal.Decimal // settled cash
 	Available decimal.Decimal // settled cash minus cash reserved by open orders
+	Realized  decimal.Decimal // account-wide realized PnL (negative means a net loss)
 	Positions []position.Position
 	Open      []order.Order
 }
@@ -149,6 +151,22 @@ func MaxOpenPositions(n int) Rule {
 		}
 		if len(codes) >= n {
 			return ErrTooManyOpen
+		}
+		return nil
+	}}
+}
+
+// MaxLoss stops opening new positions once the account's realized loss reaches
+// maxLoss (a positive amount). Sells are always allowed so an open position can
+// still be closed. It consumes Snapshot.Realized, which the broker tracks from
+// fills, so it only takes effect once trades have actually settled.
+func MaxLoss(maxLoss decimal.Decimal) Rule {
+	return ruleFunc{"max_loss", func(o order.Order, s Snapshot) error {
+		if o.Action() != order.Buy {
+			return nil
+		}
+		if s.Realized.LessThanOrEqual(maxLoss.Neg()) {
+			return ErrLossLimit
 		}
 		return nil
 	}}

@@ -17,6 +17,10 @@ type ChangeOrderEvent struct {
 	// FilledSize is the quantity filled by this event. It is applied to the
 	// order's remaining size on a Partial fill; other actions ignore it.
 	FilledSize decimal.Decimal
+	// Price is the price this event filled at, used for PnL accounting. Zero means
+	// the adapter did not report it; the broker then falls back to the order's own
+	// (limit) price, which is exact for limit orders but unknown for market orders.
+	Price decimal.Decimal
 }
 
 func (o ChangeOrderEvent) String() string {

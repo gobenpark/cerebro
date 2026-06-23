@@ -143,9 +143,11 @@ func TestCerebro_RiskPolicyExits(t *testing.T) {
 	is := assert.New(t)
 	must := require.New(t)
 
-	// Hold at 100 long enough for the buy to fill, then drop to 94 (below the 5%
-	// stop at 95) and stay there so the market exit fills.
-	prices := append(repeat(100, 5), repeat(94, 30)...)
+	// Hold at 100 long enough for the buy to fill, then drop to 94 (below the 5% stop
+	// at 95) and stay there for a long tail so the reactive exit — which is submitted
+	// only after the fill propagates to the broker and back to the monitor — still has
+	// candles left to fill against before the replay finishes.
+	prices := append(repeat(100, 5), repeat(94, 80)...)
 
 	mkt := replay.New(
 		replay.WithBalance(decimal.NewFromInt(100_000)),
@@ -166,22 +168,21 @@ func TestCerebro_RiskPolicyExits(t *testing.T) {
 	defer cancel()
 	must.NoError(cb.Start(ctx))
 
-	// Buy 10 @ 100 (-1000); the stop fires at 94, exiting 10 @ 94 (+940). Net cash
-	// is 99_940 and no position remains.
+	// Buy 10 @ 100 (-1000); the stop fires at 94, exiting 10 @ 94 (+940), booked as
+	// (94-100)*10 = -60 realized PnL with a flat position. Poll the broker ledger
+	// (the true downstream of the round trip) rather than the replay's own internal
+	// balance, which is updated synchronously in matchAndFill and so leads the async
+	// event that reaches the broker.
 	is.Eventually(func() bool {
-		return mkt.AccountBalance().Equal(decimal.NewFromInt(99_940)) &&
-			len(mkt.AccountPositions()) == 0
-	}, 5*time.Second, 15*time.Millisecond, "stop-loss should exit the position via the replay market")
+		rep := cb.Report()
+		if len(rep) != 1 || rep[0].Strategy != "buy-once" {
+			return false
+		}
+		return decimal.NewFromInt(-60).Equal(rep[0].Realized) && len(rep[0].Positions) == 0
+	}, 5*time.Second, 15*time.Millisecond, "stop-loss should exit the position and book -60 realized PnL")
 
 	cancel()
 	cb.Shutdown()
-
-	// The round trip is attributed to the strategy and booked as realized PnL.
-	rep := cb.Report()
-	must.Len(rep, 1)
-	is.Equal("buy-once", rep[0].Strategy)
-	is.True(decimal.NewFromInt(-60).Equal(rep[0].Realized), "stop-loss realizes (94-100)*10 = -60")
-	is.Empty(rep[0].Positions, "the position is flat after the exit")
 }
 
 // TestStart_RejectsPolicyForUnknownStrategy guards the wiring check: a policy that

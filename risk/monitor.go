@@ -22,9 +22,9 @@ import (
 	"github.com/shopspring/decimal"
 
 	"github.com/gobenpark/cerebro/indicator"
-	"github.com/gobenpark/cerebro/item"
 	"github.com/gobenpark/cerebro/log"
 	"github.com/gobenpark/cerebro/order"
+	"github.com/gobenpark/cerebro/position"
 )
 
 // Submitter is the minimal broker surface the Monitor needs to place exit orders.
@@ -34,57 +34,56 @@ type Submitter interface {
 	Order(ctx context.Context, o order.Order, safe bool) error
 }
 
-// lot is the Monitor's reconstruction of one strategy's long position in one code,
-// built from that strategy's attributed fills.
-type lot struct {
-	item  *item.Item
-	size  decimal.Decimal // net long size
-	price decimal.Decimal // average entry price
-	peak  decimal.Decimal // highest price seen since entry (drives trailing stops)
+// Book reports a strategy's current open position in a code (average entry as
+// Price), the high-water fill price since it opened, or ok=false if it holds none.
+// The broker is the single source of truth for positions, so the Monitor reads
+// from it rather than reconstructing its own ledger; the fill high lets a trailing
+// stop account for scale-ins above the average entry. A *broker.Broker satisfies it.
+type Book interface {
+	StrategyPosition(strategy, code string) (pos position.Position, peak decimal.Decimal, ok bool)
 }
 
-// Monitor is a reactive risk component. It tracks each policy-bearing strategy's
-// position from the attributed fills it observes, and on every tick checks that
-// position against the strategy's Policy, submitting a market exit when a trigger
-// fires.
+// Monitor is a reactive risk component. On every tick it reads each policy-bearing
+// strategy's position from the Book and checks it against the strategy's Policy,
+// submitting a market exit when a stop-loss, trailing-stop, or take-profit trigger
+// fires. The broker owns the position ledger; the Monitor only keeps the trailing
+// peak and an in-flight exit guard.
 //
 // It is an event.Listener. The event engine drives each listener from a single
 // dedicated goroutine, so Listen is never called concurrently with itself; the
-// Monitor's state therefore needs no locking.
+// Monitor's own state therefore needs no locking.
 type Monitor struct {
 	logger    log.Logger
 	policies  map[string]Policy
 	submitter func(strategy string) Submitter
+	book      Book
 
-	// lots[strategy][code] is the position each policy is evaluated against.
-	lots map[string]map[string]*lot
-	// filled[orderID] is the cumulative size already counted for an order, so a
-	// partial fill followed by completion is applied exactly once.
-	filled map[string]decimal.Decimal
+	// peak[strategy][code] is the highest price seen since entry, driving trailing
+	// stops. It folds the broker's high-water fill price with the ticks the Monitor
+	// observes (so neither a scale-in above the average nor a dropped tick understates
+	// it), and resets when the position goes flat.
+	peak map[string]map[string]decimal.Decimal
 	// exiting[strategy][code] holds the in-flight exit order id, so a position is
 	// not exited again before its first exit settles.
 	exiting map[string]map[string]string
-	// last[code] is the most recent tick price, used as the fill price for market
-	// (zero-price) orders, whose actual fill price the event does not carry.
-	last map[string]decimal.Decimal
 }
 
 // NewMonitor builds a Monitor for the given per-strategy policies. submitter maps
-// a strategy name to the broker handle its exits are placed through.
-func NewMonitor(logger log.Logger, policies map[string]Policy, submitter func(strategy string) Submitter) *Monitor {
+// a strategy name to the broker handle its exits are placed through, and book is
+// the broker's position ledger the policies are evaluated against.
+func NewMonitor(logger log.Logger, policies map[string]Policy, submitter func(strategy string) Submitter, book Book) *Monitor {
 	return &Monitor{
 		logger:    logger,
 		policies:  policies,
 		submitter: submitter,
-		lots:      map[string]map[string]*lot{},
-		filled:    map[string]decimal.Decimal{},
+		book:      book,
+		peak:      map[string]map[string]decimal.Decimal{},
 		exiting:   map[string]map[string]string{},
-		last:      map[string]decimal.Decimal{},
 	}
 }
 
-// Listen consumes order updates (to track positions) and ticks (to evaluate the
-// policies). It satisfies event.Listener.
+// Listen evaluates policies on ticks and releases the exit guard on a terminal
+// exit order. It satisfies event.Listener.
 func (m *Monitor) Listen(ctx context.Context, e any) {
 	switch evt := e.(type) {
 	case order.Order:
@@ -94,133 +93,103 @@ func (m *Monitor) Listen(ctx context.Context, e any) {
 	}
 }
 
-// applyOrder folds an order update into the per-strategy position. Only fills move
-// the position; a terminal exit order releases the in-flight guard.
+// applyOrder reacts to a terminal order for a policy-bearing strategy. If the
+// position is now flat — closed by the Monitor's own exit or by the strategy's own
+// sell — its trailing peak and guard are dropped so an immediate re-entry (before
+// any tick observes the flat state) starts from a fresh high-water mark instead of
+// inheriting the prior trade's. The broker updates the position before broadcasting
+// the order, so a flat book here reliably means the position closed. If the position
+// is still open and this was the Monitor's in-flight exit that did not fill
+// (rejected/canceled), only the guard is released so a later breach can retry.
 func (m *Monitor) applyOrder(o order.Order) {
-	strategy := o.Strategy()
+	if !isTerminal(o.Status()) {
+		return
+	}
+	strategy, code := o.Strategy(), o.Item().Code
 	if _, ok := m.policies[strategy]; !ok {
 		return // not a policy-bearing strategy
 	}
-	code := o.Item().Code
-	status := o.Status()
-
-	// Count the size newly filled by this update. A partial fill shrinks the
-	// remaining size; completion zeroes it. Tracking cumulative filled size per
-	// order id makes a partial-then-complete sequence add up to the full size once.
-	if status == order.Partial || status == order.Completed {
-		cumulative := o.Size().Sub(o.RemainingSize())
-		delta := cumulative.Sub(m.filled[o.ID()])
-		if status == order.Completed {
-			delete(m.filled, o.ID())
-		} else {
-			m.filled[o.ID()] = cumulative
-		}
-		if delta.GreaterThan(decimal.Zero) {
-			price := o.Price()
-			if price.IsZero() { // market fill: approximate with the last tick price
-				price = m.last[code]
-			}
-			switch o.Action() {
-			case order.Buy:
-				m.addLong(strategy, o.Item(), delta, price)
-			case order.Sell:
-				m.reduceLong(strategy, code, delta)
-			default:
-				// Cancel/Edit are not fills and do not move the position.
-			}
-		}
-	}
-
-	// A terminal exit order frees the guard so a later breach can exit a re-entered
-	// position. Completion is also handled by reduceLong; clearing twice is safe.
-	if isTerminal(status) {
-		m.clearExit(strategy, code, o.ID())
-	}
-}
-
-// addLong adds size at price to a strategy's lot, weighting the average entry.
-func (m *Monitor) addLong(strategy string, it *item.Item, size, price decimal.Decimal) {
-	codes := m.lots[strategy]
-	if codes == nil {
-		codes = map[string]*lot{}
-		m.lots[strategy] = codes
-	}
-	l := codes[it.Code]
-	if l == nil {
-		l = &lot{item: it, peak: price}
-		codes[it.Code] = l
-	}
-	newSize := l.size.Add(size)
-	if newSize.GreaterThan(decimal.Zero) {
-		cost := l.size.Mul(l.price).Add(size.Mul(price))
-		l.price = cost.Div(newSize)
-	}
-	l.size = newSize
-	if price.GreaterThan(l.peak) {
-		l.peak = price
-	}
-}
-
-// reduceLong shrinks a strategy's lot; a flat position is dropped along with its
-// peak and exit guard so a fresh entry starts clean.
-func (m *Monitor) reduceLong(strategy, code string, size decimal.Decimal) {
-	codes := m.lots[strategy]
-	l := codes[code]
-	if l == nil {
+	if _, _, ok := m.book.StrategyPosition(strategy, code); !ok {
+		m.resetCode(strategy, code) // flat: drop the guard and the stale trailing peak
 		return
 	}
-	l.size = l.size.Sub(size)
-	if l.size.LessThanOrEqual(decimal.Zero) {
-		delete(codes, code)
-		if len(codes) == 0 {
-			delete(m.lots, strategy)
-		}
-		m.clearExitCode(strategy, code)
+	if m.exiting[strategy][code] == o.ID() {
+		m.clearExitCode(strategy, code) // our exit failed; allow a retry, keep the peak
 	}
 }
 
-// onTick refreshes the trailing peak and evaluates every policy-bearing strategy
-// that holds the tick's code, submitting an exit when a trigger fires.
+// onTick evaluates every policy-bearing strategy that holds the tick's code,
+// submitting an exit when a trigger fires. A strategy that is flat in the code has
+// its trailing peak and any stale guard reset so a re-entry starts clean.
 func (m *Monitor) onTick(ctx context.Context, tk indicator.Tick) {
-	m.last[tk.Code] = tk.Price
-
-	for strategy, codes := range m.lots {
-		l := codes[tk.Code]
-		if l == nil {
+	for strategy, policy := range m.policies {
+		pos, fillPeak, ok := m.book.StrategyPosition(strategy, tk.Code)
+		if !ok {
+			m.resetCode(strategy, tk.Code)
 			continue
 		}
-		if tk.Price.GreaterThan(l.peak) {
-			l.peak = tk.Price
-		}
+		peak := m.updatePeak(strategy, tk.Code, fillPeak, tk.Price)
 		if m.hasExit(strategy, tk.Code) {
 			continue // an exit is already in flight
 		}
-		reason, ok := m.policies[strategy].triggered(l.price, l.peak, tk.Price)
-		if !ok {
+		reason, hit := policy.triggered(pos.Price, peak, tk.Price)
+		if !hit {
 			continue
 		}
-		m.submitExit(ctx, strategy, l, reason)
+		m.submitExit(ctx, strategy, pos, tk.Price, reason)
 	}
 }
 
 // submitExit places a market sell for the whole position and records the in-flight
 // exit so the next tick does not double-exit.
-func (m *Monitor) submitExit(ctx context.Context, strategy string, l *lot, reason string) {
-	if l.size.LessThanOrEqual(decimal.Zero) {
+func (m *Monitor) submitExit(ctx context.Context, strategy string, pos position.Position, price decimal.Decimal, reason string) {
+	if pos.Size.LessThanOrEqual(decimal.Zero) {
 		return
 	}
-	o := order.NewOrder(l.item, order.Sell, order.Market, l.size, decimal.Zero)
+	o := order.NewOrder(pos.Item, order.Sell, order.Market, pos.Size, decimal.Zero)
 	// safe=false: an exit must go through even if the strategy has other open
 	// orders for the code.
 	if err := m.submitter(strategy).Order(ctx, o, false); err != nil {
 		m.logger.Info("risk policy exit rejected",
-			"strategy", strategy, "code", l.item.Code, "reason", reason, "error", err)
+			"strategy", strategy, "code", pos.Item.Code, "reason", reason, "error", err)
 		return
 	}
-	m.setExit(strategy, l.item.Code, o.ID())
+	m.setExit(strategy, pos.Item.Code, o.ID())
 	m.logger.Info("risk policy exit",
-		"strategy", strategy, "code", l.item.Code, "reason", reason,
-		"size", l.size, "entry", l.price, "price", m.last[l.item.Code])
+		"strategy", strategy, "code", pos.Item.Code, "reason", reason,
+		"size", pos.Size, "entry", pos.Price, "price", price)
+}
+
+// updatePeak folds the broker's high-water fill price and the latest tick into the
+// trailing peak for (strategy, code) and returns it. Combining both sources means
+// neither a fill above the average entry (which the broker captures) nor a dropped
+// tick (which the Monitor's own stream captures) understates the high-water mark.
+func (m *Monitor) updatePeak(strategy, code string, fillPeak, price decimal.Decimal) decimal.Decimal {
+	codes := m.peak[strategy]
+	if codes == nil {
+		codes = map[string]decimal.Decimal{}
+		m.peak[strategy] = codes
+	}
+	p := codes[code] // zero on first observation
+	if fillPeak.GreaterThan(p) {
+		p = fillPeak
+	}
+	if price.GreaterThan(p) {
+		p = price
+	}
+	codes[code] = p
+	return p
+}
+
+// resetCode drops the trailing peak and any stale exit guard for a flat position.
+func (m *Monitor) resetCode(strategy, code string) {
+	if codes := m.peak[strategy]; codes != nil {
+		delete(codes, code)
+		if len(codes) == 0 {
+			delete(m.peak, strategy)
+		}
+	}
+	m.clearExitCode(strategy, code)
 }
 
 func (m *Monitor) setExit(strategy, code, id string) {
@@ -235,14 +204,6 @@ func (m *Monitor) setExit(strategy, code, id string) {
 func (m *Monitor) hasExit(strategy, code string) bool {
 	_, ok := m.exiting[strategy][code]
 	return ok
-}
-
-// clearExit releases the guard only if id matches the in-flight exit, so an
-// unrelated order's terminal update does not clear a live exit.
-func (m *Monitor) clearExit(strategy, code, id string) {
-	if m.exiting[strategy][code] == id {
-		m.clearExitCode(strategy, code)
-	}
 }
 
 func (m *Monitor) clearExitCode(strategy, code string) {

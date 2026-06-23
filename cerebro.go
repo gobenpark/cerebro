@@ -111,7 +111,7 @@ func NewCerebro(opts ...Option) *Cerebro {
 	if len(active) > 0 {
 		c.monitor = risk.NewMonitor(c.log, active, func(name string) risk.Submitter {
 			return c.broker.Scoped(name)
-		})
+		}, c.broker)
 	}
 	c.engines = append(c.engines, strategy.NewEngine(c.log, c.broker, c.strategies, c.market, c.timeout))
 

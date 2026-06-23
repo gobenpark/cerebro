@@ -27,6 +27,7 @@ import (
 	"github.com/shopspring/decimal"
 
 	"github.com/gobenpark/cerebro/event"
+	"github.com/gobenpark/cerebro/indicator"
 	"github.com/gobenpark/cerebro/item"
 	"github.com/gobenpark/cerebro/log"
 	"github.com/gobenpark/cerebro/market"
@@ -65,6 +66,10 @@ type Broker struct {
 	// not the order's remaining size, which a market adapter may mutate on the
 	// shared order object before the broker observes the fill event.
 	filled map[string]decimal.Decimal
+	// lastPrice is the most recent tick price per code. It is the final fallback for
+	// valuing a market fill whose event and order both carry no price, so positions
+	// (and the PnL/risk that read them) are still tracked for such adapters.
+	lastPrice map[string]decimal.Decimal
 	// mu guards orders, positions, balance, and the PnL ledger (lots/realized/fees).
 	mu sync.RWMutex
 	// wg tracks in-flight submit goroutines so Wait can join them on shutdown.
@@ -78,6 +83,7 @@ type lot struct {
 	item *item.Item
 	size decimal.Decimal // held quantity
 	cost decimal.Decimal // acquisition cost of the held quantity (price*size, no fees)
+	peak decimal.Decimal // highest fill price since the lot opened (seeds trailing stops)
 }
 
 // StrategyReport is a per-strategy view of trading performance at a point in time.
@@ -129,6 +135,9 @@ func (b *Broker) recordFillLocked(strategy string, it *item.Item, action order.A
 		b.fees[strategy] = b.fees[strategy].Add(price.Mul(size).Mul(commission).Div(hundred))
 		l.cost = l.cost.Add(price.Mul(size))
 		l.size = l.size.Add(size)
+		if price.GreaterThan(l.peak) {
+			l.peak = price // track the high-water fill price for trailing stops
+		}
 	case order.Sell:
 		// Never close more than is held (a defensive guard; the exchange/replay
 		// should not report an oversell).
@@ -158,6 +167,21 @@ func (b *Broker) totalRealizedLocked() decimal.Decimal {
 		sum = sum.Add(v)
 	}
 	return sum
+}
+
+// StrategyPosition returns a strategy's open position in a code (average entry as
+// Position.Price), the high-water fill price since it opened, and ok=false if it
+// holds none. It is the source of truth the reactive risk monitor evaluates exit
+// policies against; the fill high lets a trailing stop account for scale-ins above
+// the average entry that no observed tick may have captured.
+func (b *Broker) StrategyPosition(strategy, code string) (position.Position, decimal.Decimal, bool) {
+	b.mu.RLock()
+	defer b.mu.RUnlock()
+	l := b.lots[strategy][code]
+	if l == nil || l.size.LessThanOrEqual(decimal.Zero) {
+		return position.Position{}, decimal.Zero, false
+	}
+	return position.Position{Item: l.item, Size: l.size, Price: l.cost.Div(l.size)}, l.peak, true
 }
 
 // RealizedPnL returns the realized PnL accumulated by one strategy.
@@ -220,7 +244,10 @@ type Submitter interface {
 	Orders(code string) []order.Order
 }
 
-var _ Submitter = (*Broker)(nil)
+var (
+	_ Submitter = (*Broker)(nil)
+	_ risk.Book = (*Broker)(nil)
+)
 
 // Scoped returns a Submitter that stamps strategy onto every order before
 // submitting it through the broker.
@@ -250,6 +277,7 @@ func NewDefaultBroker(eventEngine event.Broadcaster, store market.Market, logger
 		realized:    map[string]decimal.Decimal{},
 		fees:        map[string]decimal.Decimal{},
 		filled:      map[string]decimal.Decimal{},
+		lastPrice:   map[string]decimal.Decimal{},
 	}
 }
 
@@ -426,6 +454,12 @@ func (b *Broker) Listen(ctx context.Context, e any) {
 		if evt.Status() == order.Submitted {
 			b.refreshPositions()
 		}
+	case indicator.Tick:
+		// Remember the latest price per code so a market fill that carries no price
+		// can still be valued (see applyOrderChange).
+		b.mu.Lock()
+		b.lastPrice[evt.Code] = evt.Price
+		b.mu.Unlock()
 	case market.MarketEvent:
 		b.handleMarketEvent(ctx, evt)
 	}
@@ -499,7 +533,10 @@ func (b *Broker) applyOrderChange(ctx context.Context, evt market.ChangeOrderEve
 	if fillInc.GreaterThan(decimal.Zero) {
 		price := evt.Price
 		if price.IsZero() {
-			price = o.Price()
+			price = o.Price() // limit orders carry an exact price
+		}
+		if price.IsZero() {
+			price = b.lastPrice[o.Item().Code] // market fill with no reported price
 		}
 		if price.GreaterThan(decimal.Zero) {
 			b.recordFillLocked(o.Strategy(), o.Item(), o.Action(), fillInc, price)

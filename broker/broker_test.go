@@ -13,6 +13,7 @@ import (
 
 	"github.com/gobenpark/cerebro/broker"
 	eventmock "github.com/gobenpark/cerebro/event/mock"
+	"github.com/gobenpark/cerebro/indicator"
 	"github.com/gobenpark/cerebro/item"
 	"github.com/gobenpark/cerebro/market"
 	marketmock "github.com/gobenpark/cerebro/market/mock"
@@ -334,6 +335,53 @@ func TestPnL_ReportTracksFeesAndOpenPosition(t *testing.T) {
 	must.Len(rep[0].Positions, 1, "6 units remain open")
 	eqDec(t, 6, rep[0].Positions[0].Size)
 	eqDec(t, 100, rep[0].Positions[0].Price, "a partial close does not move the average entry")
+}
+
+// TestPnL_MarketFillWithoutPriceUsesLastTick guards that a market fill from an
+// adapter that reports no fill price is still tracked, valued at the last tick —
+// so reactive risk policies keep seeing market-entered positions.
+func TestPnL_MarketFillWithoutPriceUsesLastTick(t *testing.T) {
+	must := require.New(t)
+
+	bk, mk := newBrokerUnderTest(t, 100_000, 0)
+	mk.EXPECT().Order(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
+	ctx := context.Background()
+
+	// A tick establishes the last price for AAA.
+	bk.Listen(ctx, indicator.Tick{Code: "AAA", Price: decimal.NewFromInt(100)})
+
+	buy := order.NewOrder(&item.Item{Code: "AAA"}, order.Buy, order.Market, decimal.NewFromInt(10), decimal.Zero)
+	must.NoError(bk.Scoped("alpha").Order(ctx, buy, false))
+	// The completed event carries no Price (a bare adapter).
+	bk.Listen(ctx, market.ChangeOrderEvent{ID: buy.ID(), Action: order.Completed, FilledSize: decimal.NewFromInt(10)})
+
+	pos, _, ok := bk.StrategyPosition("alpha", "AAA")
+	must.True(ok, "a market fill must be tracked even without a reported price")
+	eqDec(t, 10, pos.Size)
+	eqDec(t, 100, pos.Price, "valued at the last tick price")
+}
+
+// TestStrategyPosition_TracksHighWaterFillPrice verifies the lot's reported peak is
+// the highest fill price across scale-ins, not the average entry.
+func TestStrategyPosition_TracksHighWaterFillPrice(t *testing.T) {
+	must := require.New(t)
+
+	bk, mk := newBrokerUnderTest(t, 1_000_000, 0)
+	mk.EXPECT().Order(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
+	ctx := context.Background()
+
+	low := buyLimit("AAA", 10, 100)
+	must.NoError(bk.Scoped("alpha").Order(ctx, low, false))
+	bk.Listen(ctx, completedFill(low, 100, 10))
+
+	high := buyLimit("AAA", 10, 200)
+	must.NoError(bk.Scoped("alpha").Order(ctx, high, false))
+	bk.Listen(ctx, completedFill(high, 200, 10))
+
+	pos, peak, ok := bk.StrategyPosition("alpha", "AAA")
+	must.True(ok)
+	eqDec(t, 150, pos.Price, "average entry of two equal-size fills at 100 and 200")
+	eqDec(t, 200, peak, "high-water fill price is the higher fill, not the average")
 }
 
 // TestPnL_MarketFillUsesEventPrice guards that a market order — which carries no

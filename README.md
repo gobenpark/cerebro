@@ -29,16 +29,40 @@ go get github.com/gobenpark/cerebro
 
 Requires Go 1.26+.
 
+## Quickstart
+
+The fastest way to see Cerebro run is the bundled **replay market**, which streams
+historical candles and simulates fills — no real exchange needed:
+
+```bash
+go run ./examples/backtest
+```
+
+```
+running backtest over 13 bars ...
+  notify [dip] AAA status=2
+  notify [dip] AAA status=5
+
+final balance: 999029.85
+position AAA size=10 avg=97.00
+```
+
+That example ([`examples/backtest/main.go`](examples/backtest/main.go)) wires the
+replay market, a small dip-buying strategy, and a risk gate through Cerebro and
+prints the result. It is the place to start reading; the sections below show how
+to plug in a **real** exchange for live trading.
+
 ## How it works
 
 To run Cerebro you provide two things:
 
-1. A **`market.Market`** implementation — your adapter to a real exchange
-   (Binance, Upbit, a brokerage API, …). It feeds candles/ticks and order/balance
-   events into Cerebro and executes the orders the broker submits.
+1. A **`market.Market`** implementation — your adapter to an exchange (Binance,
+   Upbit, a brokerage API, …) or the bundled `market/replay` for backtests. It
+   feeds candles/ticks and order/balance events into Cerebro and executes the
+   orders the broker submits.
 2. One or more **`strategy.Strategy`** implementations — your trading logic. Each
-   strategy receives ticks and places orders through the `*broker.Broker` handed
-   to it.
+   strategy receives ticks and places orders through the `broker.Submitter` handed
+   to it (scoped to the strategy, so its orders are attributed to it).
 
 Cerebro wires these together with an internal **broker** (cash/position
 accounting) and an **event engine** (per-listener event dispatch), then runs the
@@ -208,6 +232,7 @@ func main() {
 | `WithStrategy(...strategy.Strategy)` | One or more strategies (required). |
 | `WithTargetItem(...*item.Item)` | Items to trade (required). |
 | `WithStrategyTimeout(time.Duration)` | Per-strategy `Next` timeout budget. |
+| `WithRisk(...risk.Rule)` | Pre-trade risk gate (position/order/rate limits). |
 | `WithLogLevel(log.Level)` | Log verbosity. |
 
 ## Concepts
@@ -238,6 +263,13 @@ Cerebro is composed of a few cooperating parts:
   - RMA (Wilder moving average)
 - **Decimal money** — prices, sizes, balances, and order values use
   `shopspring/decimal`, so financial math carries no float64 rounding error.
+- **Replay market** — `market/replay` streams historical candles and simulates
+  fills locally, so strategies run end-to-end with no real exchange (see the
+  Quickstart). `Done()` signals when a backtest run finishes.
+- **Risk gate** — compose pre-trade rules via `cerebro.WithRisk` (`MaxPositionPct`,
+  `MaxOrderValue`, `MaxOpenPositions`, `OrderRateLimit`, or custom `risk.Func`).
+- **Strategy attribution** — each strategy submits through a broker handle scoped
+  to its `Name()`, so orders and their fills are attributed back to it.
 - **Resampling** — build candles from raw ticks (`indicator.Resample`,
   `indicator.Resampler`).
 - **Concurrency** — event-driven core with per-listener dispatch and graceful,
@@ -245,11 +277,13 @@ Cerebro is composed of a few cooperating parts:
 
 ## Roadmap
 
-1. Observer for detecting unusual price/volume activity ("big hands")
-2. Signal abstraction
-3. News / external-information based trading
-4. Broker slippage modeling
-5. Charting
+Toward production live-trading safety:
+
+1. Reactive stop-loss / trailing-stop monitor (per-strategy, using attribution)
+2. Realized PnL tracking and run reporting
+3. Persistence and crash recovery (a `Storage` interface)
+4. Runtime kill switch / control surface
+5. Broker slippage modeling
 
 ## Versioning
 

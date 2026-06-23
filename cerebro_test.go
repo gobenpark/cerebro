@@ -17,6 +17,7 @@ package cerebro
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -27,26 +28,80 @@ import (
 	"go.uber.org/mock/gomock"
 
 	"github.com/gobenpark/cerebro/broker"
-	"github.com/gobenpark/cerebro/indicator"
 	"github.com/gobenpark/cerebro/item"
 	"github.com/gobenpark/cerebro/log"
 	"github.com/gobenpark/cerebro/market"
 	marketmock "github.com/gobenpark/cerebro/market/mock"
 	"github.com/gobenpark/cerebro/order"
 	"github.com/gobenpark/cerebro/position"
+	"github.com/gobenpark/cerebro/strategy"
 )
 
-// stubStrategy is an inert strategy: Next blocks until the context is canceled so
+// stubStrategy is an inert strategy: Run blocks until the context is canceled so
 // the engine has a goroutine to join on shutdown, and the notify hooks are no-ops.
 type stubStrategy struct{}
 
-func (stubStrategy) Next(ctx context.Context, _ *item.Item, _ <-chan indicator.Tick, _ broker.Submitter) {
+func (stubStrategy) Run(ctx context.Context, _ strategy.Universe, _ broker.Submitter) {
 	<-ctx.Done()
 }
 func (stubStrategy) NotifyOrder(order.Order) {}
 func (stubStrategy) NotifyTrade()            {}
 func (stubStrategy) NotifyFund()             {}
 func (stubStrategy) Name() string            { return "stub" }
+
+// flakyStorage fails Load on the first call and succeeds (empty ledger) after,
+// to exercise a retried Start following a transient restore failure.
+type flakyStorage struct{ loads int }
+
+func (f *flakyStorage) Save(context.Context, broker.Ledger) error { return nil }
+func (f *flakyStorage) Load(context.Context) (broker.Ledger, error) {
+	f.loads++
+	if f.loads == 1 {
+		return broker.Ledger{}, errors.New("transient restore failure")
+	}
+	return broker.Ledger{}, nil
+}
+
+// TestStart_RetryAfterFailedRestoreDoesNotDuplicateEngine guards the fix where a
+// failed restore left a strategy engine appended to c.engines: retrying Start
+// would then run two engines, double-subscribing and double-spawning. The engine
+// is built only after restore succeeds and assigned (not appended), so a retry
+// leaves exactly one.
+func TestStart_RetryAfterFailedRestoreDoesNotDuplicateEngine(t *testing.T) {
+	is := assert.New(t)
+	must := require.New(t)
+
+	ctrl := gomock.NewController(t)
+	mk := marketmock.NewMockMarket(ctrl)
+	mk.EXPECT().AccountPositions().Return([]position.Position{}).AnyTimes()
+	mk.EXPECT().AccountBalance().Return(decimal.NewFromInt(100_000)).AnyTimes()
+	mk.EXPECT().Commission().Return(decimal.Zero).AnyTimes()
+	mk.EXPECT().Subscribe(gomock.Any()).Return(nil).AnyTimes()
+	mk.EXPECT().Order(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
+	ev := make(chan any)
+	var ro <-chan any = ev
+	mk.EXPECT().Events(gomock.Any()).Return(ro).AnyTimes()
+
+	c := NewCerebro(
+		WithMarket(mk),
+		WithStrategy(stubStrategy{}),
+		WithTargetItem(&item.Item{Code: "AAA"}),
+		WithStorage(&flakyStorage{}),
+		WithLogLevel(log.FatalLevel),
+	)
+
+	// First Start fails inside Restore, before the engine is built.
+	must.Error(c.Start(context.Background()))
+	is.Empty(c.engines, "a failed restore must leave no engine behind")
+
+	// Retry succeeds and must run exactly one engine.
+	ctx, cancel := context.WithCancel(context.Background())
+	must.NoError(c.Start(ctx))
+	is.Len(c.engines, 1, "retry after a failed restore must not duplicate the engine")
+
+	cancel()
+	c.Shutdown()
+}
 
 // TestStart_WiresBrokerAsEventListener guards the fix where the broker was built
 // but never registered with the event engine, so market events (balance/order

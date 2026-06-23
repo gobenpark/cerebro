@@ -36,6 +36,7 @@ import (
 	"github.com/gobenpark/cerebro/market/replay"
 	"github.com/gobenpark/cerebro/order"
 	"github.com/gobenpark/cerebro/risk"
+	"github.com/gobenpark/cerebro/strategy"
 )
 
 // dipBuyer buys once the price dips a threshold below the first price it sees,
@@ -48,7 +49,9 @@ type dipBuyer struct {
 
 func (s *dipBuyer) Name() string { return s.name }
 
-func (s *dipBuyer) Next(ctx context.Context, it *item.Item, tick <-chan indicator.Tick, b broker.Submitter) {
+func (s *dipBuyer) Run(ctx context.Context, u strategy.Universe, b broker.Submitter) {
+	it := u.Items()[0]
+	tick := u.Ticks()
 	for {
 		select {
 		case <-ctx.Done():

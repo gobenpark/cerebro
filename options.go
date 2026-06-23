@@ -18,6 +18,7 @@ package cerebro
 import (
 	"time"
 
+	"github.com/gobenpark/cerebro/broker"
 	"github.com/gobenpark/cerebro/item"
 	"github.com/gobenpark/cerebro/log"
 	"github.com/gobenpark/cerebro/market"
@@ -45,9 +46,27 @@ func WithLogLevel(lvl log.Level) Option {
 	}
 }
 
-func WithStrategy(st ...strategy.Strategy) Option {
+// WithStrategy registers one strategy instance. The codes select the universe it
+// trades together — give two or more for a pairs/portfolio strategy that decides
+// over them in one Run; give none to trade the whole target set. Every code must
+// be a registered target item (WithTargetItem). Call it again to add more
+// strategies. Orders are attributed to the strategy's Name(), which must be
+// unique across all registrations.
+func WithStrategy(s strategy.Strategy, codes ...string) Option {
 	return func(c *Cerebro) {
-		c.strategies = st
+		c.stratRegs = append(c.stratRegs, stratReg{s: s, codes: codes})
+	}
+}
+
+// WithStrategyForEach registers a strategy per target item: the factory is called
+// once for each WithTargetItem, producing a fresh instance with a single-item
+// universe. Use it to run the same logic independently across a watchlist with
+// isolated per-instance state. The factory must give each instance a unique
+// Name() (e.g. derived from the item's Code) so orders attribute and route
+// correctly.
+func WithStrategyForEach(factory func(*item.Item) strategy.Strategy) Option {
+	return func(c *Cerebro) {
+		c.forEachRegs = append(c.forEachRegs, forEachReg{factory: factory})
 	}
 }
 
@@ -58,11 +77,22 @@ func WithStrategyTimeout(du time.Duration) Option {
 }
 
 // WithRisk installs a pre-trade risk gate built from the given rules. Without it
-// there is no gate (existing behavior). The kill switch is reachable at runtime
-// via Cerebro.Kill / Cerebro.Resume.
+// there is no gate (existing behavior).
 func WithRisk(rules ...risk.Rule) Option {
 	return func(c *Cerebro) {
 		c.risk = risk.New(rules...)
+	}
+}
+
+// WithStorage installs a durable store for the broker's per-strategy ledger
+// (realized PnL, fees, and open lots). On Start the broker restores any persisted
+// ledger before processing events, and after each booked fill it writes the
+// updated ledger back, so trading state survives a process restart. Without it
+// there is no persistence (existing behavior). Cash balance and account
+// positions are always re-fetched from the exchange and are not persisted.
+func WithStorage(s broker.Storage) Option {
+	return func(c *Cerebro) {
+		c.storage = s
 	}
 }
 

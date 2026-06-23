@@ -4,11 +4,13 @@ import (
 	"context"
 
 	"github.com/gobenpark/cerebro/event"
-	"github.com/gobenpark/cerebro/item"
 )
 
 type Engine interface {
-	Spawn(ctx context.Context, item []*item.Item)
+	// Spawn starts the engine's long-running goroutines. The items to trade are
+	// carried by the engine's own configuration (e.g. strategy runners), not passed
+	// in here.
+	Spawn(ctx context.Context)
 	// Wait blocks until the engine's long-running goroutines (started by Spawn)
 	// have returned after context cancellation.
 	Wait()

@@ -29,14 +29,28 @@ import (
 type CandleType int
 
 type Strategy interface {
-	// Next receives ticks on the tick channel until ctx is canceled. Implementations
+	// Run receives ticks for its Universe until ctx is canceled. Implementations
 	// must return when ctx.Done() fires so the engine can shut down cleanly. The
 	// broker handle is scoped to this strategy: orders it submits are attributed to
 	// Name().
-	Next(ctx context.Context, it *item.Item, tick <-chan indicator.Tick, b broker.Submitter)
+	//
+	// A single-instrument strategy reads u.Items()[0] and ranges over u.Ticks(); a
+	// pairs/portfolio strategy ranges over u.Items() and demultiplexes u.Ticks() by
+	// indicator.Tick.Code.
+	Run(ctx context.Context, u Universe, b broker.Submitter)
 	// NotifyOrder is when event rise order then called
 	NotifyOrder(o order.Order)
 	NotifyTrade()
 	NotifyFund()
 	Name() string
+}
+
+// Universe is the set of instruments a strategy trades together, plus their
+// merged realtime tick stream. It is the unit a strategy decides over: one
+// instrument for a plain strategy, several for a pairs/portfolio strategy. Ticks
+// from every item in the universe arrive on the single Ticks() channel, tagged by
+// indicator.Tick.Code.
+type Universe interface {
+	Items() []*item.Item
+	Ticks() <-chan indicator.Tick
 }

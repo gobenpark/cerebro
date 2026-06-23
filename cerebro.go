@@ -49,10 +49,19 @@ type Cerebro struct {
 	// eventEngine engine of management all event
 	eventEngine *event.Engine
 
-	strategies []strategy.Strategy
+	// stratRegs are explicit-universe strategy registrations (WithStrategy): one
+	// instance trading a fixed set of codes (or all targets when none are given).
+	stratRegs []stratReg
+	// forEachRegs are per-item registrations (WithStrategyForEach): a fresh instance
+	// per target item, each with a single-item universe.
+	forEachRegs []forEachReg
 
 	// risk is the optional pre-trade gate; installed on the broker when set.
 	risk *risk.Manager
+
+	// storage is the optional durable ledger store; installed on the broker when
+	// set so per-strategy PnL/fees/lots survive a restart.
+	storage broker.Storage
 
 	// policies maps a strategy name to its reactive exit policy (WithRiskPolicy).
 	policies map[string]risk.Policy
@@ -100,6 +109,9 @@ func NewCerebro(opts ...Option) *Cerebro {
 	if c.risk != nil {
 		c.broker.SetRisk(c.risk)
 	}
+	if c.storage != nil {
+		c.broker.SetStorage(c.storage)
+	}
 	// Build a reactive monitor for any configured exit policy. Empty policies (no
 	// trigger set) are dropped so a misconfigured option is inert rather than fatal.
 	active := map[string]risk.Policy{}
@@ -113,9 +125,72 @@ func NewCerebro(opts ...Option) *Cerebro {
 			return c.broker.Scoped(name)
 		}, c.broker)
 	}
-	c.engines = append(c.engines, strategy.NewEngine(c.log, c.broker, c.strategies, c.market, c.timeout))
+	// The strategy engine is built in Start, once target items are known, since
+	// resolving registrations into runners needs them and can fail (e.g. a strategy
+	// references an unknown code).
 
 	return c
+}
+
+// stratReg is one WithStrategy registration: a strategy instance and the codes it
+// trades. An empty codes slice means "the whole target set".
+type stratReg struct {
+	s     strategy.Strategy
+	codes []string
+}
+
+// forEachReg is one WithStrategyForEach registration: a factory that produces a
+// fresh strategy instance for each target item.
+type forEachReg struct {
+	factory func(*item.Item) strategy.Strategy
+}
+
+// resolveRunners turns the strategy registrations into the flat list of runners
+// the engine executes, validating that referenced codes exist and that every
+// runner's name is unique (so order notifications route to exactly one runner).
+func (c *Cerebro) resolveRunners() ([]strategy.Runner, error) {
+	byCode := make(map[string]*item.Item, len(c.target))
+	for _, it := range c.target {
+		byCode[it.Code] = it
+	}
+
+	var runners []strategy.Runner
+	for _, reg := range c.stratRegs {
+		items := c.target
+		if len(reg.codes) > 0 {
+			items = make([]*item.Item, 0, len(reg.codes))
+			seenCode := make(map[string]struct{}, len(reg.codes))
+			for _, code := range reg.codes {
+				if _, dup := seenCode[code]; dup {
+					// A repeated code would register the runner's tick channel twice
+					// under that code, delivering every tick to the strategy twice.
+					return nil, fmt.Errorf("strategy %q lists duplicate code %q", reg.s.Name(), code)
+				}
+				seenCode[code] = struct{}{}
+				it, ok := byCode[code]
+				if !ok {
+					return nil, fmt.Errorf("strategy %q references unknown target code %q", reg.s.Name(), code)
+				}
+				items = append(items, it)
+			}
+		}
+		runners = append(runners, strategy.Runner{Strategy: reg.s, Items: items})
+	}
+	for _, reg := range c.forEachRegs {
+		for _, it := range c.target {
+			runners = append(runners, strategy.Runner{Strategy: reg.factory(it), Items: []*item.Item{it}})
+		}
+	}
+
+	seen := make(map[string]struct{}, len(runners))
+	for _, r := range runners {
+		name := r.Strategy.Name()
+		if _, dup := seen[name]; dup {
+			return nil, fmt.Errorf("duplicate strategy name %q (names must be unique across strategies and per-item instances)", name)
+		}
+		seen[name] = struct{}{}
+	}
+	return runners, nil
 }
 
 // Start run cerebro
@@ -125,16 +200,23 @@ func (c *Cerebro) Start(ctx context.Context) error {
 		return fmt.Errorf("error need target setting")
 	}
 
-	if c.strategies == nil {
+	if len(c.stratRegs) == 0 && len(c.forEachRegs) == 0 {
 		return fmt.Errorf("error empty strategies")
 	}
 
-	// A policy must name a registered strategy, else its exits could never trigger
+	// Resolve registrations into the runners the engine executes. This validates
+	// referenced codes and name uniqueness, so a bad config fails before anything spawns.
+	runners, err := c.resolveRunners()
+	if err != nil {
+		return err
+	}
+
+	// A policy must name a running strategy, else its exits could never trigger
 	// (no fills would be attributed to an unknown name). Fail fast on a typo.
 	if len(c.policies) > 0 {
-		known := make(map[string]struct{}, len(c.strategies))
-		for _, st := range c.strategies {
-			known[st.Name()] = struct{}{}
+		known := make(map[string]struct{}, len(runners))
+		for _, r := range runners {
+			known[r.Strategy.Name()] = struct{}{}
 		}
 		for name, p := range c.policies {
 			if !p.Enabled() {
@@ -156,6 +238,17 @@ func (c *Cerebro) Start(ctx context.Context) error {
 	c.eventCancel = eventCancel
 
 	c.log.Info("Cerebro starting ...")
+
+	// Restore any persisted ledger before listeners go live, so the broker's
+	// per-strategy PnL/fees/open lots are in place before the first fill event.
+	if err := c.broker.Restore(ctx); err != nil {
+		return fmt.Errorf("restore broker ledger: %w", err)
+	}
+
+	// Build the strategy engine only after every fallible step has succeeded, and
+	// assign (not append) so retrying Start after an earlier failure does not leave
+	// a stale engine behind that would double-register and double-spawn.
+	c.engines = []engine.Engine{strategy.NewEngine(c.log, c.broker, runners, c.market, c.timeout)}
 
 	positions := c.market.AccountPositions()
 	for i := range positions {
@@ -189,7 +282,7 @@ func (c *Cerebro) Start(ctx context.Context) error {
 	// Listeners are live; now spawn the strategy producers.
 	for i := range c.engines {
 		c.wg.Go(func() {
-			c.engines[i].Spawn(ctx, c.target)
+			c.engines[i].Spawn(ctx)
 		})
 	}
 

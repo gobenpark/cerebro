@@ -30,104 +30,129 @@ import (
 	"github.com/gobenpark/cerebro/order"
 )
 
+// Runner pairs a strategy instance with the universe of items it trades. The
+// engine runs one Run goroutine per Runner, so a single-instrument strategy and a
+// pairs/portfolio strategy share one execution model — only the size of Items
+// differs.
+type Runner struct {
+	Strategy Strategy
+	Items    []*item.Item
+}
+
 type Engine struct {
 	log    log.Logger
 	store  market.Market
 	broker *broker.Broker
-	// channels maps an item code to one tick channel per strategy, so Listen can
-	// fan a tick out to every strategy instead of letting them steal from a shared one.
+	// channels maps an item code to the tick channels of every running universe that
+	// includes that code, so Listen can fan a tick out to each. A portfolio runner's
+	// single channel is registered under each of its codes.
 	channels map[string][]chan indicator.Tick
-	sts      []Strategy
+	runners  []Runner
 	timeout  time.Duration
-	// mu guards channels, which manager writes and Listen reads concurrently.
+	// mu guards channels, which launch writes and Listen reads concurrently.
 	mu sync.RWMutex
-	// wg tracks the per-strategy Next goroutines so Wait can join them on shutdown.
+	// wg tracks the per-runner Run goroutines so Wait can join them on shutdown.
 	wg sync.WaitGroup
 }
 
-func NewEngine(log log.Logger, bk *broker.Broker, st []Strategy, store market.Market, timeout time.Duration) engine.Engine {
+func NewEngine(log log.Logger, bk *broker.Broker, runners []Runner, store market.Market, timeout time.Duration) engine.Engine {
 	return &Engine{
 		broker:   bk,
 		log:      log,
 		store:    store,
 		timeout:  timeout,
 		channels: map[string][]chan indicator.Tick{},
-		sts:      st,
+		runners:  runners,
 	}
 }
 
-func (s *Engine) Spawn(ctx context.Context, it []*item.Item) {
-	// Drop channels from any previous run; their Next goroutines have exited, so
-	// Listen must not keep sending to them (a full buffer would block delivery).
+// universe is the engine's Universe implementation handed to each Run.
+type universe struct {
+	items []*item.Item
+	ticks <-chan indicator.Tick
+}
+
+func (u *universe) Items() []*item.Item          { return u.items }
+func (u *universe) Ticks() <-chan indicator.Tick { return u.ticks }
+
+func (s *Engine) Spawn(ctx context.Context) {
+	// Register EVERY runner's tick channel up front — under each code in its
+	// universe — BEFORE subscribing, and collect the union of items. A market starts
+	// a code's feed when it is subscribed, so registering all channels first
+	// guarantees that when a code begins emitting, every runner that trades it
+	// already has somewhere to receive its ticks. This matters when several runners
+	// share a code (two WithStrategy registrations over the same target, or a
+	// portfolio strategy alongside a per-item one): registering and subscribing
+	// per-runner would let a later runner miss the ticks emitted before it
+	// registered. A fresh map also drops channels from a previous run whose Run
+	// goroutines have exited.
+	type active struct {
+		r  Runner
+		ch chan indicator.Tick
+	}
+	var (
+		actives []active
+		union   []*item.Item
+		seen    = map[string]struct{}{}
+	)
+
+	s.mu.Lock()
+	s.channels = map[string][]chan indicator.Tick{}
+	for i := range s.runners {
+		r := s.runners[i]
+		if len(r.Items) == 0 {
+			continue
+		}
+		// The buffer scales with the universe size.
+		ch := make(chan indicator.Tick, 100*len(r.Items))
+		for _, itm := range r.Items {
+			s.channels[itm.Code] = append(s.channels[itm.Code], ch)
+			if _, ok := seen[itm.Code]; !ok {
+				seen[itm.Code] = struct{}{}
+				union = append(union, itm)
+			}
+		}
+		actives = append(actives, active{r: r, ch: ch})
+	}
+	s.mu.Unlock()
+
+	if len(actives) == 0 || ctx.Err() != nil {
+		s.resetChannels()
+		return
+	}
+
+	// Subscribe the whole universe in one call, then start every runner together.
+	// One subscribe (rather than one per runner) means later runners are not
+	// staggered behind earlier ones, so a short backtest's feed does not finish
+	// before they start. If the market rejects the subscription, start nothing and
+	// leave no channels registered.
+	if err := s.store.Subscribe(func() []*item.Item { return union }); err != nil {
+		s.log.Error("subscribe", "err", err)
+		s.resetChannels()
+		return
+	}
+
+	for _, a := range actives {
+		// Hand each strategy a broker scoped to its name so its orders are attributed.
+		bk := s.broker.Scoped(a.r.Strategy.Name())
+		u := &universe{items: a.r.Items, ticks: a.ch}
+		st := a.r.Strategy
+		// Run blocks until ctx is canceled, so it runs in its own goroutine.
+		s.wg.Go(func() {
+			st.Run(ctx, u, bk)
+		})
+	}
+}
+
+// resetChannels clears the listener channel map so no tick is delivered to a
+// runner that did not start (e.g. after a failed subscribe).
+func (s *Engine) resetChannels() {
 	s.mu.Lock()
 	s.channels = map[string][]chan indicator.Tick{}
 	s.mu.Unlock()
-
-	for i := range it {
-		if err := s.manager(ctx, it[i]); err != nil {
-			s.log.Error("manager", "err", err)
-			continue
-		}
-	}
 }
 
-func (s *Engine) manager(ctx context.Context, itm *item.Item) error {
-	if len(s.sts) == 0 {
-		return nil
-	}
-
-	// Throttle so a burst of items doesn't hammer the feed; stays cancellation-aware.
-	timer := time.NewTimer(time.Second)
-	select {
-	case <-ctx.Done():
-		timer.Stop()
-		return ctx.Err()
-	case <-timer.C:
-	}
-
-	// Register the per-strategy tick channels BEFORE subscribing, so the feed has
-	// somewhere to deliver and no early tick is dropped. Each strategy gets its own
-	// channel so Listen fans one feed out to all of them, instead of strategies
-	// stealing from a shared channel.
-	chans := make([]chan indicator.Tick, len(s.sts))
-	s.mu.Lock()
-	for i := range chans {
-		chans[i] = make(chan indicator.Tick, 100)
-		s.channels[itm.Code] = append(s.channels[itm.Code], chans[i])
-	}
-	s.mu.Unlock()
-
-	// Subscribe only after the channels exist. If it fails, roll the channels back
-	// so a failed market leaves nothing registered — no runners have started yet.
-	if err := s.store.Subscribe(func() []*item.Item {
-		return []*item.Item{itm}
-	}); err != nil {
-		s.mu.Lock()
-		s.channels[itm.Code] = slices.DeleteFunc(s.channels[itm.Code], func(c chan indicator.Tick) bool {
-			return slices.Contains(chans, c)
-		})
-		s.mu.Unlock()
-		return err
-	}
-
-	// Subscription succeeded: start a Next runner per strategy. Next runs until ctx
-	// is canceled, so each runs in its own goroutine.
-	for i := range s.sts {
-		// Stop launching further runners once shutdown has started.
-		if ctx.Err() != nil {
-			return ctx.Err()
-		}
-		ch := chans[i]
-		// Hand each strategy a broker scoped to its name so its orders are attributed.
-		bk := s.broker.Scoped(s.sts[i].Name())
-		s.wg.Go(func() {
-			s.sts[i].Next(ctx, itm, ch, bk)
-		})
-	}
-	return nil
-}
-
-// Wait blocks until every Next goroutine has returned.
+// Wait blocks until every Run goroutine has returned.
 func (s *Engine) Wait() {
 	s.wg.Wait()
 }
@@ -136,21 +161,23 @@ func (s *Engine) Listen(ctx context.Context, e any) {
 	switch et := e.(type) {
 	case order.Order:
 		// Route the order update to its owning strategy only. Unattributed orders
-		// (no strategy tag) go to every strategy, preserving prior behavior.
+		// (no strategy tag) go to every strategy, preserving prior behavior. Runner
+		// names are unique (enforced at startup), so an attributed order reaches
+		// exactly one runner.
 		owner := et.Strategy()
-		for _, st := range s.sts {
-			if owner == "" || st.Name() == owner {
-				st.NotifyOrder(et)
+		for i := range s.runners {
+			if owner == "" || s.runners[i].Strategy.Name() == owner {
+				s.runners[i].Strategy.NotifyOrder(et)
 			}
 		}
 	case indicator.Tick:
 		s.mu.RLock()
-		chs := make([]chan indicator.Tick, len(s.channels[et.Code]))
-		copy(chs, s.channels[et.Code])
+		chs := slices.Clone(s.channels[et.Code])
 		s.mu.RUnlock()
-		// Fan the tick out to every strategy. Sends are non-blocking: a strategy
-		// that isn't keeping up (or has exited during shutdown) drops the tick
-		// instead of stalling delivery to the other strategies or the dispatcher.
+		// Fan the tick out to every runner subscribed to its code. Sends are
+		// non-blocking: a runner that isn't keeping up (or has exited during
+		// shutdown) drops the tick instead of stalling delivery to the others or the
+		// dispatcher.
 		for _, c := range chs {
 			select {
 			case c <- et:

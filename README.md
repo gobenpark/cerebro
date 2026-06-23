@@ -123,9 +123,12 @@ func (e *exchange) Commission() decimal.Decimal { panic("implement me") }
 
 ### 2. Implement your own strategy
 
-`Next` runs in its own goroutine and receives ticks until the context is
-canceled. Use the indicators on `indicator.Candles` and place orders through the
-broker. `NotifyOrder` is called whenever one of your orders changes state.
+`Run` runs in its own goroutine and decides over a **`strategy.Universe`** — the
+set of instruments it trades together plus their merged tick stream — until the
+context is canceled. A single-instrument strategy reads `u.Items()[0]` and ranges
+over `u.Ticks()`; a pairs/portfolio strategy ranges over `u.Items()` and
+demultiplexes `u.Ticks()` by `indicator.Tick.Code`. Place orders through the
+broker; `NotifyOrder` is called whenever one of your orders changes state.
 
 ```go
 package main
@@ -136,21 +139,23 @@ import (
 	"github.com/shopspring/decimal"
 
 	"github.com/gobenpark/cerebro/broker"
-	"github.com/gobenpark/cerebro/indicator"
-	"github.com/gobenpark/cerebro/item"
 	"github.com/gobenpark/cerebro/order"
+	"github.com/gobenpark/cerebro/strategy"
 )
 
-type MyStrategy struct{}
+type MyStrategy struct{ code string }
 
-func (s *MyStrategy) Name() string { return "my-strategy" }
+// Name must be unique per running instance. When replicated across a watchlist
+// with WithStrategyForEach, derive it from the item so each instance differs.
+func (s *MyStrategy) Name() string { return "my-strategy:" + s.code }
 
-func (s *MyStrategy) Next(ctx context.Context, it *item.Item, tick <-chan indicator.Tick, b broker.Submitter) {
+func (s *MyStrategy) Run(ctx context.Context, u strategy.Universe, b broker.Submitter) {
+	it := u.Items()[0] // single-instrument strategy
 	for {
 		select {
 		case <-ctx.Done():
 			return
-		case tk, ok := <-tick:
+		case tk, ok := <-u.Ticks():
 			if !ok {
 				return
 			}
@@ -196,12 +201,18 @@ import (
 	"github.com/gobenpark/cerebro"
 	"github.com/gobenpark/cerebro/item"
 	"github.com/gobenpark/cerebro/log"
+	"github.com/gobenpark/cerebro/strategy"
 )
 
 func main() {
 	cb := cerebro.NewCerebro(
 		cerebro.WithMarket(&exchange{}),
-		cerebro.WithStrategy(&MyStrategy{}),
+		// Run a fresh MyStrategy instance per target item (a watchlist). For a
+		// pairs/portfolio strategy that decides over several instruments at once,
+		// use cerebro.WithStrategy(&PairsStrategy{}, "KRW-BTC", "KRW-ETH") instead.
+		cerebro.WithStrategyForEach(func(it *item.Item) strategy.Strategy {
+			return &MyStrategy{code: it.Code}
+		}),
 		cerebro.WithTargetItem(
 			&item.Item{Code: "KRW-BTC"},
 			&item.Item{Code: "KRW-ETH"},
@@ -229,11 +240,13 @@ func main() {
 | Option | Description |
 | --- | --- |
 | `WithMarket(market.Market)` | Exchange adapter (required). |
-| `WithStrategy(...strategy.Strategy)` | One or more strategies (required). |
+| `WithStrategy(strategy.Strategy, codes...)` | Register one strategy over a universe of codes (omit codes for all targets; give several for a pairs/portfolio strategy). At least one strategy is required. |
+| `WithStrategyForEach(func(*item.Item) strategy.Strategy)` | Run a fresh strategy instance per target item (watchlist replication with isolated state). |
 | `WithTargetItem(...*item.Item)` | Items to trade (required). |
-| `WithStrategyTimeout(time.Duration)` | Per-strategy `Next` timeout budget. |
+| `WithStrategyTimeout(time.Duration)` | Per-strategy `Run` timeout budget. |
 | `WithRisk(...risk.Rule)` | Pre-trade risk gate (position/order/rate limits). |
 | `WithRiskPolicy(name, risk.Policy)` | Per-strategy reactive exit (stop-loss / trailing-stop / take-profit). |
+| `WithStorage(broker.Storage)` | Persist/restore the per-strategy ledger (realized PnL, fees, open lots) across restarts. |
 | `WithLogLevel(log.Level)` | Log verbosity. |
 
 ## Concepts
@@ -244,8 +257,10 @@ Cerebro is composed of a few cooperating parts:
    component, and tears them down in order on shutdown.
 2. **Market** — a user-implemented adapter to an external exchange (candles,
    ticks, order execution, account state, and an event stream).
-3. **Strategy** — your trading logic. Each strategy runs as its own goroutine and
-   receives a private tick channel, so one slow strategy never starves another.
+3. **Strategy** — your trading logic. Each strategy runs as its own goroutine over
+   a **Universe** (one or more instruments and their merged tick stream), so one
+   slow strategy never starves another. Register a strategy per item for a
+   watchlist, or over several codes for a pairs/portfolio strategy.
 4. **Broker** — tracks cash, positions, and open orders. Accounting is
    exchange-authoritative: settled balance comes from the exchange, while open buy
    orders reserve cash so the broker never over-commits before settlement.
@@ -272,11 +287,24 @@ Cerebro is composed of a few cooperating parts:
 - **Reactive exit policies** — attach a per-strategy stop-loss / trailing-stop /
   take-profit with `cerebro.WithRiskPolicy`. A monitor tracks each strategy's
   attributed position and submits a market exit on its behalf when a trigger fires.
+- **Multi-asset strategies** — a strategy decides over a **Universe** of
+  instruments. Register one over several codes for **pairs/portfolio** trading
+  (`cerebro.WithStrategy(s, "AAA", "BBB")`) — one `Run` sees every leg's ticks and
+  trades them together — or replicate one per item across a watchlist with
+  `cerebro.WithStrategyForEach`. See the runnable
+  [`examples/pairs`](examples/pairs/main.go).
 - **Strategy attribution** — each strategy submits through a broker handle scoped
   to its `Name()`, so orders and their fills are attributed back to it.
 - **Realized PnL & reporting** — the broker books realized PnL and fees per
   strategy from attributed fills (average-cost basis); `Cerebro.Report()` returns
   a per-strategy snapshot of realized PnL, fees, and open positions.
+- **Persistence & crash recovery** — attach a `broker.Storage` with
+  `cerebro.WithStorage` and the broker restores its per-strategy ledger (realized
+  PnL, fees, and open lots) on start and writes it back after each booked fill, so
+  attributed trading state survives a restart. `store.NewFileStorage` (atomic JSON
+  file) and `store.NewMemoryStorage` ship in the box. Cash balance and account
+  positions are exchange-authoritative and re-fetched on start, so they are not
+  persisted; in-flight orders are not yet restored.
 - **Resampling** — build candles from raw ticks (`indicator.Resample`,
   `indicator.Resampler`).
 - **Concurrency** — event-driven core with per-listener dispatch and graceful,
@@ -286,9 +314,9 @@ Cerebro is composed of a few cooperating parts:
 
 Toward production live-trading safety:
 
-1. Persistence and crash recovery (a `Storage` interface)
-2. Runtime kill switch / control surface
-3. Broker slippage modeling
+1. Runtime kill switch / control surface
+2. Broker slippage modeling
+3. Open-order persistence and reconciliation on restart
 
 ## Versioning
 

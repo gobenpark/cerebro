@@ -76,6 +76,12 @@ type Broker struct {
 	wg sync.WaitGroup
 	// risk is the optional pre-trade gate consulted in Order; nil means no gate.
 	risk *risk.Manager
+	// store is the optional durable ledger persisted after each booked fill and
+	// reloaded on Restore; nil means no persistence (existing behavior).
+	store Storage
+	// saveMu serializes ledger writes through store so overlapping saves cannot
+	// interleave or move the persisted state backwards.
+	saveMu sync.Mutex
 }
 
 // lot is one strategy's open position in one code.
@@ -550,7 +556,17 @@ func (b *Broker) applyOrderChange(ctx context.Context, evt market.ChangeOrderEve
 		delete(b.filled, evt.ID)
 	}
 	b.positions = positions
+	// Only a booked fill moves the durable ledger (lots/realized/fees); other
+	// order transitions touch state that is re-derived from the exchange on start.
+	ledgerChanged := fillInc.GreaterThan(decimal.Zero)
 	b.mu.Unlock()
+
+	// Persist after releasing the lock so the (possibly slow) write never holds up
+	// other broker operations. Fills are processed serially in the broker's single
+	// listener goroutine, so writes stay ordered.
+	if ledgerChanged {
+		b.persist(ctx)
+	}
 
 	b.logger.Info("order changed", "id", o.ID(), "code", o.Item().Code, "action", evt.Action)
 	b.notifyOrder(ctx, o.Copy())

@@ -33,6 +33,7 @@ import (
 	"github.com/gobenpark/cerebro/market/replay"
 	"github.com/gobenpark/cerebro/order"
 	"github.com/gobenpark/cerebro/risk"
+	"github.com/gobenpark/cerebro/strategy"
 )
 
 // buyOnceStrategy places a single limit buy on the first tick it receives, then
@@ -41,7 +42,9 @@ type buyOnceStrategy struct{ once sync.Once }
 
 func (s *buyOnceStrategy) Name() string { return "buy-once" }
 
-func (s *buyOnceStrategy) Next(ctx context.Context, it *item.Item, tick <-chan indicator.Tick, b broker.Submitter) {
+func (s *buyOnceStrategy) Run(ctx context.Context, u strategy.Universe, b broker.Submitter) {
+	it := u.Items()[0]
+	tick := u.Ticks()
 	for {
 		select {
 		case <-ctx.Done():

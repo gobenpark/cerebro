@@ -3,6 +3,7 @@ package strategy_test
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"sync"
 	"testing"
 	"time"
@@ -31,14 +32,6 @@ func (stubStrategy) NotifyOrder(order.Order) {}
 func (stubStrategy) NotifyTrade()            {}
 func (stubStrategy) NotifyFund()             {}
 
-type noopLogger struct{}
-
-func (noopLogger) Error(string, ...any) {}
-func (noopLogger) Info(string, ...any)  {}
-func (noopLogger) Warn(string, ...any)  {}
-func (noopLogger) Debug(string, ...any) {}
-func (noopLogger) Panic(string, ...any) {}
-
 // TestEngine_ConcurrentSpawnAndListen drives a writer (Spawn) and reader (Listen)
 // against the channels map simultaneously. Without the RWMutex this panics with
 // "concurrent map read and write" under -race. No runners keeps Spawn trivial (it
@@ -46,7 +39,7 @@ func (noopLogger) Panic(string, ...any) {}
 func TestEngine_ConcurrentSpawnAndListen(t *testing.T) {
 	defer goleak.VerifyNone(t)
 
-	eng := strategy.NewEngine(noopLogger{}, nil, nil, nil, 0)
+	eng := strategy.NewEngine(slog.New(slog.DiscardHandler), nil, nil, nil, 0)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -77,7 +70,7 @@ func TestEngine_SubscribeFailureStartsNoRunners(t *testing.T) {
 	mk.EXPECT().Subscribe(gomock.Any()).Return(errors.New("boom")).AnyTimes()
 
 	runners := []strategy.Runner{{Strategy: stubStrategy{}, Items: []*item.Item{{Code: "AAA"}}}}
-	eng := strategy.NewEngine(noopLogger{}, nil, runners, mk, 0)
+	eng := strategy.NewEngine(slog.New(slog.DiscardHandler), nil, runners, mk, 0)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -114,7 +107,7 @@ func TestEngine_NotifyOrderRoutesToOwningStrategy(t *testing.T) {
 		{Strategy: a, Items: []*item.Item{{Code: "AAA"}}},
 		{Strategy: b, Items: []*item.Item{{Code: "BBB"}}},
 	}
-	eng := strategy.NewEngine(noopLogger{}, nil, runners, nil, 0)
+	eng := strategy.NewEngine(slog.New(slog.DiscardHandler), nil, runners, nil, 0)
 
 	mk := func(owner string) order.Order {
 		o := order.NewOrder(&item.Item{Code: "AAA"}, order.Buy, order.Limit, decimal.NewFromInt(1), decimal.NewFromInt(100))
@@ -180,7 +173,7 @@ func TestEngine_PortfolioRunnerReceivesAllCodes(t *testing.T) {
 		Strategy: rec,
 		Items:    []*item.Item{{Code: "AAA"}, {Code: "BBB"}},
 	}}
-	eng := strategy.NewEngine(noopLogger{}, nil, runners, mk, 0)
+	eng := strategy.NewEngine(slog.New(slog.DiscardHandler), nil, runners, mk, 0)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()

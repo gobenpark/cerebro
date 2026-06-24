@@ -2,6 +2,7 @@ package risk_test
 
 import (
 	"context"
+	"log/slog"
 	"testing"
 
 	"github.com/shopspring/decimal"
@@ -10,8 +11,6 @@ import (
 
 	"github.com/gobenpark/cerebro/indicator"
 	"github.com/gobenpark/cerebro/item"
-	"github.com/gobenpark/cerebro/log"
-	logv1 "github.com/gobenpark/cerebro/log/v1"
 	"github.com/gobenpark/cerebro/order"
 	"github.com/gobenpark/cerebro/position"
 	"github.com/gobenpark/cerebro/risk"
@@ -81,8 +80,7 @@ func (f *fakeBook) StrategyPosition(strategy, code string) (position.Position, d
 
 func newMonitor(t *testing.T, rec *recorder, book risk.Book, p risk.Policy) *risk.Monitor {
 	t.Helper()
-	lg, err := logv1.NewLogger(log.ErrorLevel)
-	require.NoError(t, err)
+	lg := slog.New(slog.DiscardHandler)
 	return risk.NewMonitor(lg, map[string]risk.Policy{rec.strategy: p},
 		func(string) risk.Submitter { return rec }, book)
 }

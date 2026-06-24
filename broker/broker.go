@@ -19,6 +19,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"slices"
 	"sort"
 	"sync"
@@ -29,7 +30,6 @@ import (
 	"github.com/gobenpark/cerebro/event"
 	"github.com/gobenpark/cerebro/indicator"
 	"github.com/gobenpark/cerebro/item"
-	"github.com/gobenpark/cerebro/log"
 	"github.com/gobenpark/cerebro/market"
 	"github.com/gobenpark/cerebro/order"
 	"github.com/gobenpark/cerebro/position"
@@ -42,7 +42,7 @@ import (
 type Broker struct {
 	EventEngine event.Broadcaster
 	market      market.Market
-	logger      log.Logger
+	logger      *slog.Logger
 	// orders holds open (unsettled) orders. An order leaves this set once it is
 	// completed, canceled, or rejected, which releases its cash reservation.
 	orders []order.Order
@@ -271,7 +271,7 @@ func (s *scopedBroker) Order(ctx context.Context, o order.Order, safe bool) erro
 	return s.Broker.Order(ctx, o, safe)
 }
 
-func NewDefaultBroker(eventEngine event.Broadcaster, store market.Market, logger log.Logger) *Broker {
+func NewDefaultBroker(eventEngine event.Broadcaster, store market.Market, logger *slog.Logger) *Broker {
 	return &Broker{
 		orders:      []order.Order{},
 		EventEngine: eventEngine,

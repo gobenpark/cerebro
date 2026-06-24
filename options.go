@@ -16,11 +16,11 @@
 package cerebro
 
 import (
+	"log/slog"
 	"time"
 
 	"github.com/gobenpark/cerebro/broker"
 	"github.com/gobenpark/cerebro/item"
-	"github.com/gobenpark/cerebro/log"
 	"github.com/gobenpark/cerebro/market"
 	"github.com/gobenpark/cerebro/risk"
 	"github.com/gobenpark/cerebro/strategy"
@@ -40,9 +40,20 @@ func WithTargetItem(codes ...*item.Item) Option {
 	}
 }
 
-func WithLogLevel(lvl log.Level) Option {
+// WithLogLevel sets the level of the default stderr logger. It is ignored when a
+// logger is supplied with WithLogger.
+func WithLogLevel(lvl slog.Level) Option {
 	return func(c *Cerebro) {
 		c.logLevel = lvl
+	}
+}
+
+// WithLogger routes Cerebro's logs through the given slog.Logger instead of the
+// default stderr handler, so they can join an existing logging pipeline. Pass
+// slog.New(slog.DiscardHandler) to silence Cerebro entirely.
+func WithLogger(l *slog.Logger) Option {
+	return func(c *Cerebro) {
+		c.log = l
 	}
 }
 

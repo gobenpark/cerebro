@@ -27,9 +27,10 @@ import (
 	"go.uber.org/goleak"
 	"go.uber.org/mock/gomock"
 
+	"log/slog"
+
 	"github.com/gobenpark/cerebro/broker"
 	"github.com/gobenpark/cerebro/item"
-	"github.com/gobenpark/cerebro/log"
 	"github.com/gobenpark/cerebro/market"
 	marketmock "github.com/gobenpark/cerebro/market/mock"
 	"github.com/gobenpark/cerebro/order"
@@ -87,7 +88,7 @@ func TestStart_RetryAfterFailedRestoreDoesNotDuplicateEngine(t *testing.T) {
 		WithStrategy(stubStrategy{}),
 		WithTargetItem(&item.Item{Code: "AAA"}),
 		WithStorage(&flakyStorage{}),
-		WithLogLevel(log.FatalLevel),
+		WithLogger(slog.New(slog.DiscardHandler)),
 	)
 
 	// First Start fails inside Restore, before the engine is built.
@@ -134,7 +135,7 @@ func TestStart_WiresBrokerAsEventListener(t *testing.T) {
 		WithMarket(mk),
 		WithStrategy(stubStrategy{}),
 		WithTargetItem(&item.Item{Code: "AAA"}),
-		WithLogLevel(log.FatalLevel),
+		WithLogger(slog.New(slog.DiscardHandler)),
 	)
 
 	must.True(decimal.NewFromInt(100_000).Equal(c.broker.Balance()), "broker seeds its balance from the market")

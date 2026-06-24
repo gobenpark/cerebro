@@ -25,11 +25,12 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"log/slog"
+
 	"github.com/gobenpark/cerebro"
 	"github.com/gobenpark/cerebro/broker"
 	"github.com/gobenpark/cerebro/indicator"
 	"github.com/gobenpark/cerebro/item"
-	"github.com/gobenpark/cerebro/log"
 	"github.com/gobenpark/cerebro/market/replay"
 	"github.com/gobenpark/cerebro/order"
 	"github.com/gobenpark/cerebro/risk"
@@ -100,7 +101,7 @@ func TestCerebro_ReplayEndToEnd(t *testing.T) {
 		cerebro.WithMarket(mkt),
 		cerebro.WithStrategy(&buyOnceStrategy{}),
 		cerebro.WithTargetItem(&item.Item{Code: "AAA"}),
-		cerebro.WithLogLevel(log.FatalLevel),
+		cerebro.WithLogger(slog.New(slog.DiscardHandler)),
 	)
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -164,7 +165,7 @@ func TestCerebro_RiskPolicyExits(t *testing.T) {
 		cerebro.WithStrategy(&buyOnceStrategy{}),
 		cerebro.WithTargetItem(&item.Item{Code: "AAA"}),
 		cerebro.WithRiskPolicy("buy-once", risk.Policy{StopLoss: 0.05}),
-		cerebro.WithLogLevel(log.FatalLevel),
+		cerebro.WithLogger(slog.New(slog.DiscardHandler)),
 	)
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -202,7 +203,7 @@ func TestStart_RejectsPolicyForUnknownStrategy(t *testing.T) {
 		cerebro.WithStrategy(&buyOnceStrategy{}), // Name() == "buy-once"
 		cerebro.WithTargetItem(&item.Item{Code: "AAA"}),
 		cerebro.WithRiskPolicy("typo", risk.Policy{StopLoss: 0.05}),
-		cerebro.WithLogLevel(log.FatalLevel),
+		cerebro.WithLogger(slog.New(slog.DiscardHandler)),
 	)
 
 	err := cb.Start(context.Background())
@@ -225,7 +226,7 @@ func TestStart_IgnoresDisabledPolicyForUnknownStrategy(t *testing.T) {
 		cerebro.WithStrategy(&buyOnceStrategy{}),
 		cerebro.WithTargetItem(&item.Item{Code: "AAA"}),
 		cerebro.WithRiskPolicy("nobody", risk.Policy{}), // empty == disabled
-		cerebro.WithLogLevel(log.FatalLevel),
+		cerebro.WithLogger(slog.New(slog.DiscardHandler)),
 	)
 
 	ctx, cancel := context.WithCancel(context.Background())

@@ -194,13 +194,13 @@ package main
 
 import (
 	"context"
+	"log/slog"
 	"os"
 	"os/signal"
 	"time"
 
 	"github.com/gobenpark/cerebro"
 	"github.com/gobenpark/cerebro/item"
-	"github.com/gobenpark/cerebro/log"
 	"github.com/gobenpark/cerebro/strategy"
 )
 
@@ -218,7 +218,8 @@ func main() {
 			&item.Item{Code: "KRW-ETH"},
 		),
 		cerebro.WithStrategyTimeout(5*time.Second),
-		cerebro.WithLogLevel(log.InfoLevel),
+		cerebro.WithLogLevel(slog.LevelInfo),
+		// Or route logs into your own pipeline: cerebro.WithLogger(myLogger).
 	)
 
 	// Start returns immediately after spawning the producers. Cancel the context
@@ -247,7 +248,8 @@ func main() {
 | `WithRisk(...risk.Rule)` | Pre-trade risk gate (position/order/rate limits). |
 | `WithRiskPolicy(name, risk.Policy)` | Per-strategy reactive exit (stop-loss / trailing-stop / take-profit). |
 | `WithStorage(broker.Storage)` | Persist/restore the per-strategy ledger (realized PnL, fees, open lots) across restarts. |
-| `WithLogLevel(log.Level)` | Log verbosity. |
+| `WithLogLevel(slog.Level)` | Level of the default stderr `slog` logger. |
+| `WithLogger(*slog.Logger)` | Route logs through your own `slog.Logger` (use `slog.DiscardHandler` to silence). |
 
 ## Concepts
 

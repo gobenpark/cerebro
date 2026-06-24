@@ -18,11 +18,11 @@ package risk
 
 import (
 	"context"
+	"log/slog"
 
 	"github.com/shopspring/decimal"
 
 	"github.com/gobenpark/cerebro/indicator"
-	"github.com/gobenpark/cerebro/log"
 	"github.com/gobenpark/cerebro/order"
 	"github.com/gobenpark/cerebro/position"
 )
@@ -53,7 +53,7 @@ type Book interface {
 // dedicated goroutine, so Listen is never called concurrently with itself; the
 // Monitor's own state therefore needs no locking.
 type Monitor struct {
-	logger    log.Logger
+	logger    *slog.Logger
 	policies  map[string]Policy
 	submitter func(strategy string) Submitter
 	book      Book
@@ -71,7 +71,7 @@ type Monitor struct {
 // NewMonitor builds a Monitor for the given per-strategy policies. submitter maps
 // a strategy name to the broker handle its exits are placed through, and book is
 // the broker's position ledger the policies are evaluated against.
-func NewMonitor(logger log.Logger, policies map[string]Policy, submitter func(strategy string) Submitter, book Book) *Monitor {
+func NewMonitor(logger *slog.Logger, policies map[string]Policy, submitter func(strategy string) Submitter, book Book) *Monitor {
 	return &Monitor{
 		logger:    logger,
 		policies:  policies,

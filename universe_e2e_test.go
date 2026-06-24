@@ -25,10 +25,11 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"log/slog"
+
 	"github.com/gobenpark/cerebro"
 	"github.com/gobenpark/cerebro/broker"
 	"github.com/gobenpark/cerebro/item"
-	"github.com/gobenpark/cerebro/log"
 	"github.com/gobenpark/cerebro/market/replay"
 	"github.com/gobenpark/cerebro/order"
 	"github.com/gobenpark/cerebro/strategy"
@@ -92,7 +93,7 @@ func TestCerebro_PortfolioStrategyTradesBothLegs(t *testing.T) {
 		cerebro.WithMarket(mkt),
 		cerebro.WithStrategy(&pairBuyer{}, "AAA", "BBB"),
 		cerebro.WithTargetItem(&item.Item{Code: "AAA"}, &item.Item{Code: "BBB"}),
-		cerebro.WithLogLevel(log.FatalLevel),
+		cerebro.WithLogger(slog.New(slog.DiscardHandler)),
 	)
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -167,7 +168,7 @@ func TestCerebro_ForEachReplicatesPerItem(t *testing.T) {
 			return &codeBuyer{name: "buy:" + it.Code}
 		}),
 		cerebro.WithTargetItem(&item.Item{Code: "AAA"}, &item.Item{Code: "BBB"}),
-		cerebro.WithLogLevel(log.FatalLevel),
+		cerebro.WithLogger(slog.New(slog.DiscardHandler)),
 	)
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -213,7 +214,7 @@ func TestCerebro_MultipleStrategiesShareSymbol(t *testing.T) {
 		cerebro.WithStrategy(&codeBuyer{name: "share-a"}),
 		cerebro.WithStrategy(&codeBuyer{name: "share-b"}),
 		cerebro.WithTargetItem(&item.Item{Code: "AAA"}),
-		cerebro.WithLogLevel(log.FatalLevel),
+		cerebro.WithLogger(slog.New(slog.DiscardHandler)),
 	)
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -239,7 +240,7 @@ func TestStart_RejectsUnknownUniverseCode(t *testing.T) {
 		cerebro.WithMarket(mkt),
 		cerebro.WithStrategy(dupStub{name: "s"}, "ZZZ"), // ZZZ is not a target
 		cerebro.WithTargetItem(&item.Item{Code: "AAA"}),
-		cerebro.WithLogLevel(log.FatalLevel),
+		cerebro.WithLogger(slog.New(slog.DiscardHandler)),
 	)
 
 	err := cb.Start(context.Background())
@@ -258,7 +259,7 @@ func TestStart_RejectsDuplicateUniverseCode(t *testing.T) {
 		cerebro.WithMarket(mkt),
 		cerebro.WithStrategy(dupStub{name: "s"}, "AAA", "AAA"),
 		cerebro.WithTargetItem(&item.Item{Code: "AAA"}),
-		cerebro.WithLogLevel(log.FatalLevel),
+		cerebro.WithLogger(slog.New(slog.DiscardHandler)),
 	)
 
 	err := cb.Start(context.Background())
@@ -287,7 +288,7 @@ func TestStart_RejectsDuplicateStrategyName(t *testing.T) {
 		cerebro.WithStrategy(dupStub{id: "a", name: "same"}),
 		cerebro.WithStrategy(dupStub{id: "b", name: "same"}),
 		cerebro.WithTargetItem(&item.Item{Code: "AAA"}),
-		cerebro.WithLogLevel(log.FatalLevel),
+		cerebro.WithLogger(slog.New(slog.DiscardHandler)),
 	)
 
 	err := cb.Start(context.Background())

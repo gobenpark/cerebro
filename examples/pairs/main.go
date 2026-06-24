@@ -29,11 +29,12 @@ import (
 
 	"github.com/shopspring/decimal"
 
+	"log/slog"
+
 	"github.com/gobenpark/cerebro"
 	"github.com/gobenpark/cerebro/broker"
 	"github.com/gobenpark/cerebro/indicator"
 	"github.com/gobenpark/cerebro/item"
-	"github.com/gobenpark/cerebro/log"
 	"github.com/gobenpark/cerebro/market/replay"
 	"github.com/gobenpark/cerebro/order"
 	"github.com/gobenpark/cerebro/strategy"
@@ -143,7 +144,7 @@ func main() {
 		// One strategy, two-instrument universe — this is the pairs entry point.
 		cerebro.WithStrategy(&spread{codeA: "AAA", codeB: "BBB"}, "AAA", "BBB"),
 		cerebro.WithTargetItem(&item.Item{Code: "AAA"}, &item.Item{Code: "BBB"}),
-		cerebro.WithLogLevel(log.ErrorLevel),
+		cerebro.WithLogLevel(slog.LevelError),
 	)
 
 	ctx, cancel := context.WithCancel(context.Background())

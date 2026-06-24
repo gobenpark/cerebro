@@ -3,6 +3,7 @@ package broker_test
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"testing"
 	"time"
 
@@ -21,14 +22,6 @@ import (
 	"github.com/gobenpark/cerebro/position"
 	"github.com/gobenpark/cerebro/risk"
 )
-
-type noopLogger struct{}
-
-func (noopLogger) Error(string, ...any) {}
-func (noopLogger) Info(string, ...any)  {}
-func (noopLogger) Warn(string, ...any)  {}
-func (noopLogger) Debug(string, ...any) {}
-func (noopLogger) Panic(string, ...any) {}
 
 // eqDec asserts got equals the integer amount want, comparing numerically so a
 // different decimal scale introduced by arithmetic does not fail the check.
@@ -53,7 +46,7 @@ func newBrokerUnderTest(t *testing.T, balance int64, commission float64) (*broke
 	bc.EXPECT().BroadCast(gomock.Any()).AnyTimes()
 	bc.EXPECT().BroadCastContext(gomock.Any(), gomock.Any()).Return(true).AnyTimes()
 
-	return broker.NewDefaultBroker(bc, mk, noopLogger{}), mk
+	return broker.NewDefaultBroker(bc, mk, slog.New(slog.DiscardHandler)), mk
 }
 
 func buyLimit(code string, size, price int64) order.Order {
@@ -223,7 +216,7 @@ func TestListen_CompletedFillRefreshesPositions(t *testing.T) {
 	bc.EXPECT().BroadCast(gomock.Any()).AnyTimes()
 	bc.EXPECT().BroadCastContext(gomock.Any(), gomock.Any()).Return(true).AnyTimes()
 
-	bk := broker.NewDefaultBroker(bc, mk, noopLogger{})
+	bk := broker.NewDefaultBroker(bc, mk, slog.New(slog.DiscardHandler))
 
 	o := buyLimit("AAA", 10, 100)
 	must.NoError(bk.Order(context.Background(), o, false))

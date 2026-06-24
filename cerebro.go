@@ -18,6 +18,8 @@ package cerebro
 import (
 	"context"
 	"fmt"
+	"log/slog"
+	"os"
 	"sync"
 	"time"
 
@@ -25,8 +27,6 @@ import (
 	"github.com/gobenpark/cerebro/engine"
 	"github.com/gobenpark/cerebro/event"
 	"github.com/gobenpark/cerebro/item"
-	"github.com/gobenpark/cerebro/log"
-	log2 "github.com/gobenpark/cerebro/log/v1"
 	"github.com/gobenpark/cerebro/market"
 	"github.com/gobenpark/cerebro/risk"
 	"github.com/gobenpark/cerebro/strategy"
@@ -36,7 +36,7 @@ import (
 // make all dependency manage
 type Cerebro struct {
 	cancel   context.CancelFunc
-	logLevel log.Level
+	logLevel slog.Level
 	// broker buy, sell and manage order
 	broker *broker.Broker
 
@@ -44,7 +44,7 @@ type Cerebro struct {
 
 	market market.Market
 
-	log log.Logger
+	log *slog.Logger
 
 	// eventEngine engine of management all event
 	eventEngine *event.Engine
@@ -96,15 +96,13 @@ func NewCerebro(opts ...Option) *Cerebro {
 	}
 
 	if c.log == nil {
-		if c.logLevel == 0 {
-			c.logLevel = log.InfoLevel
-		}
-
-		logger, err := log2.NewLogger(c.logLevel)
-		if err != nil {
-			panic(err)
-		}
-		c.log = logger
+		// Default to a structured stderr logger at the configured level (Info by
+		// default). Inject your own with WithLogger to route Cerebro's logs into an
+		// existing slog pipeline. logLevel's zero value is slog.LevelInfo.
+		c.log = slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{
+			AddSource: true,
+			Level:     c.logLevel,
+		}))
 	}
 
 	c.broker = broker.NewDefaultBroker(c.eventEngine, c.market, c.log)

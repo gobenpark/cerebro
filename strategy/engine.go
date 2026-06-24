@@ -17,6 +17,7 @@ package strategy
 
 import (
 	"context"
+	"log/slog"
 	"slices"
 	"sync"
 	"time"
@@ -25,7 +26,6 @@ import (
 	"github.com/gobenpark/cerebro/engine"
 	"github.com/gobenpark/cerebro/indicator"
 	"github.com/gobenpark/cerebro/item"
-	"github.com/gobenpark/cerebro/log"
 	"github.com/gobenpark/cerebro/market"
 	"github.com/gobenpark/cerebro/order"
 )
@@ -40,7 +40,7 @@ type Runner struct {
 }
 
 type Engine struct {
-	log    log.Logger
+	log    *slog.Logger
 	store  market.Market
 	broker *broker.Broker
 	// channels maps an item code to the tick channels of every running universe that
@@ -55,7 +55,7 @@ type Engine struct {
 	wg sync.WaitGroup
 }
 
-func NewEngine(log log.Logger, bk *broker.Broker, runners []Runner, store market.Market, timeout time.Duration) engine.Engine {
+func NewEngine(log *slog.Logger, bk *broker.Broker, runners []Runner, store market.Market, timeout time.Duration) engine.Engine {
 	return &Engine{
 		broker:   bk,
 		log:      log,

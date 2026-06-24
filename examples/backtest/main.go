@@ -28,11 +28,12 @@ import (
 
 	"github.com/shopspring/decimal"
 
+	"log/slog"
+
 	"github.com/gobenpark/cerebro"
 	"github.com/gobenpark/cerebro/broker"
 	"github.com/gobenpark/cerebro/indicator"
 	"github.com/gobenpark/cerebro/item"
-	"github.com/gobenpark/cerebro/log"
 	"github.com/gobenpark/cerebro/market/replay"
 	"github.com/gobenpark/cerebro/order"
 	"github.com/gobenpark/cerebro/risk"
@@ -120,7 +121,7 @@ func main() {
 			risk.MaxPositionPct(0.5),
 			risk.MaxOrderValue(decimal.NewFromInt(500_000)),
 		),
-		cerebro.WithLogLevel(log.ErrorLevel),
+		cerebro.WithLogLevel(slog.LevelError),
 	)
 
 	ctx, cancel := context.WithCancel(context.Background())

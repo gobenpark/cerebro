@@ -237,3 +237,113 @@ func TestStart_IgnoresDisabledPolicyForUnknownStrategy(t *testing.T) {
 	cancel()
 	cb.Shutdown()
 }
+
+// TestCerebro_DisabledOverrideClearsRiskAware verifies that an explicit disabled
+// (empty) WithRiskPolicy turns OFF a strategy-declared ExitPolicy: the price clears
+// the declared +5% take-profit, but with the override the monitor must NOT exit, so
+// the position is held and no PnL is realized.
+func TestCerebro_DisabledOverrideClearsRiskAware(t *testing.T) {
+	is := assert.New(t)
+	must := require.New(t)
+
+	prices := append(repeat(100, 5), repeat(110, 60)...) // long tail past the take-profit
+
+	mkt := replay.New(
+		replay.WithBalance(decimal.NewFromInt(100_000)),
+		replay.WithCommission(market.Fraction(decimal.Zero)),
+		replay.WithInterval(10*time.Millisecond),
+		replay.WithCandles("AAA", seriesCandles("AAA", prices...)),
+	)
+
+	cb := cerebro.NewCerebro(
+		cerebro.WithMarket(mkt),
+		cerebro.WithTargetItem(&item.Item{Code: "AAA"}),
+		cerebro.WithStrategyForEach(func(it *item.Item) strategy.Strategy {
+			return &riskAwareBuyOnce{name: "ra:" + it.Code, policy: risk.Policy{TakeProfit: 0.05}}
+		}),
+		cerebro.WithRiskPolicy("ra:AAA", risk.Policy{}), // explicit disable clears the declared take-profit
+		cerebro.WithLogger(slog.New(slog.DiscardHandler)),
+	)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	must.NoError(cb.Start(ctx))
+
+	// The buy (10 @ 100) fills and is HELD: with the declared take-profit cleared, the
+	// rise to 110 triggers no exit, so the position stays open and realized stays 0.
+	is.Eventually(func() bool {
+		rep := cb.Report()
+		if len(rep) != 1 || rep[0].Strategy != "ra:AAA" {
+			return false
+		}
+		return rep[0].Realized.IsZero() &&
+			len(rep[0].Positions) == 1 &&
+			rep[0].Positions[0].Size.Equal(decimal.NewFromInt(10))
+	}, 5*time.Second, 10*time.Millisecond, "disabled override should leave the position held with no realized PnL")
+
+	cancel()
+	cb.Shutdown()
+}
+
+// riskAwareBuyOnce buys once and declares its own exit policy via strategy.RiskAware,
+// so Cerebro registers it with the monitor WITHOUT a name-based WithRiskPolicy —
+// the path that reaches WithStrategyForEach, whose instance names aren't known until
+// spawn.
+type riskAwareBuyOnce struct {
+	buyOnceStrategy
+	name   string
+	policy risk.Policy
+}
+
+func (s *riskAwareBuyOnce) Name() string            { return s.name }
+func (s *riskAwareBuyOnce) ExitPolicy() risk.Policy { return s.policy }
+
+var _ strategy.RiskAware = (*riskAwareBuyOnce)(nil)
+
+// TestCerebro_RiskAwareExits_ForEach verifies the RiskAware path end-to-end: a
+// per-item strategy spawned by WithStrategyForEach declares a take-profit through
+// ExitPolicy (no WithRiskPolicy, since the name "ra:AAA" isn't known until spawn).
+// Cerebro's buildMonitor must pick it up so the monitor exits the position when the
+// price clears the take-profit, booking the gain as realized PnL.
+func TestCerebro_RiskAwareExits_ForEach(t *testing.T) {
+	is := assert.New(t)
+	must := require.New(t)
+
+	// Fill at 100, then rise to 110 — past the +5% take-profit at 105 — and hold so
+	// the reactive exit (submitted only after the fill round-trips to the monitor)
+	// still has candles to fill against.
+	prices := append(repeat(100, 5), repeat(110, 80)...)
+
+	mkt := replay.New(
+		replay.WithBalance(decimal.NewFromInt(100_000)),
+		replay.WithCommission(market.Fraction(decimal.Zero)),
+		replay.WithInterval(15*time.Millisecond),
+		replay.WithCandles("AAA", seriesCandles("AAA", prices...)),
+	)
+
+	cb := cerebro.NewCerebro(
+		cerebro.WithMarket(mkt),
+		cerebro.WithTargetItem(&item.Item{Code: "AAA"}),
+		cerebro.WithStrategyForEach(func(it *item.Item) strategy.Strategy {
+			return &riskAwareBuyOnce{name: "ra:" + it.Code, policy: risk.Policy{TakeProfit: 0.05}}
+		}),
+		cerebro.WithLogger(slog.New(slog.DiscardHandler)),
+	)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	must.NoError(cb.Start(ctx))
+
+	// Buy 10 @ 100 (-1000); take-profit fires at 110, exiting 10 @ 110 (+1100), booked
+	// as (110-100)*10 = +100 realized PnL with a flat position.
+	is.Eventually(func() bool {
+		rep := cb.Report()
+		if len(rep) != 1 || rep[0].Strategy != "ra:AAA" {
+			return false
+		}
+		return decimal.NewFromInt(100).Equal(rep[0].Realized) && len(rep[0].Positions) == 0
+	}, 5*time.Second, 15*time.Millisecond, "RiskAware take-profit should exit and book +100 realized PnL")
+
+	cancel()
+	cb.Shutdown()
+}

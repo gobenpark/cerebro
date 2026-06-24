@@ -24,6 +24,7 @@ import (
 	"github.com/gobenpark/cerebro/indicator"
 	"github.com/gobenpark/cerebro/item"
 	"github.com/gobenpark/cerebro/order"
+	"github.com/gobenpark/cerebro/risk"
 )
 
 type CandleType int
@@ -43,6 +44,20 @@ type Strategy interface {
 	NotifyTrade()
 	NotifyFund()
 	Name() string
+}
+
+// RiskAware is an optional capability a Strategy may implement to declare its own
+// reactive exit policy (stop-loss / trailing-stop / take-profit). Cerebro registers
+// the returned Policy with the risk Monitor under the strategy's Name(), so a
+// strategy and its exit rule travel as one unit. This is the path that reaches
+// dynamically spawned strategies (WithStrategyForEach), where a name-based
+// WithRiskPolicy cannot — the name isn't known until spawn. A strategy that does
+// not implement it, or returns a disabled Policy, has no reactive exit. An explicit
+// WithRiskPolicy for the same Name() overrides the declared policy; a disabled
+// (empty) one clears it, so a caller can turn a built-in ExitPolicy off by name.
+type RiskAware interface {
+	Strategy
+	ExitPolicy() risk.Policy
 }
 
 // Universe is the set of instruments a strategy trades together, plus their

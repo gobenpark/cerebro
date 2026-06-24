@@ -130,19 +130,8 @@ func NewCerebro(opts ...Option) *Cerebro {
 	if c.storage != nil {
 		c.broker.SetStorage(c.storage)
 	}
-	// Build a reactive monitor for any configured exit policy. Empty policies (no
-	// trigger set) are dropped so a misconfigured option is inert rather than fatal.
-	active := map[string]risk.Policy{}
-	for name, p := range c.policies {
-		if p.Enabled() {
-			active[name] = p
-		}
-	}
-	if len(active) > 0 {
-		c.monitor = risk.NewMonitor(c.log, active, func(name string) risk.Submitter {
-			return c.broker.Scoped(name)
-		}, c.broker)
-	}
+	// The reactive exit monitor is built in Start, once runners — and thus their
+	// names and any strategy-declared ExitPolicy (strategy.RiskAware) — are known.
 	// The strategy engine is built in Start, once target items are known, since
 	// resolving registrations into runners needs them and can fail (e.g. a strategy
 	// references an unknown code).
@@ -266,6 +255,46 @@ func (c *Cerebro) validatePolicies(runners []strategy.Runner) error {
 	return nil
 }
 
+// buildMonitor constructs the reactive exit Monitor from per-strategy policies:
+// each strategy's own ExitPolicy (strategy.RiskAware) plus any WithRiskPolicy
+// override, keyed by strategy Name(). It is called from Start once runners are
+// resolved, so dynamically spawned strategies (WithStrategyForEach) are covered —
+// the gap a name-based WithRiskPolicy alone can't fill. It resets and reassigns
+// c.monitor, so a retried Start (after a later step failed) rebuilds cleanly —
+// including clearing a stale monitor when the rebuilt policy set is now empty. No
+// enabled policies -> no monitor.
+func (c *Cerebro) buildMonitor(runners []strategy.Runner) {
+	// Reset first: a retry whose policies resolve to empty (e.g. a now-disabled
+	// ExitPolicy, or an explicit disable clearing the only declared one) must not
+	// keep the monitor built on a previous attempt.
+	c.monitor = nil
+	policies := map[string]risk.Policy{}
+	for _, r := range runners {
+		ra, ok := r.Strategy.(strategy.RiskAware)
+		if !ok {
+			continue
+		}
+		if p := ra.ExitPolicy(); p.Enabled() {
+			policies[r.Strategy.Name()] = p
+		}
+	}
+	for name, p := range c.policies { // explicit WithRiskPolicy overrides the declared policy
+		if p.Enabled() {
+			policies[name] = p
+		} else {
+			// A disabled (empty) explicit policy clears a strategy-declared one, so a
+			// caller can turn a built-in ExitPolicy off by name. delete is a no-op when
+			// the name has no declared policy.
+			delete(policies, name)
+		}
+	}
+	if len(policies) > 0 {
+		c.monitor = risk.NewMonitor(c.log, policies, func(name string) risk.Submitter {
+			return c.broker.Scoped(name)
+		}, c.broker)
+	}
+}
+
 // Start run cerebro. It is one-shot: the screener merge mutates target, so a
 // second call is rejected.
 func (c *Cerebro) Start(ctx context.Context) error {
@@ -291,6 +320,9 @@ func (c *Cerebro) Start(ctx context.Context) error {
 	if err := c.validatePolicies(runners); err != nil {
 		return err
 	}
+	// Build the reactive exit monitor now that runner names (and any dynamically
+	// spawned strategies' declared ExitPolicy) are known.
+	c.buildMonitor(runners)
 	// Restore the persisted ledger (per-strategy PnL/fees/open lots) as the final
 	// fallible step — before any context or goroutine is created — so a restore
 	// failure returns with nothing to tear down and leaves the instance retryable.

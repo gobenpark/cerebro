@@ -307,8 +307,9 @@ Cerebro is composed of a few cooperating parts:
   file) and `store.NewMemoryStorage` ship in the box. Cash balance and account
   positions are exchange-authoritative and re-fetched on start, so they are not
   persisted; in-flight orders are not yet restored.
-- **Resampling** — build candles from raw ticks (`indicator.Resample`,
-  `indicator.Resampler`).
+- **Resampling** — build OHLCV candles from raw ticks: `indicator.Resample` for a
+  batch, or a stateful `indicator.Resampler` for a strategy's tick loop — its
+  `Add` reports each bar as it closes, with an optional `WithWindow` memory cap.
 - **Concurrency** — event-driven core with per-listener dispatch and graceful,
   ordered shutdown (producers stop first, the dispatcher last).
 

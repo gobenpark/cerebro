@@ -26,6 +26,7 @@ import (
 	"github.com/gobenpark/cerebro/broker"
 	"github.com/gobenpark/cerebro/engine"
 	"github.com/gobenpark/cerebro/event"
+	"github.com/gobenpark/cerebro/indicator"
 	"github.com/gobenpark/cerebro/item"
 	"github.com/gobenpark/cerebro/market"
 	"github.com/gobenpark/cerebro/risk"
@@ -69,6 +70,15 @@ type Cerebro struct {
 	monitor *risk.Monitor
 
 	timeout time.Duration
+
+	// feedTimeout, when > 0, arms a market-data staleness watchdog in the events
+	// pump: a tick (or market.FeedStatusEvent) resets it, and if it elapses with no
+	// such event the feed is treated as lost. Zero disables it (suits backtests).
+	feedTimeout time.Duration
+	// feedLossHandler runs when the feed is lost (stale, or its channel closes while
+	// the run is still live). When nil and feed guarding is active, the default is a
+	// fail-safe Shutdown so the engine does not trade on a dead feed.
+	feedLossHandler func(reason string)
 
 	engines []engine.Engine
 	// wg tracks the producer goroutines (spawn, market events) started by Start.
@@ -288,6 +298,20 @@ func (c *Cerebro) Start(ctx context.Context) error {
 
 	c.wg.Go(func() {
 		ch := c.market.Events(ctx)
+
+		// Live-feed staleness watchdog: when armed (WithFeedTimeout), it trips if no
+		// market-data event arrives in time, catching a feed that silently stops
+		// without closing its channel. It is reset by each data-plane event below and
+		// stopped when this pump returns. Disabled by default, so a backtest — whose
+		// replay channel closes cleanly at end of data — keeps its existing behavior.
+		var watchdog *time.Timer
+		if c.feedTimeout > 0 {
+			watchdog = time.AfterFunc(c.feedTimeout, func() {
+				c.onFeedLoss(fmt.Sprintf("no market data within %s", c.feedTimeout))
+			})
+			defer watchdog.Stop()
+		}
+
 		// Forward on the dispatcher's context (eventCtx), which outlives this pump
 		// (Shutdown joins the pump before stopping the dispatcher), so an event the
 		// market already emitted when the run context is canceled still reaches the
@@ -296,8 +320,26 @@ func (c *Cerebro) Start(ctx context.Context) error {
 			select {
 			case e, ok := <-ch:
 				if !ok {
-					c.log.Info("event channel closed")
+					// A contract-compliant live adapter reconnects internally and keeps the
+					// channel open; closing it while the run is still live means the feed
+					// permanently ended, so fail safe when guarding is active. With no guard
+					// (e.g. a backtest) a close is the normal end of data.
+					if c.feedGuarded() && ctx.Err() == nil {
+						c.onFeedLoss("market event channel closed")
+					} else {
+						c.log.Info("event channel closed")
+					}
 					return
+				}
+				// Reset the staleness watchdog only on data-plane signals: ticks prove the
+				// market-data feed is flowing, and a FeedStatusEvent is the adapter's
+				// explicit heartbeat across a quiet reconnect. Sporadic order/balance
+				// events are not evidence the data feed is alive.
+				if watchdog != nil {
+					switch e.(type) {
+					case indicator.Tick, market.FeedStatusEvent:
+						watchdog.Reset(c.feedTimeout)
+					}
 				}
 				if !c.eventEngine.BroadCastContext(eventCtx, e) {
 					return
@@ -338,6 +380,30 @@ func (c *Cerebro) Start(ctx context.Context) error {
 // handy to print at the end of a run.
 func (c *Cerebro) Report() []broker.StrategyReport {
 	return c.broker.Report()
+}
+
+// feedGuarded reports whether live-feed guarding is active — either a staleness
+// watchdog is armed (WithFeedTimeout) or a feed-loss handler is installed
+// (WithFeedLossHandler). When false (the default) the events pump behaves as before:
+// a channel close is the normal end of the stream, not a feed loss.
+func (c *Cerebro) feedGuarded() bool {
+	return c.feedTimeout > 0 || c.feedLossHandler != nil
+}
+
+// onFeedLoss handles a degraded market feed — it went stale (no data within the feed
+// timeout) or its channel closed while the run was still live. It runs the configured
+// handler, or, by default, a fail-safe Shutdown so the engine does not keep trading
+// on a dead feed. It may fire more than once (e.g. a stale trip then a channel
+// close); the default Shutdown is idempotent and a custom handler must tolerate
+// repeats. The action is dispatched on its own goroutine so the events pump can
+// return without deadlocking against a handler that joins it via Shutdown.
+func (c *Cerebro) onFeedLoss(reason string) {
+	c.log.Error("market feed lost", "reason", reason)
+	if c.feedLossHandler != nil {
+		go c.feedLossHandler(reason)
+		return
+	}
+	go c.Shutdown()
 }
 
 // Shutdown stops cerebro and blocks until everything has drained. Producers are

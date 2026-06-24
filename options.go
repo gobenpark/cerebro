@@ -107,6 +107,34 @@ func WithStorage(s broker.Storage) Option {
 	}
 }
 
+// WithFeedTimeout arms a market-data staleness watchdog: if no tick (or
+// market.FeedStatusEvent) arrives within d, the feed is considered stale and the
+// feed-loss handler runs (by default a fail-safe Shutdown — see WithFeedLossHandler).
+// Zero (the default) disables the watchdog, which suits backtests whose replay
+// channel closes cleanly when the data is exhausted. Set it for a live feed to a
+// value comfortably above the largest expected gap between ticks plus the adapter's
+// reconnect time, so a normal quiet period is not mistaken for a dead feed.
+func WithFeedTimeout(d time.Duration) Option {
+	return func(c *Cerebro) {
+		c.feedTimeout = d
+	}
+}
+
+// WithFeedLossHandler installs a callback invoked when the market feed is lost —
+// either it goes stale (see WithFeedTimeout) or its event channel closes while the
+// run is still live. It replaces the default fail-safe, which Shuts the engine down
+// so it does not keep trading on a dead feed. Installing a handler also enables
+// channel-close-as-loss detection even when no feed timeout is set. The handler runs
+// on its own goroutine and may be invoked more than once (e.g. a stale trip followed
+// by a channel close), so it must be safe for concurrent use and should be
+// idempotent. A handler that reconnects must do so through the market adapter; once
+// the channel has closed the engine no longer pumps it.
+func WithFeedLossHandler(fn func(reason string)) Option {
+	return func(c *Cerebro) {
+		c.feedLossHandler = fn
+	}
+}
+
 // WithRiskPolicy attaches a reactive exit policy to the strategy named name. On
 // every tick a monitor evaluates that strategy's attributed position against the
 // policy and, when a stop-loss, trailing-stop, or take-profit trigger fires,

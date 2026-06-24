@@ -117,6 +117,10 @@ func (e *exchange) AccountBalance(ctx context.Context) decimal.Decimal       { p
 
 // Events streams market events to Cerebro: indicator.Tick for price updates and
 // market.ChangeOrderEvent / market.ChangeBalanceEvent for fills and settlement.
+// Liveness contract: a live adapter survives a transient disconnect by reconnecting
+// internally and keeping this channel open (a drop must not close it), and SHOULD
+// emit a market.FeedStatusEvent on disconnect/reconnect — it surfaces feed health and
+// resets Cerebro's staleness watchdog (see WithFeedTimeout) during quiet periods.
 func (e *exchange) Events(ctx context.Context) <-chan any { panic("implement me") }
 
 // Commission is the percentage fee applied to an order's value. It must be a
@@ -251,6 +255,8 @@ func main() {
 | `WithRisk(...risk.Rule)` | Pre-trade risk gate (position/order/rate limits). |
 | `WithRiskPolicy(name, risk.Policy)` | Per-strategy reactive exit (stop-loss / trailing-stop / take-profit). |
 | `WithStorage(broker.Storage)` | Persist/restore the per-strategy ledger (realized PnL, fees, open lots) across restarts. |
+| `WithFeedTimeout(time.Duration)` | Arm a live-feed staleness watchdog: trip the feed-loss handler if no tick or `market.FeedStatusEvent` heartbeat arrives in time (off by default; for live feeds, not backtests). |
+| `WithFeedLossHandler(func(reason string))` | Handle a lost feed (gone stale, or its channel closed mid-run). Replaces the default fail-safe `Shutdown`. |
 | `WithLogLevel(slog.Level)` | Level of the default stderr `slog` logger. |
 | `WithLogger(*slog.Logger)` | Route logs through your own `slog.Logger` (use `slog.DiscardHandler` to silence). |
 
@@ -310,6 +316,12 @@ Cerebro is composed of a few cooperating parts:
   file) and `store.NewMemoryStorage` ship in the box. Cash balance and account
   positions are exchange-authoritative and re-fetched on start, so they are not
   persisted; in-flight orders are not yet restored.
+- **Feed resilience** — arm a market-data staleness watchdog with
+  `cerebro.WithFeedTimeout`: if ticks (or a `market.FeedStatusEvent` heartbeat) stop
+  flowing, or the feed's channel closes while the run is still live, Cerebro fails
+  safe by shutting down — or runs your `cerebro.WithFeedLossHandler`. Live adapters
+  reconnect internally and keep their `Events` channel open across transient drops
+  (the `market.Market` liveness contract); backtests leave the watchdog off.
 - **Resampling** — build OHLCV candles from raw ticks: `indicator.Resample` for a
   batch, or a stateful `indicator.Resampler` for a strategy's tick loop — its
   `Add` reports each bar as it closes, with an optional `WithWindow` memory cap.

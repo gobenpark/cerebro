@@ -18,6 +18,7 @@ package event
 
 import (
 	"context"
+	"sync"
 )
 
 // listenerBuffer bounds how many events may queue per listener before the
@@ -38,6 +39,10 @@ type Engine struct {
 	// listeners maps each registered listener to its private delivery queue.
 	// Only Start touches this map, so it needs no lock.
 	listeners map[Listener]chan any
+	// deliverWg tracks the per-listener delivery goroutines so Start can wait for
+	// them to finish draining on shutdown, making Start a barrier: once it returns,
+	// every dispatched event has been processed by every listener.
+	deliverWg sync.WaitGroup
 }
 
 func NewEventEngine() *Engine {
@@ -54,31 +59,38 @@ func NewEventEngine() *Engine {
 // from within its own Listen.
 func (e *Engine) Start(ctx context.Context) {
 	defer func() {
+		// Stop the delivery queues, then wait for every worker to finish draining.
+		// This makes Start a barrier: a caller that joins it (Cerebro.Shutdown) is
+		// then guaranteed that all dispatched events have been processed.
 		for cli, ch := range e.listeners {
 			close(ch)
 			delete(e.listeners, cli)
 		}
+		e.deliverWg.Wait()
 	}()
 
 	for {
 		select {
 		case <-ctx.Done():
-			// Flush events already queued in broadcast to listeners so a shutdown
-			// right after a broadcast doesn't silently drop the last notifications.
+			// Flush events already queued in broadcast to the listeners so a shutdown
+			// right after a broadcast doesn't drop the last notifications.
 			e.drainToListeners()
 			return
 		case evt := <-e.broadcast:
-			for _, ch := range e.listeners {
-				select {
-				case ch <- evt:
-				case <-ctx.Done():
-					return
-				}
-			}
+			e.fanout(evt)
 		case reg := <-e.register:
-			ch := make(chan any, listenerBuffer)
-			e.listeners[reg.listener] = ch
-			go deliver(ctx, reg.listener, ch)
+			// Register is idempotent: a listener that is already registered keeps its
+			// existing queue and worker. A duplicate registration must not overwrite
+			// the queue, or the first worker would be orphaned on a channel that is
+			// never closed — and the shutdown barrier (deliverWg.Wait) would then wait
+			// on it forever.
+			if _, ok := e.listeners[reg.listener]; !ok {
+				ch := make(chan any, listenerBuffer)
+				e.listeners[reg.listener] = ch
+				e.deliverWg.Go(func() {
+					deliver(ctx, reg.listener, ch)
+				})
+			}
 			// Signal Register that the listener is live and will receive every
 			// broadcast from here on.
 			close(reg.ack)
@@ -86,49 +98,36 @@ func (e *Engine) Start(ctx context.Context) {
 	}
 }
 
-// drainToListeners best-effort flushes the remaining broadcast queue into each
-// listener's buffer during shutdown. Sends are non-blocking, so a listener whose
-// buffer is full drops the overflow rather than stalling teardown.
+// fanout delivers evt to every listener's queue, blocking until each accepts.
+// The workers drain continuously, so this applies backpressure rather than
+// dropping events; a full queue slows the dispatcher instead of losing a fill.
+func (e *Engine) fanout(evt any) {
+	for _, ch := range e.listeners {
+		ch <- evt
+	}
+}
+
+// drainToListeners flushes the remaining broadcast queue to the listeners during
+// shutdown, so events already accepted into broadcast are delivered before the
+// queues are closed. The workers are still draining here, so the sends complete.
 func (e *Engine) drainToListeners() {
 	for {
 		select {
 		case evt := <-e.broadcast:
-			for _, ch := range e.listeners {
-				select {
-				case ch <- evt:
-				default:
-				}
-			}
+			e.fanout(evt)
 		default:
 			return
 		}
 	}
 }
 
-// deliver feeds one listener its events in order until the queue is closed or
-// the context is canceled. On cancellation it drains buffered events first so
-// they still reach the listener.
+// deliver feeds one listener its events in order until its queue is closed,
+// draining whatever is buffered first. Start closes the queue only after the
+// dispatch loop has flushed every pending broadcast into it, so a worker that
+// runs to completion has processed every event routed to its listener.
 func deliver(ctx context.Context, l Listener, ch <-chan any) {
-	for {
-		select {
-		case <-ctx.Done():
-			for {
-				select {
-				case evt, ok := <-ch:
-					if !ok {
-						return
-					}
-					l.Listen(ctx, evt)
-				default:
-					return
-				}
-			}
-		case evt, ok := <-ch:
-			if !ok {
-				return
-			}
-			l.Listen(ctx, evt)
-		}
+	for evt := range ch {
+		l.Listen(ctx, evt)
 	}
 }
 

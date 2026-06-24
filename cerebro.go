@@ -76,7 +76,9 @@ type Cerebro struct {
 	// eventCancel stops the event dispatcher; it runs on its own context so the
 	// dispatcher can outlive producers and be torn down last during shutdown.
 	eventCancel context.CancelFunc
-	// eventWg tracks the event dispatcher goroutine.
+	// eventWg tracks the event dispatcher goroutine. The dispatcher waits for its
+	// per-listener workers to drain before returning, so joining eventWg guarantees
+	// every dispatched event has been processed.
 	eventWg sync.WaitGroup
 	// shutdownOnce makes Shutdown idempotent; it may be triggered both explicitly
 	// and by parent-context cancellation.
@@ -288,6 +290,10 @@ func (c *Cerebro) Start(ctx context.Context) error {
 
 	c.wg.Go(func() {
 		ch := c.market.Events(ctx)
+		// Forward on the dispatcher's context (eventCtx), which outlives this pump
+		// (Shutdown joins the pump before stopping the dispatcher), so an event the
+		// market already emitted when the run context is canceled still reaches the
+		// listeners instead of being dropped mid-flight.
 		for {
 			select {
 			case e, ok := <-ch:
@@ -295,13 +301,27 @@ func (c *Cerebro) Start(ctx context.Context) error {
 					c.log.Info("event channel closed")
 					return
 				}
-				// Stop if the dispatch loop is gone, otherwise this send blocks forever.
-				if !c.eventEngine.BroadCastContext(ctx, e) {
+				if !c.eventEngine.BroadCastContext(eventCtx, e) {
 					return
 				}
 			case <-ctx.Done():
 				c.log.Info("context done")
-				return
+				// Best-effort: forward events the market already emitted and buffered so
+				// an in-flight fill still reaches the broker, then stop without blocking
+				// on a market that never closes its channel.
+				for {
+					select {
+					case e, ok := <-ch:
+						if !ok {
+							return
+						}
+						if !c.eventEngine.BroadCastContext(eventCtx, e) {
+							return
+						}
+					default:
+						return
+					}
+				}
 			}
 		}
 	})
@@ -325,7 +345,10 @@ func (c *Cerebro) Report() []broker.StrategyReport {
 // Shutdown stops cerebro and blocks until everything has drained. Producers are
 // torn down in order — spawn/events, then strategy Next goroutines, then broker
 // submissions — all while the event dispatcher keeps draining. Only once no
-// producer can broadcast anymore is the dispatcher itself stopped.
+// producer can broadcast anymore is the dispatcher stopped, and it in turn waits
+// for its listeners to finish. Shutdown is therefore a barrier: once it returns,
+// every dispatched event has been processed, so post-run reads (e.g. Report) are
+// complete.
 func (c *Cerebro) Shutdown() {
 	c.shutdownOnce.Do(c.shutdown)
 }
@@ -346,7 +369,9 @@ func (c *Cerebro) shutdown() {
 	// 3. In-flight broker submissions (they broadcast order updates).
 	c.broker.Wait()
 
-	// 4. No producer remains, so stop the dispatcher and wait for it.
+	// 4. No producer remains, so stop the dispatcher and wait for it. The dispatcher
+	//    drains its queues and waits for the per-listener workers, so this join is a
+	//    barrier: every event broadcast above has now been processed.
 	if c.eventCancel != nil {
 		c.eventCancel()
 	}

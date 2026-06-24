@@ -159,7 +159,7 @@ func main() {
 	cancel()
 	cb.Shutdown()
 
-	fmt.Printf("\nfinal balance: %s\n", mkt.AccountBalance().StringFixed(2))
+	fmt.Printf("\nfinal balance: %s\n", mkt.AccountBalance(context.Background()).StringFixed(2))
 	for _, r := range cb.Report() {
 		fmt.Printf("strategy %s realized=%s fees=%s\n", r.Strategy, r.Realized.StringFixed(2), r.Fees.StringFixed(2))
 	}

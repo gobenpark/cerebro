@@ -110,7 +110,7 @@ func TestCerebro_ReplayEndToEnd(t *testing.T) {
 
 	// The limit buy (10 @ 100) fills against the flat 100 price, debiting 1000.
 	is.Eventually(func() bool {
-		return mkt.AccountBalance().Equal(decimal.NewFromInt(99_000))
+		return mkt.AccountBalance(context.Background()).Equal(decimal.NewFromInt(99_000))
 	}, 5*time.Second, 20*time.Millisecond, "strategy order should fill through the replay market")
 
 	cancel()

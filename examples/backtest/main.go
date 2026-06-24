@@ -136,8 +136,8 @@ func main() {
 	cancel()
 	cb.Shutdown()
 
-	fmt.Printf("\nfinal balance: %s\n", mkt.AccountBalance().StringFixed(2))
-	positions := mkt.AccountPositions()
+	fmt.Printf("\nfinal balance: %s\n", mkt.AccountBalance(context.Background()).StringFixed(2))
+	positions := mkt.AccountPositions(context.Background())
 	if len(positions) == 0 {
 		fmt.Println("no open positions")
 	}

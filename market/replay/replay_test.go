@@ -28,8 +28,8 @@ func TestReplay_LimitBuyFillsAtLimitAndDebitsCash(t *testing.T) {
 	events := r.matchAndFill("AAA", dec(100))
 
 	must.Len(events, 2)
-	is.True(dec(99_000).Equal(r.AccountBalance()))
-	pos := r.AccountPositions()
+	is.True(dec(99_000).Equal(r.AccountBalance(context.Background())))
+	pos := r.AccountPositions(context.Background())
 	must.Len(pos, 1)
 	is.Equal("AAA", pos[0].Item.Code)
 	is.True(dec(10).Equal(pos[0].Size))
@@ -49,8 +49,8 @@ func TestReplay_LimitBuyStaysOpenAboveLimit(t *testing.T) {
 	events := r.matchAndFill("AAA", dec(101))
 
 	is.Empty(events)
-	is.True(dec(100_000).Equal(r.AccountBalance()))
-	is.Empty(r.AccountPositions())
+	is.True(dec(100_000).Equal(r.AccountBalance(context.Background())))
+	is.Empty(r.AccountPositions(context.Background()))
 }
 
 func TestReplay_CommissionDebitedOnFill(t *testing.T) {
@@ -64,7 +64,7 @@ func TestReplay_CommissionDebitedOnFill(t *testing.T) {
 
 	r.matchAndFill("AAA", dec(100))
 
-	is.True(dec(98_990).Equal(r.AccountBalance()), "100000 - 1000 notional - 10 fee")
+	is.True(dec(98_990).Equal(r.AccountBalance(context.Background())), "100000 - 1000 notional - 10 fee")
 }
 
 func TestReplay_LimitSellAddsCashAndReducesPosition(t *testing.T) {
@@ -81,8 +81,8 @@ func TestReplay_LimitSellAddsCashAndReducesPosition(t *testing.T) {
 	// price 120 >= limit 120 -> sell 4 @ 120 = +480.
 	r.matchAndFill("AAA", dec(120))
 
-	is.True(dec(99_480).Equal(r.AccountBalance()), "99000 + 480")
-	pos := r.AccountPositions()
+	is.True(dec(99_480).Equal(r.AccountBalance(context.Background())), "99000 + 480")
+	pos := r.AccountPositions(context.Background())
 	must.Len(pos, 1)
 	is.True(dec(6).Equal(pos[0].Size), "10 - 4")
 }
@@ -97,8 +97,8 @@ func TestReplay_MarketOrderFillsAtCurrentPrice(t *testing.T) {
 
 	r.matchAndFill("AAA", dec(200)) // market buy fills at the current price 200
 
-	is.True(dec(99_000).Equal(r.AccountBalance()), "100000 - 5*200")
-	pos := r.AccountPositions()
+	is.True(dec(99_000).Equal(r.AccountBalance(context.Background())), "100000 - 5*200")
+	pos := r.AccountPositions(context.Background())
 	must.Len(pos, 1)
 	is.True(dec(200).Equal(pos[0].Price))
 }
@@ -115,8 +115,8 @@ func TestReplay_SellWithoutHoldingsDoesNotFill(t *testing.T) {
 	events := r.matchAndFill("AAA", dec(120))
 
 	is.Empty(events, "a sell with no holdings must not fill")
-	is.True(dec(100_000).Equal(r.AccountBalance()), "no cash may be minted")
-	is.Empty(r.AccountPositions())
+	is.True(dec(100_000).Equal(r.AccountBalance(context.Background())), "no cash may be minted")
+	is.Empty(r.AccountPositions(context.Background()))
 }
 
 func TestReplay_OversellDoesNotFill(t *testing.T) {
@@ -133,7 +133,7 @@ func TestReplay_OversellDoesNotFill(t *testing.T) {
 	events := r.matchAndFill("AAA", dec(120))
 
 	is.Empty(events, "cannot oversell 5 while holding 3")
-	pos := r.AccountPositions()
+	pos := r.AccountPositions(context.Background())
 	must.Len(pos, 1)
 	is.True(dec(3).Equal(pos[0].Size), "position is untouched")
 }
@@ -149,7 +149,7 @@ func TestReplay_UntargetedCodeNeitherEmitsNorHangs(t *testing.T) {
 		WithCandles("BBB", indicator.Candles{{Code: "BBB", Close: dec(100)}}),
 	)
 	// Only AAA is subscribed; BBB has data but is never targeted.
-	_ = r.Subscribe(func() []*item.Item { return []*item.Item{{Code: "AAA"}} })
+	_ = r.Subscribe(context.Background(), func() []*item.Item { return []*item.Item{{Code: "AAA"}} })
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -178,7 +178,7 @@ func TestReplay_UntargetedCodeNeitherEmitsNorHangs(t *testing.T) {
 
 func TestReplay_DoneClosesWhenReplayFinishes(t *testing.T) {
 	r := New(WithCandles("AAA", indicator.Candles{{Code: "AAA", Close: dec(100)}}))
-	_ = r.Subscribe(func() []*item.Item { return []*item.Item{{Code: "AAA"}} })
+	_ = r.Subscribe(context.Background(), func() []*item.Item { return []*item.Item{{Code: "AAA"}} })
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -204,5 +204,5 @@ func TestReplay_OtherCodeIsNotFilled(t *testing.T) {
 	must.NoError(r.Order(context.Background(), o))
 
 	is.Empty(r.matchAndFill("BBB", dec(50)), "a tick for another code must not fill this order")
-	is.True(dec(100_000).Equal(r.AccountBalance()))
+	is.True(dec(100_000).Equal(r.AccountBalance(context.Background())))
 }

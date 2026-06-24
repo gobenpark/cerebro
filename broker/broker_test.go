@@ -38,8 +38,8 @@ func newBrokerUnderTest(t *testing.T, balance int64, commission float64) (*broke
 
 	ctrl := gomock.NewController(t)
 	mk := marketmock.NewMockMarket(ctrl)
-	mk.EXPECT().AccountPositions().Return([]position.Position{}).AnyTimes()
-	mk.EXPECT().AccountBalance().Return(decimal.NewFromInt(balance)).AnyTimes()
+	mk.EXPECT().AccountPositions(gomock.Any()).Return([]position.Position{}).AnyTimes()
+	mk.EXPECT().AccountBalance(gomock.Any()).Return(decimal.NewFromInt(balance)).AnyTimes()
 	mk.EXPECT().Commission().Return(decimal.NewFromFloat(commission)).AnyTimes()
 
 	bc := eventmock.NewMockBroadcaster(ctrl)
@@ -204,11 +204,11 @@ func TestListen_CompletedFillRefreshesPositions(t *testing.T) {
 
 	ctrl := gomock.NewController(t)
 	mk := marketmock.NewMockMarket(ctrl)
-	mk.EXPECT().AccountBalance().Return(decimal.NewFromInt(100_000)).AnyTimes()
+	mk.EXPECT().AccountBalance(gomock.Any()).Return(decimal.NewFromInt(100_000)).AnyTimes()
 	mk.EXPECT().Commission().Return(decimal.Zero).AnyTimes()
 	mk.EXPECT().Order(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 	// The exchange reports the position once the order has filled.
-	mk.EXPECT().AccountPositions().Return([]position.Position{
+	mk.EXPECT().AccountPositions(gomock.Any()).Return([]position.Position{
 		{Item: &item.Item{Code: "AAA"}, Size: decimal.NewFromInt(10), Price: decimal.NewFromInt(100)},
 	}).AnyTimes()
 
@@ -225,6 +225,53 @@ func TestListen_CompletedFillRefreshesPositions(t *testing.T) {
 	pos, ok := bk.Position("AAA")
 	must.True(ok)
 	is.True(decimal.NewFromInt(10).Equal(pos.Size), "completed fill must be reflected in positions")
+}
+
+// TestListen_FillRefreshSurvivesCanceledContext guards that a fill drained during
+// shutdown (its listener context already canceled) still refreshes positions from
+// a context-aware market: the broker strips cancellation for the authoritative
+// refresh, so b.positions is not overwritten with an empty/stale snapshot.
+func TestListen_FillRefreshSurvivesCanceledContext(t *testing.T) {
+	is := assert.New(t)
+	must := require.New(t)
+
+	ctrl := gomock.NewController(t)
+	mk := marketmock.NewMockMarket(ctrl)
+	mk.EXPECT().AccountBalance(gomock.Any()).Return(decimal.NewFromInt(100_000)).AnyTimes()
+	mk.EXPECT().Commission().Return(decimal.Zero).AnyTimes()
+	mk.EXPECT().Order(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
+	// A context-aware adapter: it aborts (returns nil) when the context is canceled,
+	// reports no position before the fill, and the AAA position after. Starting empty
+	// means the final assertion can only succeed if the fill refresh actually ran
+	// with a non-canceled context — not from constructor seeding.
+	filled := false
+	mk.EXPECT().AccountPositions(gomock.Any()).DoAndReturn(func(ctx context.Context) []position.Position {
+		if ctx.Err() != nil || !filled {
+			return nil
+		}
+		return []position.Position{
+			{Item: &item.Item{Code: "AAA"}, Size: decimal.NewFromInt(10), Price: decimal.NewFromInt(100)},
+		}
+	}).AnyTimes()
+
+	bc := eventmock.NewMockBroadcaster(ctrl)
+	bc.EXPECT().BroadCast(gomock.Any()).AnyTimes()
+	bc.EXPECT().BroadCastContext(gomock.Any(), gomock.Any()).Return(true).AnyTimes()
+
+	bk := broker.NewDefaultBroker(bc, mk, slog.New(slog.DiscardHandler)) // seeds empty positions
+
+	o := buyLimit("AAA", 10, 100)
+	must.NoError(bk.Order(context.Background(), o, false))
+	filled = true // the exchange now reports the fill
+
+	// Drain the fill under an already-canceled context, as the shutdown barrier does.
+	canceled, cancel := context.WithCancel(context.Background())
+	cancel()
+	bk.Listen(canceled, market.ChangeOrderEvent{ID: o.ID(), Action: order.Completed})
+
+	pos, ok := bk.Position("AAA")
+	must.True(ok, "the refresh must not be aborted by the canceled drain context")
+	is.True(decimal.NewFromInt(10).Equal(pos.Size), "positions must reflect the fill, not an empty canceled read")
 }
 
 // TestScoped_StampsStrategyOnOrder verifies a scoped broker tags every order it

@@ -250,7 +250,7 @@ func (c *Cerebro) Start(ctx context.Context) error {
 	// a stale engine behind that would double-register and double-spawn.
 	c.engines = []engine.Engine{strategy.NewEngine(c.log, c.broker, runners, c.market, c.timeout)}
 
-	positions := c.market.AccountPositions()
+	positions := c.market.AccountPositions(ctx)
 	for i := range positions {
 		for j := range c.target {
 			if c.target[j].Code == positions[i].Item.Code {

@@ -34,10 +34,13 @@ const (
 type Market interface {
 	Stocks(ctx context.Context) []*item.Item
 	Candles(ctx context.Context, code string, level CandleType) (indicator.Candles, error)
-	Subscribe(handler TickEventHandler) error
+	Subscribe(ctx context.Context, handler TickEventHandler) error
 	Order(ctx context.Context, o order.Order) error
-	AccountPositions() []position.Position
-	AccountBalance() decimal.Decimal
+	AccountPositions(ctx context.Context) []position.Position
+	AccountBalance(ctx context.Context) decimal.Decimal
 	Events(ctx context.Context) <-chan any
+	// Commission is the percentage fee applied to an order's value. It must be a
+	// cheap, non-blocking accessor (a cached/constant value) — it is read inside the
+	// broker's lock and on every fill, so it takes no context and must not do I/O.
 	Commission() decimal.Decimal
 }

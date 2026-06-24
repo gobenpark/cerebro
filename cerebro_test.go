@@ -74,10 +74,10 @@ func TestStart_RetryAfterFailedRestoreDoesNotDuplicateEngine(t *testing.T) {
 
 	ctrl := gomock.NewController(t)
 	mk := marketmock.NewMockMarket(ctrl)
-	mk.EXPECT().AccountPositions().Return([]position.Position{}).AnyTimes()
-	mk.EXPECT().AccountBalance().Return(decimal.NewFromInt(100_000)).AnyTimes()
+	mk.EXPECT().AccountPositions(gomock.Any()).Return([]position.Position{}).AnyTimes()
+	mk.EXPECT().AccountBalance(gomock.Any()).Return(decimal.NewFromInt(100_000)).AnyTimes()
 	mk.EXPECT().Commission().Return(decimal.Zero).AnyTimes()
-	mk.EXPECT().Subscribe(gomock.Any()).Return(nil).AnyTimes()
+	mk.EXPECT().Subscribe(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 	mk.EXPECT().Order(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 	ev := make(chan any)
 	var ro <-chan any = ev
@@ -125,11 +125,11 @@ func TestStart_WiresBrokerAsEventListener(t *testing.T) {
 	events <- market.ChangeBalanceEvent{Message: "settled", Balance: decimal.NewFromInt(50_000)}
 	var ro <-chan any = events
 
-	mk.EXPECT().AccountPositions().Return([]position.Position{}).AnyTimes()
-	mk.EXPECT().AccountBalance().Return(decimal.NewFromInt(100_000)).AnyTimes()
+	mk.EXPECT().AccountPositions(gomock.Any()).Return([]position.Position{}).AnyTimes()
+	mk.EXPECT().AccountBalance(gomock.Any()).Return(decimal.NewFromInt(100_000)).AnyTimes()
 	mk.EXPECT().Commission().Return(decimal.Zero).AnyTimes()
 	mk.EXPECT().Events(gomock.Any()).Return(ro).AnyTimes()
-	mk.EXPECT().Subscribe(gomock.Any()).Return(nil).AnyTimes()
+	mk.EXPECT().Subscribe(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 
 	c := NewCerebro(
 		WithMarket(mk),

@@ -47,31 +47,31 @@ func (m *MockMarket) EXPECT() *MockMarketMockRecorder {
 }
 
 // AccountBalance mocks base method.
-func (m *MockMarket) AccountBalance() decimal.Decimal {
+func (m *MockMarket) AccountBalance(ctx context.Context) decimal.Decimal {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "AccountBalance")
+	ret := m.ctrl.Call(m, "AccountBalance", ctx)
 	ret0, _ := ret[0].(decimal.Decimal)
 	return ret0
 }
 
 // AccountBalance indicates an expected call of AccountBalance.
-func (mr *MockMarketMockRecorder) AccountBalance() *gomock.Call {
+func (mr *MockMarketMockRecorder) AccountBalance(ctx any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AccountBalance", reflect.TypeOf((*MockMarket)(nil).AccountBalance))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AccountBalance", reflect.TypeOf((*MockMarket)(nil).AccountBalance), ctx)
 }
 
 // AccountPositions mocks base method.
-func (m *MockMarket) AccountPositions() []position.Position {
+func (m *MockMarket) AccountPositions(ctx context.Context) []position.Position {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "AccountPositions")
+	ret := m.ctrl.Call(m, "AccountPositions", ctx)
 	ret0, _ := ret[0].([]position.Position)
 	return ret0
 }
 
 // AccountPositions indicates an expected call of AccountPositions.
-func (mr *MockMarketMockRecorder) AccountPositions() *gomock.Call {
+func (mr *MockMarketMockRecorder) AccountPositions(ctx any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AccountPositions", reflect.TypeOf((*MockMarket)(nil).AccountPositions))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AccountPositions", reflect.TypeOf((*MockMarket)(nil).AccountPositions), ctx)
 }
 
 // Candles mocks base method.
@@ -146,15 +146,15 @@ func (mr *MockMarketMockRecorder) Stocks(ctx any) *gomock.Call {
 }
 
 // Subscribe mocks base method.
-func (m *MockMarket) Subscribe(handler market.TickEventHandler) error {
+func (m *MockMarket) Subscribe(ctx context.Context, handler market.TickEventHandler) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Subscribe", handler)
+	ret := m.ctrl.Call(m, "Subscribe", ctx, handler)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // Subscribe indicates an expected call of Subscribe.
-func (mr *MockMarketMockRecorder) Subscribe(handler any) *gomock.Call {
+func (mr *MockMarketMockRecorder) Subscribe(ctx, handler any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Subscribe", reflect.TypeOf((*MockMarket)(nil).Subscribe), handler)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Subscribe", reflect.TypeOf((*MockMarket)(nil).Subscribe), ctx, handler)
 }

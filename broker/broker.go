@@ -277,13 +277,16 @@ func NewDefaultBroker(eventEngine event.Broadcaster, store market.Market, logger
 		EventEngine: eventEngine,
 		market:      store,
 		logger:      logger,
-		positions:   store.AccountPositions(),
-		balance:     store.AccountBalance(),
-		lots:        map[string]map[string]*lot{},
-		realized:    map[string]decimal.Decimal{},
-		fees:        map[string]decimal.Decimal{},
-		filled:      map[string]decimal.Decimal{},
-		lastPrice:   map[string]decimal.Decimal{},
+		// Seed settled cash and positions from the exchange at startup. There is no
+		// request context here, so use Background; the adapter must keep these reads
+		// time-bounded.
+		positions: store.AccountPositions(context.Background()),
+		balance:   store.AccountBalance(context.Background()),
+		lots:      map[string]map[string]*lot{},
+		realized:  map[string]decimal.Decimal{},
+		fees:      map[string]decimal.Decimal{},
+		filled:    map[string]decimal.Decimal{},
+		lastPrice: map[string]decimal.Decimal{},
 	}
 }
 
@@ -446,9 +449,12 @@ func (b *Broker) Position(ticker string) (position.Position, bool) {
 }
 
 // refreshPositions pulls the latest positions from the market. The market call
-// runs outside the lock to keep the critical section short.
-func (b *Broker) refreshPositions() {
-	positions := b.market.AccountPositions()
+// runs outside the lock to keep the critical section short. It uses WithoutCancel
+// so a shutdown-canceled listener context cannot abort the read and overwrite the
+// authoritative snapshot with an empty/stale result; a market adapter must bound
+// the call with its own timeout.
+func (b *Broker) refreshPositions(ctx context.Context) {
+	positions := b.market.AccountPositions(context.WithoutCancel(ctx))
 	b.mu.Lock()
 	b.positions = positions
 	b.mu.Unlock()
@@ -458,7 +464,7 @@ func (b *Broker) Listen(ctx context.Context, e any) {
 	switch evt := e.(type) {
 	case order.Order:
 		if evt.Status() == order.Submitted {
-			b.refreshPositions()
+			b.refreshPositions(ctx)
 		}
 	case indicator.Tick:
 		// Remember the latest price per code so a market fill that carries no price
@@ -492,7 +498,12 @@ func (b *Broker) applyOrderChange(ctx context.Context, evt market.ChangeOrderEve
 	// both atomically means a fill's exposure is never momentarily absent from
 	// both the open set and positions, which would let the risk gate under-count
 	// it if a strategy places an order in reaction to the fill notification.
-	positions := b.market.AccountPositions()
+	//
+	// WithoutCancel: this refresh is the authoritative half of completing a fill, so
+	// a shutdown-canceled listener context must not abort it and leave b.positions
+	// overwritten with an empty/stale snapshot while the order is still completed.
+	// The adapter is responsible for bounding the call with its own timeout.
+	positions := b.market.AccountPositions(context.WithoutCancel(ctx))
 
 	b.mu.Lock()
 	idx := slices.IndexFunc(b.orders, func(od order.Order) bool {

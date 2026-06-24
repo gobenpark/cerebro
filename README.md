@@ -89,10 +89,10 @@ import (
 //
 //	Stocks(ctx) []*item.Item
 //	Candles(ctx, code, level) (indicator.Candles, error)
-//	Subscribe(handler market.TickEventHandler) error
+//	Subscribe(ctx, handler market.TickEventHandler) error
 //	Order(ctx, o order.Order) error
-//	AccountPositions() []position.Position
-//	AccountBalance() decimal.Decimal
+//	AccountPositions(ctx) []position.Position
+//	AccountBalance(ctx) decimal.Decimal
 //	Events(ctx) <-chan any
 //	Commission() decimal.Decimal
 type exchange struct{}
@@ -105,19 +105,22 @@ func (e *exchange) Candles(ctx context.Context, code string, level market.Candle
 
 // Subscribe is called once per target item; start streaming its ticks here.
 // The handler reports which items to subscribe.
-func (e *exchange) Subscribe(handler market.TickEventHandler) error { panic("implement me") }
+func (e *exchange) Subscribe(ctx context.Context, handler market.TickEventHandler) error {
+	panic("implement me")
+}
 
 // Order submits an order to the exchange.
 func (e *exchange) Order(ctx context.Context, o order.Order) error { panic("implement me") }
 
-func (e *exchange) AccountPositions() []position.Position { panic("implement me") }
-func (e *exchange) AccountBalance() decimal.Decimal       { panic("implement me") }
+func (e *exchange) AccountPositions(ctx context.Context) []position.Position { panic("implement me") }
+func (e *exchange) AccountBalance(ctx context.Context) decimal.Decimal       { panic("implement me") }
 
 // Events streams market events to Cerebro: indicator.Tick for price updates and
 // market.ChangeOrderEvent / market.ChangeBalanceEvent for fills and settlement.
 func (e *exchange) Events(ctx context.Context) <-chan any { panic("implement me") }
 
-// Commission is the percentage fee applied to an order's value.
+// Commission is the percentage fee applied to an order's value. It must be a
+// cheap, non-blocking accessor (no I/O) — it is read on every fill.
 func (e *exchange) Commission() decimal.Decimal { panic("implement me") }
 ```
 

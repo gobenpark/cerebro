@@ -67,7 +67,7 @@ func TestEngine_SubscribeFailureStartsNoRunners(t *testing.T) {
 
 	ctrl := gomock.NewController(t)
 	mk := marketmock.NewMockMarket(ctrl)
-	mk.EXPECT().Subscribe(gomock.Any()).Return(errors.New("boom")).AnyTimes()
+	mk.EXPECT().Subscribe(gomock.Any(), gomock.Any()).Return(errors.New("boom")).AnyTimes()
 
 	runners := []strategy.Runner{{Strategy: stubStrategy{}, Items: []*item.Item{{Code: "AAA"}}}}
 	eng := strategy.NewEngine(slog.New(slog.DiscardHandler), nil, runners, mk, 0)
@@ -166,7 +166,7 @@ func TestEngine_PortfolioRunnerReceivesAllCodes(t *testing.T) {
 
 	ctrl := gomock.NewController(t)
 	mk := marketmock.NewMockMarket(ctrl)
-	mk.EXPECT().Subscribe(gomock.Any()).Return(nil).AnyTimes()
+	mk.EXPECT().Subscribe(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 
 	rec := &tickRecorder{codes: map[string]int{}}
 	runners := []strategy.Runner{{

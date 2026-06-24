@@ -126,7 +126,7 @@ func (s *Engine) Spawn(ctx context.Context) {
 	// staggered behind earlier ones, so a short backtest's feed does not finish
 	// before they start. If the market rejects the subscription, start nothing and
 	// leave no channels registered.
-	if err := s.store.Subscribe(func() []*item.Item { return union }); err != nil {
+	if err := s.store.Subscribe(ctx, func() []*item.Item { return union }); err != nil {
 		s.log.Error("subscribe", "err", err)
 		s.resetChannels()
 		return

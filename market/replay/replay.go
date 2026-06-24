@@ -119,7 +119,7 @@ func (r *Replay) Candles(_ context.Context, code string, _ market.CandleType) (i
 // Subscribe records the handler's codes and releases each one's emitter. A code
 // is replayed only after it is subscribed, so its consumer channel exists before
 // the first tick and untargeted codes are simply never emitted.
-func (r *Replay) Subscribe(handler market.TickEventHandler) error {
+func (r *Replay) Subscribe(_ context.Context, handler market.TickEventHandler) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	for _, it := range handler() {
@@ -142,7 +142,7 @@ func (r *Replay) Order(_ context.Context, o order.Order) error {
 	return nil
 }
 
-func (r *Replay) AccountPositions() []position.Position {
+func (r *Replay) AccountPositions(_ context.Context) []position.Position {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	out := make([]position.Position, 0, len(r.positions))
@@ -154,7 +154,7 @@ func (r *Replay) AccountPositions() []position.Position {
 	return out
 }
 
-func (r *Replay) AccountBalance() decimal.Decimal {
+func (r *Replay) AccountBalance(_ context.Context) decimal.Decimal {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	return r.balance

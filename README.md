@@ -94,7 +94,7 @@ import (
 //	AccountPositions(ctx) []position.Position
 //	AccountBalance(ctx) decimal.Decimal
 //	Events(ctx) <-chan any
-//	Commission() decimal.Decimal
+//	Commission() market.Rate
 type exchange struct{}
 
 func (e *exchange) Stocks(ctx context.Context) []*item.Item { panic("implement me") }
@@ -123,9 +123,11 @@ func (e *exchange) AccountBalance(ctx context.Context) decimal.Decimal       { p
 // resets Cerebro's staleness watchdog (see WithFeedTimeout) during quiet periods.
 func (e *exchange) Events(ctx context.Context) <-chan any { panic("implement me") }
 
-// Commission is the percentage fee applied to an order's value. It must be a
-// cheap, non-blocking accessor (no I/O) — it is read on every fill.
-func (e *exchange) Commission() decimal.Decimal { panic("implement me") }
+// Commission is the fee rate applied to an order's value, as a market.Rate whose
+// unit is explicit at the build site — market.Percent(0.15) or market.Fraction(0.0015),
+// both 0.15%. It must be a cheap, non-blocking accessor (no I/O) — it is read on
+// every fill.
+func (e *exchange) Commission() market.Rate { panic("implement me") }
 ```
 
 ### 2. Implement your own strategy
@@ -250,7 +252,8 @@ func main() {
 | `WithMarket(market.Market)` | Exchange adapter (required). |
 | `WithStrategy(strategy.Strategy, codes...)` | Register one strategy over a universe of codes (omit codes for all targets; give several for a pairs/portfolio strategy). At least one strategy is required. |
 | `WithStrategyForEach(func(*item.Item) strategy.Strategy)` | Run a fresh strategy instance per target item (watchlist replication with isolated state). |
-| `WithTargetItem(...*item.Item)` | Items to trade (required). |
+| `WithTargetItem(...*item.Item)` | Items to trade (required unless a screener supplies them). |
+| `WithScreener(cerebro.Screener)` | Supply the watchlist dynamically: at Start its picks are merged (deduped) into the target set, so `WithStrategyForEach` spawns a strategy per selected item. |
 | `WithStrategyTimeout(time.Duration)` | Per-strategy `Run` timeout budget. |
 | `WithRisk(...risk.Rule)` | Pre-trade risk gate (position/order/rate limits). |
 | `WithRiskPolicy(name, risk.Policy)` | Per-strategy reactive exit (stop-loss / trailing-stop / take-profit). |
@@ -290,6 +293,8 @@ Cerebro is composed of a few cooperating parts:
   - RMA (Wilder moving average)
 - **Decimal money** — prices, sizes, balances, and order values use
   `shopspring/decimal`, so financial math carries no float64 rounding error.
+  Commission is a typed `market.Rate` built with `market.Percent` or
+  `market.Fraction`, so a fee's unit is explicit at the call site.
 - **Replay market** — `market/replay` streams historical candles and simulates
   fills locally, so strategies run end-to-end with no real exchange (see the
   Quickstart). `Done()` signals when a backtest run finishes.
@@ -304,6 +309,10 @@ Cerebro is composed of a few cooperating parts:
   trades them together — or replicate one per item across a watchlist with
   `cerebro.WithStrategyForEach`. See the runnable
   [`examples/pairs`](examples/pairs/main.go).
+- **Screening** — supply the watchlist dynamically with `cerebro.WithScreener`: at
+  Start its picks are merged (deduped) into the target set, so `WithStrategyForEach`
+  spawns a strategy per selected item. It is the seam connecting "what to trade"
+  (screening) to "when to trade" (the strategy).
 - **Strategy attribution** — each strategy submits through a broker handle scoped
   to its `Name()`, so orders and their fills are attributed back to it.
 - **Realized PnL & reporting** — the broker books realized PnL and fees per

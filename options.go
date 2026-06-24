@@ -40,6 +40,17 @@ func WithTargetItem(codes ...*item.Item) Option {
 	}
 }
 
+// WithScreener supplies the trading watchlist dynamically: at Start, Cerebro calls
+// Screen and merges the returned items into the target set (deduped), so
+// WithStrategyForEach spawns a strategy per selected item. It composes with
+// WithTargetItem — the union is traded. This is the seam that connects screening
+// ("what to trade") to strategy execution ("when to trade").
+func WithScreener(s Screener) Option {
+	return func(c *Cerebro) {
+		c.screener = s
+	}
+}
+
 // WithLogLevel sets the level of the default stderr logger. It is ignored when a
 // logger is supplied with WithLogger.
 func WithLogLevel(lvl slog.Level) Option {

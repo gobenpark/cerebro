@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"slices"
 	"sync"
 	"time"
 
@@ -42,6 +43,13 @@ type Cerebro struct {
 	broker *broker.Broker
 
 	target []*item.Item
+
+	// screener, when set, supplies the watchlist dynamically at Start by merging
+	// its picks into target (the dynamic counterpart of WithTargetItem).
+	screener Screener
+	// started guards Start: the screener merge mutates target, so Start is a
+	// one-shot — a repeat call is rejected rather than re-merging into stale state.
+	started bool
 
 	market market.Market
 
@@ -158,15 +166,15 @@ type forEachReg struct {
 // resolveRunners turns the strategy registrations into the flat list of runners
 // the engine executes, validating that referenced codes exist and that every
 // runner's name is unique (so order notifications route to exactly one runner).
-func (c *Cerebro) resolveRunners() ([]strategy.Runner, error) {
-	byCode := make(map[string]*item.Item, len(c.target))
-	for _, it := range c.target {
+func (c *Cerebro) resolveRunners(target []*item.Item) ([]strategy.Runner, error) {
+	byCode := make(map[string]*item.Item, len(target))
+	for _, it := range target {
 		byCode[it.Code] = it
 	}
 
 	var runners []strategy.Runner
 	for _, reg := range c.stratRegs {
-		items := c.target
+		items := target
 		if len(reg.codes) > 0 {
 			items = make([]*item.Item, 0, len(reg.codes))
 			seenCode := make(map[string]struct{}, len(reg.codes))
@@ -187,7 +195,7 @@ func (c *Cerebro) resolveRunners() ([]strategy.Runner, error) {
 		runners = append(runners, strategy.Runner{Strategy: reg.s, Items: items})
 	}
 	for _, reg := range c.forEachRegs {
-		for _, it := range c.target {
+		for _, it := range target {
 			runners = append(runners, strategy.Runner{Strategy: reg.factory(it), Items: []*item.Item{it}})
 		}
 	}
@@ -203,39 +211,92 @@ func (c *Cerebro) resolveRunners() ([]strategy.Runner, error) {
 	return runners, nil
 }
 
-// Start run cerebro
+// resolveTarget builds the effective watchlist for this run: a clone of the
+// configured target merged (deduped by code) with any screener picks. Cloning keeps
+// Start retryable — a failure never mutates c.target. A configured screener that
+// returns nothing is reported distinctly from a missing-target error, since an empty
+// screen (no name qualified today) is a common, expected case rather than misconfig.
+func (c *Cerebro) resolveTarget(ctx context.Context) ([]*item.Item, error) {
+	target := slices.Clone(c.target)
+	if c.screener != nil {
+		items, err := c.screener.Screen(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("screener: %w", err)
+		}
+		seen := make(map[string]struct{}, len(target))
+		for _, it := range target {
+			seen[it.Code] = struct{}{}
+		}
+		for _, it := range items {
+			if _, ok := seen[it.Code]; ok {
+				continue
+			}
+			seen[it.Code] = struct{}{}
+			target = append(target, it)
+		}
+		if len(target) == 0 {
+			return nil, fmt.Errorf("screener returned an empty watchlist and no target was set")
+		}
+	}
+	if len(target) == 0 {
+		return nil, fmt.Errorf("no target items set")
+	}
+	return target, nil
+}
+
+// validatePolicies rejects an enabled exit policy that names a strategy no runner
+// provides: its exits could never trigger (no fills would be attributed to an unknown
+// name), so a typo must fail fast. Disabled (empty) policies are inert and skipped.
+func (c *Cerebro) validatePolicies(runners []strategy.Runner) error {
+	if len(c.policies) == 0 {
+		return nil
+	}
+	known := make(map[string]struct{}, len(runners))
+	for _, r := range runners {
+		known[r.Strategy.Name()] = struct{}{}
+	}
+	for name, p := range c.policies {
+		if !p.Enabled() {
+			continue
+		}
+		if _, ok := known[name]; !ok {
+			return fmt.Errorf("risk policy references unknown strategy %q", name)
+		}
+	}
+	return nil
+}
+
+// Start run cerebro. It is one-shot: the screener merge mutates target, so a
+// second call is rejected.
 func (c *Cerebro) Start(ctx context.Context) error {
-	// Validate before spawning anything so a bad config leaks no goroutines.
-	if len(c.target) == 0 {
-		return fmt.Errorf("error need target setting")
+	if c.started {
+		return fmt.Errorf("cerebro: Start called more than once")
 	}
 
-	if len(c.stratRegs) == 0 && len(c.forEachRegs) == 0 {
-		return fmt.Errorf("error empty strategies")
-	}
-
-	// Resolve registrations into the runners the engine executes. This validates
-	// referenced codes and name uniqueness, so a bad config fails before anything spawns.
-	runners, err := c.resolveRunners()
+	// Resolve and validate the run configuration before spawning anything, so a bad
+	// config fails fast and leaks no goroutines.
+	target, err := c.resolveTarget(ctx)
 	if err != nil {
 		return err
 	}
-
-	// A policy must name a running strategy, else its exits could never trigger
-	// (no fills would be attributed to an unknown name). Fail fast on a typo.
-	if len(c.policies) > 0 {
-		known := make(map[string]struct{}, len(runners))
-		for _, r := range runners {
-			known[r.Strategy.Name()] = struct{}{}
-		}
-		for name, p := range c.policies {
-			if !p.Enabled() {
-				continue // a disabled (empty) policy is dropped as inert; don't reject it
-			}
-			if _, ok := known[name]; !ok {
-				return fmt.Errorf("risk policy references unknown strategy %q", name)
-			}
-		}
+	if len(c.stratRegs) == 0 && len(c.forEachRegs) == 0 {
+		return fmt.Errorf("no strategies registered")
+	}
+	// resolveRunners validates referenced codes and name uniqueness; validatePolicies
+	// rejects an exit policy that names a strategy no runner provides.
+	runners, err := c.resolveRunners(target)
+	if err != nil {
+		return err
+	}
+	if err := c.validatePolicies(runners); err != nil {
+		return err
+	}
+	// Restore the persisted ledger (per-strategy PnL/fees/open lots) as the final
+	// fallible step — before any context or goroutine is created — so a restore
+	// failure returns with nothing to tear down and leaves the instance retryable.
+	// The broker is populated before listeners go live, so the first fill event sees it.
+	if err := c.broker.Restore(ctx); err != nil {
+		return fmt.Errorf("restore broker ledger: %w", err)
 	}
 
 	ctx, cancel := context.WithCancel(ctx)
@@ -249,121 +310,29 @@ func (c *Cerebro) Start(ctx context.Context) error {
 
 	c.log.Info("Cerebro starting ...")
 
-	// Restore any persisted ledger before listeners go live, so the broker's
-	// per-strategy PnL/fees/open lots are in place before the first fill event.
-	if err := c.broker.Restore(ctx); err != nil {
-		return fmt.Errorf("restore broker ledger: %w", err)
-	}
-
 	// Build the strategy engine only after every fallible step has succeeded, and
 	// assign (not append) so retrying Start after an earlier failure does not leave
 	// a stale engine behind that would double-register and double-spawn.
 	c.engines = []engine.Engine{strategy.NewEngine(c.log, c.broker, runners, c.market, c.timeout)}
 
-	positions := c.market.AccountPositions(ctx)
-	for i := range positions {
-		for j := range c.target {
-			if c.target[j].Code == positions[i].Item.Code {
-				c.target[j].UpdateStatus(item.Activate)
-			}
-		}
-	}
+	c.markHeldItemsActive(ctx, target)
+
+	// Every fallible step has succeeded: commit the resolved watchlist and latch
+	// the one-shot guard. A failure before here leaves the instance retryable
+	// (c.target and c.started unchanged).
+	c.target = target
+	c.started = true
 
 	c.eventWg.Go(func() {
 		c.eventEngine.Start(eventCtx)
 	})
 
-	// Register every listener synchronously BEFORE the market-events pump starts.
-	// Register blocks until the dispatcher has the listener live, so an event the
-	// market emits immediately cannot race ahead of registration and be dropped.
-	// The broker applies order/balance events (releasing reserved cash, updating
-	// balance); each strategy engine fans ticks and order updates out to its
-	// strategies. If ctx is already canceled, Register is a no-op and the AfterFunc
-	// hook below tears everything down.
-	c.eventEngine.Register(ctx, c.broker)
-	if c.monitor != nil {
-		// The monitor watches attributed fills and ticks to enforce exit policies.
-		c.eventEngine.Register(ctx, c.monitor)
-	}
-	for i := range c.engines {
-		c.eventEngine.Register(ctx, c.engines[i])
-	}
-
-	// Listeners are live; now spawn the strategy producers.
-	for i := range c.engines {
-		c.wg.Go(func() {
-			c.engines[i].Spawn(ctx)
-		})
-	}
-
+	// Register every listener synchronously BEFORE the producers run, then spawn the
+	// strategy producers and the market-events pump.
+	c.registerListeners(ctx)
+	c.spawnStrategies(ctx)
 	c.wg.Go(func() {
-		ch := c.market.Events(ctx)
-
-		// Live-feed staleness watchdog: when armed (WithFeedTimeout), it trips if no
-		// market-data event arrives in time, catching a feed that silently stops
-		// without closing its channel. It is reset by each data-plane event below and
-		// stopped when this pump returns. Disabled by default, so a backtest — whose
-		// replay channel closes cleanly at end of data — keeps its existing behavior.
-		var watchdog *time.Timer
-		if c.feedTimeout > 0 {
-			watchdog = time.AfterFunc(c.feedTimeout, func() {
-				c.onFeedLoss(fmt.Sprintf("no market data within %s", c.feedTimeout))
-			})
-			defer watchdog.Stop()
-		}
-
-		// Forward on the dispatcher's context (eventCtx), which outlives this pump
-		// (Shutdown joins the pump before stopping the dispatcher), so an event the
-		// market already emitted when the run context is canceled still reaches the
-		// listeners instead of being dropped mid-flight.
-		for {
-			select {
-			case e, ok := <-ch:
-				if !ok {
-					// A contract-compliant live adapter reconnects internally and keeps the
-					// channel open; closing it while the run is still live means the feed
-					// permanently ended, so fail safe when guarding is active. With no guard
-					// (e.g. a backtest) a close is the normal end of data.
-					if c.feedGuarded() && ctx.Err() == nil {
-						c.onFeedLoss("market event channel closed")
-					} else {
-						c.log.Info("event channel closed")
-					}
-					return
-				}
-				// Reset the staleness watchdog only on data-plane signals: ticks prove the
-				// market-data feed is flowing, and a FeedStatusEvent is the adapter's
-				// explicit heartbeat across a quiet reconnect. Sporadic order/balance
-				// events are not evidence the data feed is alive.
-				if watchdog != nil {
-					switch e.(type) {
-					case indicator.Tick, market.FeedStatusEvent:
-						watchdog.Reset(c.feedTimeout)
-					}
-				}
-				if !c.eventEngine.BroadCastContext(eventCtx, e) {
-					return
-				}
-			case <-ctx.Done():
-				c.log.Info("context done")
-				// Best-effort: forward events the market already emitted and buffered so
-				// an in-flight fill still reaches the broker, then stop without blocking
-				// on a market that never closes its channel.
-				for {
-					select {
-					case e, ok := <-ch:
-						if !ok {
-							return
-						}
-						if !c.eventEngine.BroadCastContext(eventCtx, e) {
-							return
-						}
-					default:
-						return
-					}
-				}
-			}
-		}
+		c.pumpEvents(ctx, eventCtx)
 	})
 
 	// Register the cancellation hook only after every goroutine and shutdown field
@@ -404,6 +373,118 @@ func (c *Cerebro) onFeedLoss(reason string) {
 		return
 	}
 	go c.Shutdown()
+}
+
+// markHeldItemsActive flags each target item the exchange already reports a position
+// in as active, so strategies see their pre-existing inventory at start.
+func (c *Cerebro) markHeldItemsActive(ctx context.Context, target []*item.Item) {
+	positions := c.market.AccountPositions(ctx)
+	for i := range positions {
+		for j := range target {
+			if target[j].Code == positions[i].Item.Code {
+				target[j].UpdateStatus(item.Activate)
+			}
+		}
+	}
+}
+
+// registerListeners wires every event consumer into the dispatcher synchronously,
+// before any producer runs. Register blocks until the listener is live, so an event
+// the market emits immediately cannot race ahead of registration and be dropped. The
+// broker applies order/balance events (releasing reserved cash, updating balance);
+// the monitor enforces exit policies; each strategy engine fans ticks and order
+// updates out to its strategies. If ctx is already canceled, Register is a no-op and
+// the AfterFunc hook in Start tears everything down.
+func (c *Cerebro) registerListeners(ctx context.Context) {
+	c.eventEngine.Register(ctx, c.broker)
+	if c.monitor != nil {
+		c.eventEngine.Register(ctx, c.monitor)
+	}
+	for i := range c.engines {
+		c.eventEngine.Register(ctx, c.engines[i])
+	}
+}
+
+// spawnStrategies launches each strategy engine's producer goroutines. Listeners are
+// already live, so the first ticks they emit are delivered rather than dropped.
+func (c *Cerebro) spawnStrategies(ctx context.Context) {
+	for i := range c.engines {
+		c.wg.Go(func() {
+			c.engines[i].Spawn(ctx)
+		})
+	}
+}
+
+// pumpEvents forwards the market's event stream to the dispatcher until the run
+// context is canceled or the feed ends. Events are broadcast on eventCtx, which
+// outlives this pump (Shutdown joins the pump before stopping the dispatcher), so an
+// event the market already emitted when the run context is canceled still reaches the
+// listeners instead of being dropped mid-flight.
+//
+// When live-feed guarding is armed it also runs a staleness watchdog: a feed that
+// silently stops (no events, channel never closed) trips onFeedLoss after feedTimeout,
+// and a channel close while the run is still live is itself treated as feed loss. The
+// watchdog is reset only by data-plane signals (a tick, or a FeedStatusEvent
+// heartbeat across a quiet reconnect); sporadic order/balance events do not count as
+// the data feed being alive.
+func (c *Cerebro) pumpEvents(ctx, eventCtx context.Context) {
+	ch := c.market.Events(ctx)
+
+	var watchdog *time.Timer
+	if c.feedTimeout > 0 {
+		watchdog = time.AfterFunc(c.feedTimeout, func() {
+			c.onFeedLoss(fmt.Sprintf("no market data within %s", c.feedTimeout))
+		})
+		defer watchdog.Stop()
+	}
+
+	for {
+		select {
+		case e, ok := <-ch:
+			if !ok {
+				// A contract-compliant live adapter reconnects internally and keeps the
+				// channel open; closing it while the run is still live means the feed
+				// permanently ended, so fail safe when guarding is active. With no guard
+				// (e.g. a backtest) a close is the normal end of data.
+				if c.feedGuarded() && ctx.Err() == nil {
+					c.onFeedLoss("market event channel closed")
+				} else {
+					c.log.Info("event channel closed")
+				}
+				return
+			}
+			if watchdog != nil {
+				switch e.(type) {
+				case indicator.Tick, market.FeedStatusEvent:
+					watchdog.Reset(c.feedTimeout)
+				}
+			}
+			if !c.eventEngine.BroadCastContext(eventCtx, e) {
+				return
+			}
+		case <-ctx.Done():
+			c.log.Info("context done")
+			c.drainPending(eventCtx, ch)
+			return
+		}
+	}
+}
+
+// drainPending forwards events the market already emitted and buffered, without
+// blocking, so an in-flight fill still reaches the broker after the run context is
+// canceled — then returns rather than blocking on a market that never closes its
+// channel.
+func (c *Cerebro) drainPending(eventCtx context.Context, ch <-chan any) {
+	for {
+		select {
+		case e, ok := <-ch:
+			if !ok || !c.eventEngine.BroadCastContext(eventCtx, e) {
+				return
+			}
+		default:
+			return
+		}
+	}
 }
 
 // Shutdown stops cerebro and blocks until everything has drained. Producers are

@@ -63,3 +63,58 @@ type Candle struct {
 	Amount        int64           `json:"amount"`
 	IndicateValue int64           `json:"indicateValue"`
 }
+
+// --- candle shape helpers ---
+//
+// These describe a single candle's geometry: body, wicks, and direction. Wick
+// and body ratios are expressed as a fraction of the full high-low range, so a
+// caller can write rules like "upper wick no longer than 20% of the range"
+// (c.UpperWickRatio() <= 0.2) without recomputing the parts.
+//
+// They assume a well-formed candle (High >= Open, Close, Low and Low <= Open,
+// Close), which the Resampler and exchange feeds guarantee. A malformed candle
+// (e.g. High < Low) yields non-physical negative ranges/wicks rather than an
+// error — the caller owns that precondition.
+
+// IsBull reports whether the candle closed above its open (양봉).
+func (c *Candle) IsBull() bool { return c.Close.GreaterThan(c.Open) }
+
+// IsBear reports whether the candle closed below its open (음봉).
+func (c *Candle) IsBear() bool { return c.Close.LessThan(c.Open) }
+
+// IsDoji reports whether the candle opened and closed at the same price.
+func (c *Candle) IsDoji() bool { return c.Close.Equal(c.Open) }
+
+// Range is the full high-low span of the candle.
+func (c *Candle) Range() decimal.Decimal { return c.High.Sub(c.Low) }
+
+// Body is the absolute distance between the open and close.
+func (c *Candle) Body() decimal.Decimal { return c.Close.Sub(c.Open).Abs() }
+
+// UpperWick is the distance from the body top (max of open/close) to the high.
+func (c *Candle) UpperWick() decimal.Decimal {
+	return c.High.Sub(decimal.Max(c.Open, c.Close))
+}
+
+// LowerWick is the distance from the low to the body bottom (min of open/close).
+func (c *Candle) LowerWick() decimal.Decimal {
+	return decimal.Min(c.Open, c.Close).Sub(c.Low)
+}
+
+// BodyRatio is the body as a fraction of the full range (0 when range is zero).
+func (c *Candle) BodyRatio() float64 { return shapeRatio(c.Body(), c.Range()) }
+
+// UpperWickRatio is the upper wick as a fraction of the full range.
+func (c *Candle) UpperWickRatio() float64 { return shapeRatio(c.UpperWick(), c.Range()) }
+
+// LowerWickRatio is the lower wick as a fraction of the full range.
+func (c *Candle) LowerWickRatio() float64 { return shapeRatio(c.LowerWick(), c.Range()) }
+
+// shapeRatio returns num/den as a float64, or 0 when den is zero (a flat candle
+// where high == low, e.g. a single-tick or limit-locked bar).
+func shapeRatio(num, den decimal.Decimal) float64 {
+	if den.IsZero() {
+		return 0
+	}
+	return num.Div(den).InexactFloat64()
+}

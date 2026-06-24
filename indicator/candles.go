@@ -20,6 +20,7 @@ import (
 	"math"
 
 	"github.com/samber/lo"
+	"github.com/shopspring/decimal"
 )
 
 type Candles []*Candle
@@ -343,4 +344,71 @@ func (c Candles) Envelope(period int, up, down float64) (sma, upper, lower []Ind
 		}
 	}
 	return
+}
+
+// Highest returns the highest High among the last period candles (or all of them
+// when fewer than period exist). It returns zero for an empty series. Useful for
+// prior-high / breakout proximity checks (e.g. how close price is to the recent
+// high).
+func (c Candles) Highest(period int) decimal.Decimal {
+	if c.Len() == 0 {
+		return decimal.Zero
+	}
+	// period <= 0 or period >= len means "the whole series". Subtract only when
+	// the window is a strict suffix, so a pathological negative period cannot
+	// overflow c.Len() - period into a positive (out-of-range) start.
+	start := 0
+	if period > 0 && period < c.Len() {
+		start = c.Len() - period
+	}
+	h := c[start].High
+	for _, cd := range c[start+1:] {
+		if cd.High.GreaterThan(h) {
+			h = cd.High
+		}
+	}
+	return h
+}
+
+// Lowest returns the lowest Low among the last period candles (or all of them
+// when fewer than period exist). It returns zero for an empty series.
+func (c Candles) Lowest(period int) decimal.Decimal {
+	if c.Len() == 0 {
+		return decimal.Zero
+	}
+	// See Highest: keep the subtraction in range so a negative period cannot
+	// overflow into an out-of-range start.
+	start := 0
+	if period > 0 && period < c.Len() {
+		start = c.Len() - period
+	}
+	l := c[start].Low
+	for _, cd := range c[start+1:] {
+		if cd.Low.LessThan(l) {
+			l = cd.Low
+		}
+	}
+	return l
+}
+
+// SMA returns the simple moving average of closing prices over period candles.
+// Like the other indicators, entries before period-1 are zero-valued so the
+// result aligns index-for-index with the candle series. period <= 0 is treated
+// as 1.
+func (c Candles) SMA(period int) []Indicate[float64] {
+	if period <= 0 {
+		period = 1
+	}
+	out := make([]Indicate[float64], c.Len())
+	for i := range c {
+		if i < period-1 {
+			out[i] = Indicate[float64]{Date: c[i].Date}
+			continue
+		}
+		out[i] = Indicate[float64]{
+			Data: c[i-period+1 : i+1].Mean(),
+			Date: c[i].Date,
+		}
+	}
+	return out
 }

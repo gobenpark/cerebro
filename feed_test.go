@@ -65,7 +65,7 @@ func feedMock(t *testing.T, events <-chan any) *marketmock.MockMarket {
 	mk := marketmock.NewMockMarket(ctrl)
 	mk.EXPECT().AccountPositions(gomock.Any()).Return([]position.Position{}).AnyTimes()
 	mk.EXPECT().AccountBalance(gomock.Any()).Return(decimal.NewFromInt(100_000)).AnyTimes()
-	mk.EXPECT().Commission().Return(decimal.Zero).AnyTimes()
+	mk.EXPECT().Commission().Return(market.Fraction(decimal.Zero)).AnyTimes()
 	mk.EXPECT().Subscribe(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 	mk.EXPECT().Order(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 	mk.EXPECT().Events(gomock.Any()).Return(events).AnyTimes()

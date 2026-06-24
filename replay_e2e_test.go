@@ -31,6 +31,7 @@ import (
 	"github.com/gobenpark/cerebro/broker"
 	"github.com/gobenpark/cerebro/indicator"
 	"github.com/gobenpark/cerebro/item"
+	"github.com/gobenpark/cerebro/market"
 	"github.com/gobenpark/cerebro/market/replay"
 	"github.com/gobenpark/cerebro/order"
 	"github.com/gobenpark/cerebro/risk"
@@ -92,7 +93,7 @@ func TestCerebro_ReplayEndToEnd(t *testing.T) {
 
 	mkt := replay.New(
 		replay.WithBalance(decimal.NewFromInt(100_000)),
-		replay.WithCommission(decimal.Zero),
+		replay.WithCommission(market.Fraction(decimal.Zero)),
 		replay.WithInterval(20*time.Millisecond),
 		replay.WithCandles("AAA", flatCandles("AAA", 40, 100)),
 	)
@@ -155,7 +156,7 @@ func TestCerebro_RiskPolicyExits(t *testing.T) {
 
 	mkt := replay.New(
 		replay.WithBalance(decimal.NewFromInt(100_000)),
-		replay.WithCommission(decimal.Zero),
+		replay.WithCommission(market.Fraction(decimal.Zero)),
 		replay.WithInterval(15*time.Millisecond),
 		replay.WithCandles("AAA", seriesCandles("AAA", prices...)),
 	)

@@ -49,8 +49,10 @@ type Market interface {
 	// (e.g. replay) legitimately closes the channel when its data is exhausted, so
 	// the watchdog is meant for live feeds, not backtests.
 	Events(ctx context.Context) <-chan any
-	// Commission is the percentage fee applied to an order's value. It must be a
-	// cheap, non-blocking accessor (a cached/constant value) — it is read inside the
-	// broker's lock and on every fill, so it takes no context and must not do I/O.
-	Commission() decimal.Decimal
+	// Commission is the fee rate applied to an order's value, as a Rate whose unit
+	// (percentage vs fraction) is fixed by its constructor — see market.Percent /
+	// market.Fraction. It must be a cheap, non-blocking accessor (a cached/constant
+	// value): it is read inside the broker's lock and on every fill, so it takes no
+	// context and must not do I/O.
+	Commission() Rate
 }

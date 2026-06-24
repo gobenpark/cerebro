@@ -30,6 +30,7 @@ import (
 	"github.com/gobenpark/cerebro/broker"
 	"github.com/gobenpark/cerebro/indicator"
 	"github.com/gobenpark/cerebro/item"
+	"github.com/gobenpark/cerebro/market"
 	"github.com/gobenpark/cerebro/market/replay"
 	"github.com/gobenpark/cerebro/order"
 	"github.com/gobenpark/cerebro/store"
@@ -77,7 +78,7 @@ func TestCerebro_PersistsAndRestoresLedgerAcrossRestart(t *testing.T) {
 	cb1 := cerebro.NewCerebro(
 		cerebro.WithMarket(replay.New(
 			replay.WithBalance(decimal.NewFromInt(100_000)),
-			replay.WithCommission(decimal.Zero),
+			replay.WithCommission(market.Fraction(decimal.Zero)),
 			replay.WithInterval(20*time.Millisecond),
 			replay.WithCandles("AAA", candles()),
 		)),
@@ -102,7 +103,7 @@ func TestCerebro_PersistsAndRestoresLedgerAcrossRestart(t *testing.T) {
 	cb2 := cerebro.NewCerebro(
 		cerebro.WithMarket(replay.New(
 			replay.WithBalance(decimal.NewFromInt(100_000)),
-			replay.WithCommission(decimal.Zero),
+			replay.WithCommission(market.Fraction(decimal.Zero)),
 			replay.WithInterval(20*time.Millisecond),
 			replay.WithCandles("AAA", candles()),
 		)),

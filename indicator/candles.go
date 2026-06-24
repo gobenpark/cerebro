@@ -38,6 +38,9 @@ func (c Candles) Swap(i, j int) {
 }
 
 func (c Candles) Mean() float64 {
+	if c.Len() == 0 {
+		return 0 // no samples: mean is undefined, avoid 0/0 = NaN
+	}
 	total := 0.0
 	for i := range c {
 		total += c[i].Close.InexactFloat64()
@@ -46,6 +49,9 @@ func (c Candles) Mean() float64 {
 }
 
 func (c Candles) StandardDeviation() float64 {
+	if c.Len() < 2 {
+		return 0 // sample variance needs >= 2 points (the n-1 denominator)
+	}
 	mean := c.Mean()
 	total := 0.0
 	for i := range c {
@@ -115,8 +121,14 @@ func (c Candles) MACD(fast, slow, signal int) (macdLine, signalLine []Indicate[f
 }
 
 // BollingerBand calculates the bollinger band over period candles, returning the
-// bottom, middle, and top bands. period must be greater than 1.
+// bottom, middle, and top bands. period must be greater than 1; a non-positive
+// period falls back to the conventional 20, matching the other indicators here so
+// a zero-value argument never collapses the window to a single point (which would
+// make the standard deviation undefined).
 func (c Candles) BollingerBand(period int) (bottom, mid, top []Indicate[float64]) {
+	if period <= 0 {
+		period = 20
+	}
 	candleLength := c.Len()
 	if candleLength < period {
 		return
@@ -161,6 +173,12 @@ func (c Candles) VolumeRatio(nday int) []Indicate[float64] {
 				up += float64(cds[i].Volume) / 2
 				down += float64(cds[i].Volume) / 2
 			}
+		}
+		if down == 0 {
+			// No down-volume in the window (every step up, or fewer than two
+			// candles): the ratio is undefined. Report 0 rather than +Inf, matching
+			// the 0 this function already uses for not-yet-computed entries.
+			return 0
 		}
 		return (up / down) * 100.0
 	}
@@ -271,8 +289,14 @@ func (c Candles) StochasticFast(d, period int) (K, D []Indicate[float64]) {
 			high = max(high, window[j].High.InexactFloat64())
 			low = min(low, window[j].Low.InexactFloat64())
 		}
+		// A flat window (high == low) has no range, so %K's position within it is
+		// undefined; use the neutral 50 instead of dividing 0/0 into a NaN.
+		k := 50.0
+		if rng := high - low; rng != 0 {
+			k = ((c[i].Close.InexactFloat64() - low) / rng) * 100
+		}
 		K[i] = Indicate[float64]{
-			Data: ((c[i].Close.InexactFloat64() - low) / (high - low)) * 100,
+			Data: k,
 			Date: c[i].Date,
 		}
 	}

@@ -45,8 +45,8 @@ import (
 type Replay struct {
 	mu         sync.Mutex
 	balance    decimal.Decimal
-	commission decimal.Decimal // percentage, e.g. 0.015 == 0.015%
-	interval   time.Duration   // pacing between emitted ticks
+	commission market.Rate
+	interval   time.Duration // pacing between emitted ticks
 	data       map[string]indicator.Candles
 	positions  map[string]position.Position
 	pending    []order.Order
@@ -69,8 +69,9 @@ type Option func(*Replay)
 // WithBalance seeds the simulated settled cash.
 func WithBalance(b decimal.Decimal) Option { return func(r *Replay) { r.balance = b } }
 
-// WithCommission sets the percentage fee charged on each fill.
-func WithCommission(c decimal.Decimal) Option { return func(r *Replay) { r.commission = c } }
+// WithCommission sets the fee rate charged on each fill. Build the Rate with
+// market.Percent or market.Fraction so the unit is explicit.
+func WithCommission(c market.Rate) Option { return func(r *Replay) { r.commission = c } }
 
 // WithInterval paces the gap between emitted ticks. A small non-zero value keeps
 // the async pipeline able to react (place orders) before the next tick.
@@ -161,7 +162,7 @@ func (r *Replay) AccountBalance(_ context.Context) decimal.Decimal {
 }
 
 // Commission is immutable after New, so it needs no lock.
-func (r *Replay) Commission() decimal.Decimal { return r.commission }
+func (r *Replay) Commission() market.Rate { return r.commission }
 
 // Events returns the simulated event stream and starts one emitter per loaded
 // code. The channel is closed once every emitter has finished (each targeted
@@ -308,7 +309,7 @@ func fillPriceFor(o order.Order, code string, price decimal.Decimal) (decimal.De
 // execute applies a fill to cash and the position book. Caller holds r.mu.
 func (r *Replay) execute(o order.Order, price decimal.Decimal) {
 	notional := price.Mul(o.Size())
-	fee := notional.Mul(r.commission).Div(decimal.NewFromInt(100))
+	fee := r.commission.Of(notional)
 	code := o.Item().Code
 	p := r.positions[code]
 	p.Item = o.Item()

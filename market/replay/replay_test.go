@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gobenpark/cerebro/market"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -20,7 +21,7 @@ func TestReplay_LimitBuyFillsAtLimitAndDebitsCash(t *testing.T) {
 	is := assert.New(t)
 	must := require.New(t)
 
-	r := New(WithBalance(dec(100_000)), WithCommission(decimal.Zero))
+	r := New(WithBalance(dec(100_000)), WithCommission(market.Fraction(decimal.Zero)))
 	o := order.NewOrder(&item.Item{Code: "AAA"}, order.Buy, order.Limit, dec(10), dec(100))
 	must.NoError(r.Order(context.Background(), o))
 
@@ -58,7 +59,7 @@ func TestReplay_CommissionDebitedOnFill(t *testing.T) {
 	must := require.New(t)
 
 	// 1% commission on 1000 notional -> 10 fee.
-	r := New(WithBalance(dec(100_000)), WithCommission(decimal.NewFromInt(1)))
+	r := New(WithBalance(dec(100_000)), WithCommission(market.Percent(decimal.NewFromInt(1))))
 	o := order.NewOrder(&item.Item{Code: "AAA"}, order.Buy, order.Limit, dec(10), dec(100))
 	must.NoError(r.Order(context.Background(), o))
 

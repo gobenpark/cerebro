@@ -90,10 +90,10 @@ func (mr *MockMarketMockRecorder) Candles(ctx, code, level any) *gomock.Call {
 }
 
 // Commission mocks base method.
-func (m *MockMarket) Commission() decimal.Decimal {
+func (m *MockMarket) Commission() market.Rate {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Commission")
-	ret0, _ := ret[0].(decimal.Decimal)
+	ret0, _ := ret[0].(market.Rate)
 	return ret0
 }
 

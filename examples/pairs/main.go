@@ -35,6 +35,7 @@ import (
 	"github.com/gobenpark/cerebro/broker"
 	"github.com/gobenpark/cerebro/indicator"
 	"github.com/gobenpark/cerebro/item"
+	"github.com/gobenpark/cerebro/market"
 	"github.com/gobenpark/cerebro/market/replay"
 	"github.com/gobenpark/cerebro/order"
 	"github.com/gobenpark/cerebro/strategy"
@@ -133,7 +134,7 @@ func main() {
 
 	mkt := replay.New(
 		replay.WithBalance(decimal.NewFromInt(1_000_000)),
-		replay.WithCommission(decimal.NewFromFloat(0.015)),
+		replay.WithCommission(market.Percent(decimal.NewFromFloat(0.015))),
 		replay.WithInterval(10*time.Millisecond),
 		replay.WithCandles("AAA", aaa),
 		replay.WithCandles("BBB", bbb),

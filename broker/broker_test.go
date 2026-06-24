@@ -40,7 +40,7 @@ func newBrokerUnderTest(t *testing.T, balance int64, commission float64) (*broke
 	mk := marketmock.NewMockMarket(ctrl)
 	mk.EXPECT().AccountPositions(gomock.Any()).Return([]position.Position{}).AnyTimes()
 	mk.EXPECT().AccountBalance(gomock.Any()).Return(decimal.NewFromInt(balance)).AnyTimes()
-	mk.EXPECT().Commission().Return(decimal.NewFromFloat(commission)).AnyTimes()
+	mk.EXPECT().Commission().Return(market.Percent(decimal.NewFromFloat(commission))).AnyTimes()
 
 	bc := eventmock.NewMockBroadcaster(ctrl)
 	bc.EXPECT().BroadCast(gomock.Any()).AnyTimes()
@@ -205,7 +205,7 @@ func TestListen_CompletedFillRefreshesPositions(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	mk := marketmock.NewMockMarket(ctrl)
 	mk.EXPECT().AccountBalance(gomock.Any()).Return(decimal.NewFromInt(100_000)).AnyTimes()
-	mk.EXPECT().Commission().Return(decimal.Zero).AnyTimes()
+	mk.EXPECT().Commission().Return(market.Fraction(decimal.Zero)).AnyTimes()
 	mk.EXPECT().Order(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 	// The exchange reports the position once the order has filled.
 	mk.EXPECT().AccountPositions(gomock.Any()).Return([]position.Position{
@@ -238,7 +238,7 @@ func TestListen_FillRefreshSurvivesCanceledContext(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	mk := marketmock.NewMockMarket(ctrl)
 	mk.EXPECT().AccountBalance(gomock.Any()).Return(decimal.NewFromInt(100_000)).AnyTimes()
-	mk.EXPECT().Commission().Return(decimal.Zero).AnyTimes()
+	mk.EXPECT().Commission().Return(market.Fraction(decimal.Zero)).AnyTimes()
 	mk.EXPECT().Order(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 	// A context-aware adapter: it aborts (returns nil) when the context is canceled,
 	// reports no position before the fill, and the AAA position after. Starting empty

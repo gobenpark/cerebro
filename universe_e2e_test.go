@@ -30,6 +30,7 @@ import (
 	"github.com/gobenpark/cerebro"
 	"github.com/gobenpark/cerebro/broker"
 	"github.com/gobenpark/cerebro/item"
+	"github.com/gobenpark/cerebro/market"
 	"github.com/gobenpark/cerebro/market/replay"
 	"github.com/gobenpark/cerebro/order"
 	"github.com/gobenpark/cerebro/strategy"
@@ -83,7 +84,7 @@ func TestCerebro_PortfolioStrategyTradesBothLegs(t *testing.T) {
 
 	mkt := replay.New(
 		replay.WithBalance(decimal.NewFromInt(1_000_000)),
-		replay.WithCommission(decimal.Zero),
+		replay.WithCommission(market.Fraction(decimal.Zero)),
 		replay.WithInterval(15*time.Millisecond),
 		replay.WithCandles("AAA", flatCandles("AAA", 40, 100)),
 		replay.WithCandles("BBB", flatCandles("BBB", 40, 200)),
@@ -156,7 +157,7 @@ func TestCerebro_ForEachReplicatesPerItem(t *testing.T) {
 
 	mkt := replay.New(
 		replay.WithBalance(decimal.NewFromInt(1_000_000)),
-		replay.WithCommission(decimal.Zero),
+		replay.WithCommission(market.Fraction(decimal.Zero)),
 		replay.WithInterval(15*time.Millisecond),
 		replay.WithCandles("AAA", flatCandles("AAA", 40, 100)),
 		replay.WithCandles("BBB", flatCandles("BBB", 40, 200)),
@@ -203,7 +204,7 @@ func TestCerebro_MultipleStrategiesShareSymbol(t *testing.T) {
 
 	mkt := replay.New(
 		replay.WithBalance(decimal.NewFromInt(1_000_000)),
-		replay.WithCommission(decimal.Zero),
+		replay.WithCommission(market.Fraction(decimal.Zero)),
 		replay.WithInterval(15*time.Millisecond),
 		replay.WithCandles("AAA", flatCandles("AAA", 40, 100)),
 	)

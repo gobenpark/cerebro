@@ -123,7 +123,7 @@ func TestCandles_SMA(t *testing.T) {
 	// Empty input yields an empty result (no panic, aligns index-for-index),
 	// including the non-positive normalize-to-1 path.
 	var empty Candles
-	assert.Len(t, empty.SMA(3), 0)
-	assert.Len(t, empty.SMA(0), 0)
-	assert.Len(t, empty.SMA(-1), 0)
+	assert.Empty(t, empty.SMA(3))
+	assert.Empty(t, empty.SMA(0))
+	assert.Empty(t, empty.SMA(-1))
 }

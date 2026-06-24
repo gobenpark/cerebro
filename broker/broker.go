@@ -18,7 +18,6 @@ package broker
 import (
 	"context"
 	"errors"
-	"fmt"
 	"log/slog"
 	"slices"
 	"sort"
@@ -117,12 +116,10 @@ func (b *Broker) snapshotLocked() risk.Snapshot {
 	}
 }
 
-var hundred = decimal.NewFromInt(100)
-
 // recordFillLocked folds one fill into the per-strategy PnL ledger. Caller holds
 // b.mu. A buy grows the lot; a sell realizes PnL on the closed quantity at the
-// lot's average cost and shrinks (or clears) it. Commission is a percentage, so
-// the fee is value * commission / 100.
+// lot's average cost and shrinks (or clears) it. The commission Rate carries its
+// own unit, so the fee is rate.Of(value).
 func (b *Broker) recordFillLocked(strategy string, it *item.Item, action order.Action, size, price decimal.Decimal) {
 	lots := b.lots[strategy]
 	if lots == nil {
@@ -134,11 +131,11 @@ func (b *Broker) recordFillLocked(strategy string, it *item.Item, action order.A
 		l = &lot{item: it}
 		lots[it.Code] = l
 	}
-	commission := b.market.Commission()
+	rate := b.market.Commission()
 
 	switch action {
 	case order.Buy:
-		b.fees[strategy] = b.fees[strategy].Add(price.Mul(size).Mul(commission).Div(hundred))
+		b.fees[strategy] = b.fees[strategy].Add(rate.Of(price.Mul(size)))
 		l.cost = l.cost.Add(price.Mul(size))
 		l.size = l.size.Add(size)
 		if price.GreaterThan(l.peak) {
@@ -150,7 +147,7 @@ func (b *Broker) recordFillLocked(strategy string, it *item.Item, action order.A
 		sold := decimal.Min(size, l.size)
 		if sold.GreaterThan(decimal.Zero) {
 			avg := l.cost.Div(l.size)
-			b.fees[strategy] = b.fees[strategy].Add(price.Mul(sold).Mul(commission).Div(hundred))
+			b.fees[strategy] = b.fees[strategy].Add(rate.Of(price.Mul(sold)))
 			b.realized[strategy] = b.realized[strategy].Add(price.Sub(avg).Mul(sold))
 			l.cost = l.cost.Sub(avg.Mul(sold))
 			l.size = l.size.Sub(sold)
@@ -293,11 +290,11 @@ func NewDefaultBroker(eventEngine event.Broadcaster, store market.Market, logger
 // orderValue returns the cash an open order still commits, including commission.
 // It is based on the unfilled remainder (RemainPrice), so a partial fill releases
 // the reservation for the portion that has already settled. For a fresh order the
-// remainder equals the full size. Commission() is a percentage, so the fee is
-// value * commission / 100.
+// remainder equals the full size. The commission Rate carries its own unit, so
+// the fee is Commission().Of(value).
 func (b *Broker) orderValue(o order.Order) decimal.Decimal {
 	value := o.RemainPrice()
-	fee := value.Mul(b.market.Commission()).Div(decimal.NewFromInt(100))
+	fee := b.market.Commission().Of(value)
 	return value.Add(fee)
 }
 
@@ -340,18 +337,15 @@ func (b *Broker) Available() decimal.Decimal {
 }
 
 func (b *Broker) Order(ctx context.Context, o order.Order, safe bool) error {
+	// Pre-trade validation: return the error to the caller as the single handling
+	// point — the broker does not also log it (that would duplicate it in aggregators).
 	if o.Type() == order.Market && !o.Price().IsZero() {
-		b.logger.Error("invalid order price", "code", o.Item().Code, "price", o.Price(), "size", o.Size())
-		return fmt.Errorf("invalid order price, market order price must be set 0")
+		return ErrMarketOrderPrice
 	}
-
 	if o.Type() == order.Limit && o.Size().IsZero() {
-		b.logger.Error("invalid order size", "code", o.Item().Code, "price", o.Price(), "size", o.Size())
 		return ErrOrderSizeIsZero
 	}
-
 	if o.Type() == order.Limit && o.Price().IsZero() {
-		b.logger.Error("invalid order price", "code", o.Item().Code, "price", o.Price(), "size", o.Size())
 		return ErrPriceIsZero
 	}
 

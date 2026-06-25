@@ -253,7 +253,7 @@ func TestCerebro_DisabledOverrideClearsRiskAware(t *testing.T) {
 
 	cb := cerebro.NewCerebro(
 		cerebro.WithMarket(mkt),
-		cerebro.WithScreener(cerebro.StaticScreener(&item.Item{Code: "AAA"}), func(it *item.Item) strategy.Strategy {
+		cerebro.WithScreener(listScreener{&item.Item{Code: "AAA"}}, func(it *item.Item) strategy.Strategy {
 			return &riskAwareBuyOnce{name: "ra:" + it.Code, policy: risk.Policy{TakeProfit: 0.05}}
 		}),
 		cerebro.WithRiskPolicy("ra:AAA", risk.Policy{}), // explicit disable clears the declared take-profit
@@ -321,7 +321,7 @@ func TestCerebro_RiskAwareExits_ForEach(t *testing.T) {
 
 	cb := cerebro.NewCerebro(
 		cerebro.WithMarket(mkt),
-		cerebro.WithScreener(cerebro.StaticScreener(&item.Item{Code: "AAA"}), func(it *item.Item) strategy.Strategy {
+		cerebro.WithScreener(listScreener{&item.Item{Code: "AAA"}}, func(it *item.Item) strategy.Strategy {
 			return &riskAwareBuyOnce{name: "ra:" + it.Code, policy: risk.Policy{TakeProfit: 0.05}}
 		}),
 		cerebro.WithLogger(slog.New(slog.DiscardHandler)),

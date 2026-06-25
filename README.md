@@ -220,20 +220,16 @@ import (
 func main() {
 	cb := cerebro.NewCerebro(
 		cerebro.WithMarket(&exchange{}),
-		// Run a fresh MyStrategy per screened item. StaticScreener wraps a fixed list;
-		// swap in a streaming Screener (e.g. a "top by turnover" feed with your filter)
-		// for a dynamic, real-time watchlist that spawns and retires per-item strategies
-		// as it changes. For one strategy over a fixed, explicit universe instead, use
-		// cerebro.WithStrategy(&PairsStrategy{}, "KRW-BTC", "KRW-ETH").
-		cerebro.WithScreener(
-			cerebro.StaticScreener(
-				&item.Item{Code: "KRW-BTC"},
-				&item.Item{Code: "KRW-ETH"},
-			),
-			func(it *item.Item) strategy.Strategy {
-				return &MyStrategy{code: it.Code}
-			},
-		),
+		// Trade an explicit, fixed universe with one strategy (give several codes for a
+		// pairs/portfolio strategy that decides over them in one Run):
+		cerebro.WithStrategy(&MyStrategy{code: "KRW-BTC"}, "KRW-BTC"),
+		// Or drive a dynamic, real-time watchlist from a streaming screener — a fresh
+		// MyStrategy is spawned per screened item and retired (per the eviction policy)
+		// when it drops out:
+		//
+		//	cerebro.WithScreener(myScreener, func(it *item.Item) strategy.Strategy {
+		//		return &MyStrategy{code: it.Code}
+		//	}, cerebro.WithEviction(cerebro.Flatten)),
 		cerebro.WithStrategyTimeout(5*time.Second),
 		cerebro.WithLogLevel(slog.LevelInfo),
 		// Or route logs into your own pipeline: cerebro.WithLogger(myLogger).
@@ -259,7 +255,7 @@ func main() {
 | --- | --- |
 | `WithMarket(market.Market)` | Exchange adapter (required). |
 | `WithStrategy(strategy.Strategy, codes...)` | Register one strategy over a fixed, explicit universe (at least one code; give several for a pairs/portfolio strategy). |
-| `WithScreener(cerebro.Screener, factory, ...ScreenOption)` | Register a dynamic screening group: the screener streams watchlist snapshots and a per-item strategy is spawned from `factory` for each, retired (per the eviction policy) when it drops out. Call again for an independent group. `StaticScreener` wraps a fixed list. |
+| `WithScreener(cerebro.Screener, factory, ...ScreenOption)` | Register a dynamic screening group: the screener streams watchlist snapshots and a per-item strategy is spawned from `factory` for each, retired (per the eviction policy) when it drops out. Call again for an independent group. For a fixed universe, prefer `WithStrategy`. |
 | `WithEviction(cerebro.EvictionPolicy)` | A `WithScreener` group option: what to do with a dropped item's strategy — `KeepUntilFlat` (default), `Flatten`, `DropImmediately`, or your own. |
 | `WithStrategyTimeout(time.Duration)` | Per-strategy `Run` timeout budget. |
 | `WithRisk(...risk.Rule)` | Pre-trade risk gate (position/order/rate limits). |
@@ -318,8 +314,9 @@ Cerebro is composed of a few cooperating parts:
   group: the screener streams watchlist snapshots and a per-item strategy is spawned
   from `factory` for each screened item, then retired — per a `WithEviction` policy
   (`KeepUntilFlat` by default, or `Flatten`) — when it drops out. Register several
-  groups for several screener→strategy pipelines; `StaticScreener` wraps a fixed list.
-  It is the seam connecting "what to trade" (screening) to "when to trade" (strategy).
+  groups for several screener→strategy pipelines (a fixed universe is better expressed
+  with `WithStrategy`). It is the seam connecting "what to trade" (screening) to "when
+  to trade" (the strategy).
 - **Order book (호가)** — when the market adapter publishes `indicator.OrderBook`
   snapshots, each strategy receives them for its universe on `u.OrderBooks()`
   (best-first bids/asks with `BestBid` / `BestAsk` / `Spread` / `Mid` / `Imbalance`

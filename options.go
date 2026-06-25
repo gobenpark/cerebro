@@ -38,9 +38,9 @@ func WithMarket(s market.Market) Option {
 // snapshots, and for each screened item Cerebro spawns a per-item strategy from
 // factory, retiring it (per the eviction policy) when the item drops out. Call it
 // again for an independent group — its own screener, factory, and policy — so several
-// screeners can drive several strategies at once. Use StaticScreener for a fixed
-// list. The factory must give each instance a unique Name() (e.g. derived from the
-// item's Code) so orders attribute and route one-to-one.
+// screeners can drive several strategies at once. For a fixed, known universe prefer
+// WithStrategy(s, codes...). The factory must give each instance a unique Name() (e.g.
+// derived from the item's Code) so orders attribute and route one-to-one.
 func WithScreener(s Screener, factory func(*item.Item) strategy.Strategy, opts ...ScreenOption) Option {
 	return func(c *Cerebro) {
 		g := screenGroup{screener: s, factory: factory, evict: KeepUntilFlat}

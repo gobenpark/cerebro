@@ -36,6 +36,19 @@ import (
 	"github.com/gobenpark/cerebro/strategy"
 )
 
+// listScreener is a one-shot Screener for tests: it emits a fixed list once and
+// closes, driving the dynamic reconcile path over a known universe (the convenience
+// the public API leaves to callers, who in production usually use WithStrategy for a
+// fixed universe or a streaming screener for a dynamic one).
+type listScreener []*item.Item
+
+func (l listScreener) Screen(context.Context) <-chan []*item.Item {
+	ch := make(chan []*item.Item, 1)
+	ch <- []*item.Item(l)
+	close(ch)
+	return ch
+}
+
 // pairBuyer is a minimal multi-asset strategy: it buys each code in its universe
 // once, on the first tick it sees for that code. It proves a single Run observes
 // every leg of its universe and can trade them under one attribution name. Run is
@@ -164,7 +177,7 @@ func TestCerebro_ForEachReplicatesPerItem(t *testing.T) {
 
 	cb := cerebro.NewCerebro(
 		cerebro.WithMarket(mkt),
-		cerebro.WithScreener(cerebro.StaticScreener(&item.Item{Code: "AAA"}, &item.Item{Code: "BBB"}), func(it *item.Item) strategy.Strategy {
+		cerebro.WithScreener(listScreener{&item.Item{Code: "AAA"}, &item.Item{Code: "BBB"}}, func(it *item.Item) strategy.Strategy {
 			return &codeBuyer{name: "buy:" + it.Code}
 		}),
 		cerebro.WithLogger(slog.New(slog.DiscardHandler)),

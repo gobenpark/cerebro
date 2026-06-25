@@ -21,34 +21,18 @@ import (
 	"github.com/gobenpark/cerebro/item"
 )
 
-// Screener is the single source of the watchlist Cerebro trades. Screen streams
-// watchlist snapshots until ctx is canceled: each emitted value is the FULL set of
-// items to trade at that moment (a declarative snapshot, not a delta), and Cerebro
-// reconciles the running per-item strategies (WithStrategyForEach) to match —
-// spawning one for a newly added item and, per the EvictionPolicy, retiring one whose
-// item dropped out.
+// Screener is the source of a dynamic watchlist. Screen streams watchlist snapshots
+// until ctx is canceled: each emitted value is the FULL set of items to trade at that
+// moment (a declarative snapshot, not a delta), and the reconciler converges the
+// running per-item strategies (WithScreener's factory) to match — spawning one for a
+// newly added item and, per the EvictionPolicy, retiring one whose item dropped out.
 //
 // A streaming source (e.g. a websocket "top by turnover" feed with the user's filter
-// applied) drives dynamic, real-time screening; StaticScreener wraps a fixed list for
-// backtests or a known universe. Close the channel when no more snapshots will come
-// (a static screen, or a feed that ends); a live source may leave it open until ctx
-// is canceled. Cerebro stops reading on shutdown regardless.
+// applied) drives dynamic, real-time screening. Close the channel when no more
+// snapshots will come (a feed that ends, or a one-shot screen that emits a single
+// fixed list); a live source may leave it open until ctx is canceled. Cerebro stops
+// reading on shutdown regardless. A fixed, known universe is usually better expressed
+// with WithStrategy(s, codes...) than a one-shot screener.
 type Screener interface {
 	Screen(ctx context.Context) <-chan []*item.Item
-}
-
-// StaticScreener adapts a fixed list of items to the streaming Screener model: it
-// emits the items once and closes, so reconcile spawns a strategy per item and then
-// has nothing more to do. Use it for backtests or a universe known up front.
-func StaticScreener(items ...*item.Item) Screener {
-	return staticScreener(items)
-}
-
-type staticScreener []*item.Item
-
-func (s staticScreener) Screen(_ context.Context) <-chan []*item.Item {
-	out := make(chan []*item.Item, 1)
-	out <- []*item.Item(s)
-	close(out)
-	return out
 }

@@ -415,6 +415,31 @@ func (c Candles) Lowest(period int) decimal.Decimal {
 	return l
 }
 
+// VWAP returns the anchored (session-cumulative) volume-weighted average price:
+// at each candle, sum(typical*volume)/sum(volume) accumulated from the series
+// start, where typical = (high+low+close)/3. The anchor is the first candle, so
+// callers scope the session by the slice they pass (e.g. only the current day's
+// candles). The result aligns index-for-index with the series; a prefix whose
+// cumulative volume is zero yields 0, since VWAP is undefined without volume —
+// matching the rest of the package, which reports 0 for undefined values.
+func (c Candles) VWAP() []Indicate[float64] {
+	out := make([]Indicate[float64], c.Len())
+	three := decimal.NewFromInt(3)
+	var pv, vol float64
+	for i, cd := range c {
+		typical := cd.High.Add(cd.Low).Add(cd.Close).Div(three).InexactFloat64()
+		v := float64(cd.Volume)
+		pv += typical * v
+		vol += v
+		data := 0.0
+		if vol != 0 {
+			data = pv / vol
+		}
+		out[i] = Indicate[float64]{Data: data, Date: cd.Date}
+	}
+	return out
+}
+
 // SMA returns the simple moving average of closing prices over period candles.
 // Like the other indicators, entries before period-1 are zero-valued so the
 // result aligns index-for-index with the candle series. period <= 0 is treated

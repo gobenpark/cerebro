@@ -109,3 +109,40 @@ func TestCandles_MACDReturnsEmptyWhenShorterThanSlow(t *testing.T) {
 	is.Empty(macd)
 	is.Empty(signal)
 }
+
+// TestCandles_VWAP covers the anchored VWAP: it accumulates the typical-price
+// (H+L+C)/3 weighted by volume from the series start, weights by volume (not a
+// plain mean), uses the typical price rather than the close, and a zero-volume
+// bar leaves the running value unchanged.
+func TestCandles_VWAP(t *testing.T) {
+	is := assert.New(t)
+	must := require.New(t)
+
+	hlcv := func(h, l, cl, vol int64) *indicator.Candle {
+		return &indicator.Candle{High: dec(h), Low: dec(l), Close: dec(cl), Volume: vol, Date: testBase}
+	}
+	cds := indicator.Candles{
+		hlcv(40, 10, 10, 1), // typical (40+10+10)/3 = 20, vol 1 -> proves typical != close (10)
+		hlcv(30, 30, 30, 3), // typical 30, vol 3
+		hlcv(50, 50, 50, 0), // zero-volume bar must not move the VWAP
+	}
+
+	v := cds.VWAP()
+	must.Len(v, 3)
+	is.InDelta(20.0, v[0].Data, 1e-9)  // 20*1 / 1 = 20 (typical, not close)
+	is.InDelta(27.5, v[1].Data, 1e-9)  // (20*1 + 30*3) / 4 = 110/4 = 27.5
+	is.InDelta(27.5, v[2].Data, 1e-9)  // zero-volume bar adds nothing
+	is.True(v[2].Date.Equal(testBase)) // result carries the candle's date
+}
+
+// TestCandles_VWAPZeroVolumeIsZero guards that a zero-volume prefix yields 0
+// rather than a NaN from dividing by zero cumulative volume.
+func TestCandles_VWAPZeroVolumeIsZero(t *testing.T) {
+	is := assert.New(t)
+
+	cds := indicator.Candles{
+		{High: dec(10), Low: dec(10), Close: dec(10), Volume: 0, Date: testBase},
+	}
+	v := cds.VWAP()
+	is.InDelta(0.0, v[0].Data, 1e-9)
+}

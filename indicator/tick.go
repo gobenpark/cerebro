@@ -30,14 +30,13 @@ const (
 )
 
 type Tick struct {
-	Date      time.Time         `json:"date"`
-	Code      string            `json:"code"`
-	AskBid    Spread            `json:"askBid"`
-	DiffRate  float64           `json:"diffRate"`
-	Price     decimal.Decimal   `json:"price"`
-	AccVolume int64             `json:"accVolume"`
-	Volume    int64             `json:"volume"`
-	Metadata  map[string]string `json:"metadata"`
+	Date      time.Time       `json:"date"`
+	Code      string          `json:"code"`
+	AskBid    Spread          `json:"askBid"`
+	DiffRate  float64         `json:"diffRate"`
+	Price     decimal.Decimal `json:"price"`
+	AccVolume int64           `json:"accVolume"`
+	Volume    int64           `json:"volume"`
 }
 
 type Ticks []Tick

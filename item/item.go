@@ -13,11 +13,10 @@ const (
 )
 
 type Item struct {
-	mu       sync.RWMutex
-	Code     string         `json:"code"`
-	Name     string         `json:"name"`
-	Metadata map[string]any `json:"metadata"`
-	status   Status
+	mu     sync.RWMutex
+	Code   string `json:"code"`
+	Name   string `json:"name"`
+	status Status
 }
 
 func (i *Item) String() string {

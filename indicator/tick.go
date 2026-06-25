@@ -37,6 +37,11 @@ type Tick struct {
 	Price     decimal.Decimal `json:"price"`
 	AccVolume int64           `json:"accVolume"`
 	Volume    int64           `json:"volume"`
+	// Extra carries adapter-specific fields the core Tick doesn't model — an LS
+	// adapter's intraday VWAP and turnover, say. It is nil when the adapter publishes
+	// none; a strategy that needs them type-asserts to the adapter's own struct, so
+	// the core Tick stays market-agnostic.
+	Extra any `json:"extra,omitempty"`
 }
 
 type Ticks []Tick

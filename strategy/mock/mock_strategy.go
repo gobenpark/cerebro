@@ -232,6 +232,20 @@ func (m *MockUniverse) EXPECT() *MockUniverseMockRecorder {
 	return m.recorder
 }
 
+// Extras mocks base method.
+func (m *MockUniverse) Extras() <-chan any {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Extras")
+	ret0, _ := ret[0].(<-chan any)
+	return ret0
+}
+
+// Extras indicates an expected call of Extras.
+func (mr *MockUniverseMockRecorder) Extras() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Extras", reflect.TypeOf((*MockUniverse)(nil).Extras))
+}
+
 // Items mocks base method.
 func (m *MockUniverse) Items() []*item.Item {
 	m.ctrl.T.Helper()
@@ -272,4 +286,42 @@ func (m *MockUniverse) Ticks() <-chan indicator.Tick {
 func (mr *MockUniverseMockRecorder) Ticks() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Ticks", reflect.TypeOf((*MockUniverse)(nil).Ticks))
+}
+
+// MockCoded is a mock of Coded interface.
+type MockCoded struct {
+	ctrl     *gomock.Controller
+	recorder *MockCodedMockRecorder
+	isgomock struct{}
+}
+
+// MockCodedMockRecorder is the mock recorder for MockCoded.
+type MockCodedMockRecorder struct {
+	mock *MockCoded
+}
+
+// NewMockCoded creates a new mock instance.
+func NewMockCoded(ctrl *gomock.Controller) *MockCoded {
+	mock := &MockCoded{ctrl: ctrl}
+	mock.recorder = &MockCodedMockRecorder{mock}
+	return mock
+}
+
+// EXPECT returns an object that allows the caller to indicate expected use.
+func (m *MockCoded) EXPECT() *MockCodedMockRecorder {
+	return m.recorder
+}
+
+// Code mocks base method.
+func (m *MockCoded) Code() string {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Code")
+	ret0, _ := ret[0].(string)
+	return ret0
+}
+
+// Code indicates an expected call of Code.
+func (mr *MockCodedMockRecorder) Code() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Code", reflect.TypeOf((*MockCoded)(nil).Code))
 }

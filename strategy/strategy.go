@@ -74,4 +74,78 @@ type Universe interface {
 	// Like Ticks, updates are delivered best-effort — a strategy that does not keep up
 	// drops snapshots rather than stalling the feed.
 	OrderBooks() <-chan indicator.OrderBook
+	// Extras is the merged pass-through stream of adapter-specific events the core
+	// Tick/OrderBook model doesn't cover — an LS adapter's program-trade flow, say.
+	// Cerebro routes every event a market emits on Events that it does not recognize as
+	// a tick, order-book, or order/balance/feed-status update here, tagged to a code
+	// when the event implements Coded (otherwise broadcast to all). It is
+	// market-agnostic by design: the core never inspects the value, so a strategy
+	// consumes it type-safely via Stream[T] rather than this raw channel. Carries values
+	// only when the adapter publishes such events; best-effort delivery (drop-if-behind)
+	// like Ticks.
+	//
+	// SINGLE CONSUMER: read a universe's Extras once — either one Stream[T] (a single
+	// adapter type) or one raw range with a type switch (several types). Two readers
+	// compete for the one channel and drop each other's values; see Stream.
+	Extras() <-chan any
+}
+
+// Coded is an optional capability an adapter-specific Extras event may implement so
+// Cerebro fans it out only to the universes subscribed to that code. An event that
+// does not implement it is broadcast to every universe's Extras stream, leaving the
+// per-code filtering to the strategy.
+type Coded interface {
+	Code() string
+}
+
+// Stream adapts a Universe's untyped Extras channel into a typed <-chan T: a goroutine
+// forwards only the Extras values whose dynamic type is T and drops the rest, so a
+// strategy consumes an adapter-specific feed with no per-message type assertions — the
+// same range pattern as u.Ticks(), but for market-specific data:
+//
+//	for pf := range strategy.Stream[ls.ProgramTick](ctx, u) { ... }
+//
+// The goroutine stops (closing the returned channel) when ctx is canceled or Extras
+// closes; pass the same ctx the strategy's Run received so a RemoveRunner teardown
+// stops it.
+//
+// CONSTRAINT — a universe's Extras has a SINGLE consumer. Extras is one shared channel,
+// so two Stream goroutines on the same universe compete for it: each drops the values
+// whose dynamic type isn't its own T, so a value taken by the wrong stream is lost
+// nondeterministically. Use Stream for the one-adapter-type case. A strategy that needs
+// MORE THAN ONE adapter-specific type must NOT call Stream twice — range u.Extras()
+// directly and type-switch instead:
+//
+//	for e := range u.Extras() {
+//	    switch ev := e.(type) {
+//	    case ls.ProgramTick:    // ...
+//	    case ls.SomeOtherEvent: // ...
+//	    }
+//	}
+func Stream[T any](ctx context.Context, u Universe) <-chan T {
+	out := make(chan T)
+	go func() {
+		defer close(out)
+		in := u.Extras()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case e, ok := <-in:
+				if !ok {
+					return
+				}
+				v, vok := e.(T)
+				if !vok {
+					continue
+				}
+				select {
+				case out <- v:
+				case <-ctx.Done():
+					return
+				}
+			}
+		}
+	}()
+	return out
 }

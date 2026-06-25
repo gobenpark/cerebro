@@ -49,6 +49,7 @@ type runnerHandle struct {
 	runner Runner
 	tickCh chan indicator.Tick
 	obCh   chan indicator.OrderBook
+	exCh   chan any
 	cancel context.CancelFunc
 }
 
@@ -63,7 +64,12 @@ type Engine struct {
 	// obChannels mirrors channels for order-book (호가) updates: an item code maps to
 	// the order-book channel of every running universe that includes it.
 	obChannels map[string][]chan indicator.OrderBook
-	runners    []Runner
+	// extraChannels mirrors channels for adapter-specific Extras events: an item code
+	// maps to the Extras channel of every running universe that includes it. A
+	// code-less Extras event (one not implementing Coded) fans out to every channel
+	// here, deduplicated.
+	extraChannels map[string][]chan any
+	runners       []Runner
 	timeout    time.Duration
 	// dynamic holds runners added at runtime via AddRunner (a screener-driven
 	// watchlist), keyed by strategy name, so RemoveRunner can stop exactly one. The
@@ -86,10 +92,11 @@ func NewEngine(log *slog.Logger, bk *broker.Broker, runners []Runner, store mark
 		log:        log,
 		store:      store,
 		timeout:    timeout,
-		channels:   map[string][]chan indicator.Tick{},
-		obChannels: map[string][]chan indicator.OrderBook{},
-		dynamic:    map[string]*runnerHandle{},
-		runners:    runners,
+		channels:      map[string][]chan indicator.Tick{},
+		obChannels:    map[string][]chan indicator.OrderBook{},
+		extraChannels: map[string][]chan any{},
+		dynamic:       map[string]*runnerHandle{},
+		runners:       runners,
 	}
 }
 
@@ -98,11 +105,13 @@ type universe struct {
 	items      []*item.Item
 	ticks      <-chan indicator.Tick
 	orderbooks <-chan indicator.OrderBook
+	extras     <-chan any
 }
 
 func (u *universe) Items() []*item.Item                    { return u.items }
 func (u *universe) Ticks() <-chan indicator.Tick           { return u.ticks }
 func (u *universe) OrderBooks() <-chan indicator.OrderBook { return u.orderbooks }
+func (u *universe) Extras() <-chan any                     { return u.extras }
 
 func (s *Engine) Spawn(ctx context.Context) {
 	// Register EVERY runner's tick channel up front — under each code in its
@@ -119,6 +128,7 @@ func (s *Engine) Spawn(ctx context.Context) {
 		r    Runner
 		ch   chan indicator.Tick
 		obch chan indicator.OrderBook
+		exch chan any
 	}
 	var (
 		actives []active
@@ -129,6 +139,7 @@ func (s *Engine) Spawn(ctx context.Context) {
 	s.mu.Lock()
 	s.channels = map[string][]chan indicator.Tick{}
 	s.obChannels = map[string][]chan indicator.OrderBook{}
+	s.extraChannels = map[string][]chan any{}
 	for i := range s.runners {
 		r := s.runners[i]
 		if len(r.Items) == 0 {
@@ -137,15 +148,17 @@ func (s *Engine) Spawn(ctx context.Context) {
 		// The buffers scale with the universe size.
 		ch := make(chan indicator.Tick, 100*len(r.Items))
 		obch := make(chan indicator.OrderBook, 100*len(r.Items))
+		exch := make(chan any, 100*len(r.Items))
 		for _, itm := range r.Items {
 			s.channels[itm.Code] = append(s.channels[itm.Code], ch)
 			s.obChannels[itm.Code] = append(s.obChannels[itm.Code], obch)
+			s.extraChannels[itm.Code] = append(s.extraChannels[itm.Code], exch)
 			if _, ok := seen[itm.Code]; !ok {
 				seen[itm.Code] = struct{}{}
 				union = append(union, itm)
 			}
 		}
-		actives = append(actives, active{r: r, ch: ch, obch: obch})
+		actives = append(actives, active{r: r, ch: ch, obch: obch, exch: exch})
 	}
 	s.mu.Unlock()
 
@@ -168,7 +181,7 @@ func (s *Engine) Spawn(ctx context.Context) {
 	for _, a := range actives {
 		// Hand each strategy a broker scoped to its name so its orders are attributed.
 		bk := s.broker.Scoped(a.r.Strategy.Name())
-		u := &universe{items: a.r.Items, ticks: a.ch, orderbooks: a.obch}
+		u := &universe{items: a.r.Items, ticks: a.ch, orderbooks: a.obch, extras: a.exch}
 		st := a.r.Strategy
 		// Run blocks until ctx is canceled, so it runs in its own goroutine.
 		s.wg.Go(func() {
@@ -183,6 +196,7 @@ func (s *Engine) resetChannels() {
 	s.mu.Lock()
 	s.channels = map[string][]chan indicator.Tick{}
 	s.obChannels = map[string][]chan indicator.OrderBook{}
+	s.extraChannels = map[string][]chan any{}
 	s.mu.Unlock()
 }
 
@@ -214,12 +228,14 @@ func (s *Engine) AddRunner(ctx context.Context, r Runner) error {
 	}
 	tickCh := make(chan indicator.Tick, 100*len(r.Items))
 	obCh := make(chan indicator.OrderBook, 100*len(r.Items))
+	exCh := make(chan any, 100*len(r.Items))
 	for _, itm := range r.Items {
 		s.channels[itm.Code] = append(s.channels[itm.Code], tickCh)
 		s.obChannels[itm.Code] = append(s.obChannels[itm.Code], obCh)
+		s.extraChannels[itm.Code] = append(s.extraChannels[itm.Code], exCh)
 	}
 	rctx, cancel := context.WithCancel(ctx)
-	h := &runnerHandle{runner: r, tickCh: tickCh, obCh: obCh, cancel: cancel}
+	h := &runnerHandle{runner: r, tickCh: tickCh, obCh: obCh, exCh: exCh, cancel: cancel}
 	s.dynamic[name] = h
 	s.mu.Unlock()
 
@@ -235,7 +251,7 @@ func (s *Engine) AddRunner(ctx context.Context, r Runner) error {
 	}
 
 	bk := s.broker.Scoped(name)
-	u := &universe{items: r.Items, ticks: tickCh, orderbooks: obCh}
+	u := &universe{items: r.Items, ticks: tickCh, orderbooks: obCh, extras: exCh}
 	st := r.Strategy
 	// Run blocks until rctx is canceled (by RemoveRunner or shutdown), so it runs in
 	// its own goroutine.
@@ -297,6 +313,12 @@ func (s *Engine) removeChannelsLocked(h *runnerHandle) {
 		if len(s.obChannels[itm.Code]) == 0 {
 			delete(s.obChannels, itm.Code)
 		}
+		s.extraChannels[itm.Code] = slices.DeleteFunc(s.extraChannels[itm.Code], func(c chan any) bool {
+			return c == h.exCh
+		})
+		if len(s.extraChannels[itm.Code]) == 0 {
+			delete(s.extraChannels, itm.Code)
+		}
 	}
 }
 
@@ -356,6 +378,43 @@ func (s *Engine) Listen(ctx context.Context, e any) {
 			case c <- et:
 			default:
 			}
+		}
+	case market.ChangeOrderEvent, market.ChangeBalanceEvent, market.FeedStatusEvent:
+		// cerebro-internal events — order/balance changes are the broker's, feed-status
+		// the watchdog's. None is strategy-facing data, so none leaks to Extras.
+	default:
+		// Any other event a market emitted is adapter-specific (e.g. program-trade flow):
+		// fan it out to the subscribed universes' Extras streams.
+		s.fanoutExtra(e)
+	}
+}
+
+// fanoutExtra delivers an adapter-specific Extras event to the universes that should
+// see it: those subscribed to e.Code() when e implements Coded, else every Extras
+// channel (deduplicated — a portfolio universe registers one channel under several
+// codes). Best-effort like ticks: a universe behind on Extras drops the event rather
+// than stalling the dispatcher.
+func (s *Engine) fanoutExtra(e any) {
+	s.mu.RLock()
+	var chs []chan any
+	if c, ok := e.(Coded); ok {
+		chs = slices.Clone(s.extraChannels[c.Code()])
+	} else {
+		seen := make(map[chan any]struct{})
+		for _, list := range s.extraChannels {
+			for _, c := range list {
+				if _, ok := seen[c]; !ok {
+					seen[c] = struct{}{}
+					chs = append(chs, c)
+				}
+			}
+		}
+	}
+	s.mu.RUnlock()
+	for _, c := range chs {
+		select {
+		case c <- e:
+		default:
 		}
 	}
 }

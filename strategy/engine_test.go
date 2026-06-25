@@ -17,6 +17,7 @@ import (
 	"github.com/gobenpark/cerebro/broker"
 	"github.com/gobenpark/cerebro/indicator"
 	"github.com/gobenpark/cerebro/item"
+	"github.com/gobenpark/cerebro/market"
 	marketmock "github.com/gobenpark/cerebro/market/mock"
 	"github.com/gobenpark/cerebro/order"
 	"github.com/gobenpark/cerebro/strategy"
@@ -299,6 +300,154 @@ func TestEngine_AddRunnerThenRemove(t *testing.T) {
 	eng.Listen(ctx, indicator.Tick{Code: "AAA", Price: decimal.NewFromInt(11)})
 	is.Never(func() bool { return rec.seen("AAA") > before }, 200*time.Millisecond, 20*time.Millisecond,
 		"a removed runner must no longer receive ticks")
+
+	cancel()
+	eng.Wait()
+}
+
+// progEvent is an adapter-specific Extras event tagged to a code (implements Coded).
+type progEvent struct {
+	code string
+	val  int
+}
+
+func (e progEvent) Code() string { return e.code }
+
+// blastEvent is a code-less Extras event — it implements no Coded, so the engine
+// broadcasts it to every universe.
+type blastEvent struct{ val int }
+
+// fakeUniverse is a minimal Universe whose Extras channel a test drives directly, to
+// unit-test Stream[T] in isolation from the engine's fan-out.
+type fakeUniverse struct{ extras chan any }
+
+func (f *fakeUniverse) Items() []*item.Item                    { return nil }
+func (f *fakeUniverse) Ticks() <-chan indicator.Tick           { return nil }
+func (f *fakeUniverse) OrderBooks() <-chan indicator.OrderBook { return nil }
+func (f *fakeUniverse) Extras() <-chan any                     { return f.extras }
+
+// TestStream_FiltersByTypeAndStopsOnCancel verifies Stream[T] forwards only the Extras
+// values whose dynamic type is T (dropping the rest), and that its goroutine exits when
+// ctx is canceled (goleak), closing the returned channel.
+func TestStream_FiltersByTypeAndStopsOnCancel(t *testing.T) {
+	defer goleak.VerifyNone(t)
+	is := assert.New(t)
+
+	fu := &fakeUniverse{extras: make(chan any, 8)}
+	ctx, cancel := context.WithCancel(context.Background())
+
+	out := strategy.Stream[progEvent](ctx, fu)
+	fu.extras <- blastEvent{val: 1}             // wrong type → dropped
+	fu.extras <- progEvent{code: "AAA", val: 2} // right type → forwarded
+
+	got := <-out
+	is.Equal("AAA", got.code, "Stream forwards only T-typed values")
+	is.Equal(2, got.val)
+
+	cancel()
+	_, ok := <-out
+	is.False(ok, "Stream closes its channel when ctx is canceled")
+}
+
+// extraRecorder consumes its universe's raw Extras stream with one goroutine (so no two
+// Stream[T] consumers compete for the single channel), counting Coded program events by
+// code and code-less blast events.
+type extraRecorder struct {
+	name   string
+	mu     sync.Mutex
+	byCode map[string]int
+	blasts int
+	other  int // any Extras value that is neither progEvent nor blastEvent — must stay 0
+}
+
+func (s *extraRecorder) Name() string { return s.name }
+func (s *extraRecorder) Run(ctx context.Context, u strategy.Universe, _ broker.Submitter) {
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case e, ok := <-u.Extras():
+			if !ok {
+				return
+			}
+			s.mu.Lock()
+			switch ev := e.(type) {
+			case progEvent:
+				s.byCode[ev.code]++
+			case blastEvent:
+				s.blasts++
+			default:
+				s.other++
+			}
+			s.mu.Unlock()
+		}
+	}
+}
+func (s *extraRecorder) NotifyOrder(order.Order) {}
+func (s *extraRecorder) NotifyTrade()            {}
+func (s *extraRecorder) NotifyFund()             {}
+func (s *extraRecorder) seen(code string) int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.byCode[code]
+}
+func (s *extraRecorder) blastCount() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.blasts
+}
+func (s *extraRecorder) otherCount() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.other
+}
+
+// TestEngine_RoutesExtrasByCodeAndBroadcast verifies the engine's Extras fan-out: a
+// Coded event reaches only the universe subscribed to its code, while a code-less one
+// broadcasts to every universe.
+func TestEngine_RoutesExtrasByCodeAndBroadcast(t *testing.T) {
+	defer goleak.VerifyNone(t)
+	is := assert.New(t)
+
+	ctrl := gomock.NewController(t)
+	mk := marketmock.NewMockMarket(ctrl)
+	mk.EXPECT().Subscribe(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
+
+	a := &extraRecorder{name: "ea", byCode: map[string]int{}}
+	b := &extraRecorder{name: "eb", byCode: map[string]int{}}
+	runners := []strategy.Runner{
+		{Strategy: a, Items: []*item.Item{{Code: "AAA"}}},
+		{Strategy: b, Items: []*item.Item{{Code: "BBB"}}},
+	}
+	eng := strategy.NewEngine(slog.New(slog.DiscardHandler), nil, runners, mk, 0)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	eng.Spawn(ctx)
+
+	// A Coded event is delivered only to the universe subscribed to its code.
+	eng.Listen(ctx, progEvent{code: "AAA", val: 1})
+	is.Eventually(func() bool { return a.seen("AAA") > 0 }, 2*time.Second, 10*time.Millisecond,
+		"a Coded extras event reaches the universe subscribed to its code")
+	is.Never(func() bool { return b.seen("AAA") > 0 }, 200*time.Millisecond, 20*time.Millisecond,
+		"a Coded extras event does not reach other codes' universes")
+
+	// A code-less event broadcasts to every universe.
+	eng.Listen(ctx, blastEvent{val: 9})
+	is.Eventually(func() bool { return a.blastCount() > 0 && b.blastCount() > 0 },
+		2*time.Second, 10*time.Millisecond, "a code-less extras event broadcasts to every universe")
+
+	// cerebro-internal events must NOT leak to Extras. Send them, then another blast: by
+	// the time the trailing blast lands (Eventually below), the internal events have been
+	// processed, so otherCount must still be 0.
+	eng.Listen(ctx, market.ChangeBalanceEvent{Balance: decimal.NewFromInt(100)})
+	eng.Listen(ctx, market.ChangeOrderEvent{ID: "x"})
+	eng.Listen(ctx, market.FeedStatusEvent{State: market.FeedConnected})
+	eng.Listen(ctx, blastEvent{val: 10})
+	is.Eventually(func() bool { return a.blastCount() >= 2 && b.blastCount() >= 2 },
+		2*time.Second, 10*time.Millisecond, "trailing blast lands after the internal events")
+	is.Zero(a.otherCount()+b.otherCount(), "cerebro-internal events must not leak to Extras")
 
 	cancel()
 	eng.Wait()

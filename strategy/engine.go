@@ -17,6 +17,7 @@ package strategy
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"slices"
 	"sync"
@@ -39,6 +40,18 @@ type Runner struct {
 	Items    []*item.Item
 }
 
+var _ engine.Engine = (*Engine)(nil)
+
+// runnerHandle tracks one dynamically added runner so RemoveRunner can tear exactly
+// it down: its per-code channels (to unregister from the fanout maps) and the cancel
+// that stops its Run goroutine.
+type runnerHandle struct {
+	runner Runner
+	tickCh chan indicator.Tick
+	obCh   chan indicator.OrderBook
+	cancel context.CancelFunc
+}
+
 type Engine struct {
 	log    *slog.Logger
 	store  market.Market
@@ -47,33 +60,49 @@ type Engine struct {
 	// includes that code, so Listen can fan a tick out to each. A portfolio runner's
 	// single channel is registered under each of its codes.
 	channels map[string][]chan indicator.Tick
-	runners  []Runner
-	timeout  time.Duration
-	// mu guards channels, which launch writes and Listen reads concurrently.
+	// obChannels mirrors channels for order-book (호가) updates: an item code maps to
+	// the order-book channel of every running universe that includes it.
+	obChannels map[string][]chan indicator.OrderBook
+	runners    []Runner
+	timeout    time.Duration
+	// dynamic holds runners added at runtime via AddRunner (a screener-driven
+	// watchlist), keyed by strategy name, so RemoveRunner can stop exactly one. The
+	// runners from Spawn are permanent and are not tracked here.
+	dynamic map[string]*runnerHandle
+	// mu guards channels, obChannels, runners, and dynamic, which launch/reconcile
+	// writes and Listen reads concurrently.
 	mu sync.RWMutex
 	// wg tracks the per-runner Run goroutines so Wait can join them on shutdown.
 	wg sync.WaitGroup
 }
 
-func NewEngine(log *slog.Logger, bk *broker.Broker, runners []Runner, store market.Market, timeout time.Duration) engine.Engine {
+// NewEngine returns the concrete *Engine. It satisfies engine.Engine for the event
+// dispatcher, and its AddRunner/RemoveRunner expose the runtime runner lifecycle a
+// screener-driven watchlist reconciles against. Spawn's runners are permanent; only
+// AddRunner's can be removed.
+func NewEngine(log *slog.Logger, bk *broker.Broker, runners []Runner, store market.Market, timeout time.Duration) *Engine {
 	return &Engine{
-		broker:   bk,
-		log:      log,
-		store:    store,
-		timeout:  timeout,
-		channels: map[string][]chan indicator.Tick{},
-		runners:  runners,
+		broker:     bk,
+		log:        log,
+		store:      store,
+		timeout:    timeout,
+		channels:   map[string][]chan indicator.Tick{},
+		obChannels: map[string][]chan indicator.OrderBook{},
+		dynamic:    map[string]*runnerHandle{},
+		runners:    runners,
 	}
 }
 
 // universe is the engine's Universe implementation handed to each Run.
 type universe struct {
-	items []*item.Item
-	ticks <-chan indicator.Tick
+	items      []*item.Item
+	ticks      <-chan indicator.Tick
+	orderbooks <-chan indicator.OrderBook
 }
 
-func (u *universe) Items() []*item.Item          { return u.items }
-func (u *universe) Ticks() <-chan indicator.Tick { return u.ticks }
+func (u *universe) Items() []*item.Item                    { return u.items }
+func (u *universe) Ticks() <-chan indicator.Tick           { return u.ticks }
+func (u *universe) OrderBooks() <-chan indicator.OrderBook { return u.orderbooks }
 
 func (s *Engine) Spawn(ctx context.Context) {
 	// Register EVERY runner's tick channel up front — under each code in its
@@ -81,14 +110,15 @@ func (s *Engine) Spawn(ctx context.Context) {
 	// a code's feed when it is subscribed, so registering all channels first
 	// guarantees that when a code begins emitting, every runner that trades it
 	// already has somewhere to receive its ticks. This matters when several runners
-	// share a code (two WithStrategy registrations over the same target, or a
+	// share a code (two WithStrategy registrations over the same watchlist, or a
 	// portfolio strategy alongside a per-item one): registering and subscribing
 	// per-runner would let a later runner miss the ticks emitted before it
 	// registered. A fresh map also drops channels from a previous run whose Run
 	// goroutines have exited.
 	type active struct {
-		r  Runner
-		ch chan indicator.Tick
+		r    Runner
+		ch   chan indicator.Tick
+		obch chan indicator.OrderBook
 	}
 	var (
 		actives []active
@@ -98,21 +128,24 @@ func (s *Engine) Spawn(ctx context.Context) {
 
 	s.mu.Lock()
 	s.channels = map[string][]chan indicator.Tick{}
+	s.obChannels = map[string][]chan indicator.OrderBook{}
 	for i := range s.runners {
 		r := s.runners[i]
 		if len(r.Items) == 0 {
 			continue
 		}
-		// The buffer scales with the universe size.
+		// The buffers scale with the universe size.
 		ch := make(chan indicator.Tick, 100*len(r.Items))
+		obch := make(chan indicator.OrderBook, 100*len(r.Items))
 		for _, itm := range r.Items {
 			s.channels[itm.Code] = append(s.channels[itm.Code], ch)
+			s.obChannels[itm.Code] = append(s.obChannels[itm.Code], obch)
 			if _, ok := seen[itm.Code]; !ok {
 				seen[itm.Code] = struct{}{}
 				union = append(union, itm)
 			}
 		}
-		actives = append(actives, active{r: r, ch: ch})
+		actives = append(actives, active{r: r, ch: ch, obch: obch})
 	}
 	s.mu.Unlock()
 
@@ -135,7 +168,7 @@ func (s *Engine) Spawn(ctx context.Context) {
 	for _, a := range actives {
 		// Hand each strategy a broker scoped to its name so its orders are attributed.
 		bk := s.broker.Scoped(a.r.Strategy.Name())
-		u := &universe{items: a.r.Items, ticks: a.ch}
+		u := &universe{items: a.r.Items, ticks: a.ch, orderbooks: a.obch}
 		st := a.r.Strategy
 		// Run blocks until ctx is canceled, so it runs in its own goroutine.
 		s.wg.Go(func() {
@@ -149,7 +182,122 @@ func (s *Engine) Spawn(ctx context.Context) {
 func (s *Engine) resetChannels() {
 	s.mu.Lock()
 	s.channels = map[string][]chan indicator.Tick{}
+	s.obChannels = map[string][]chan indicator.OrderBook{}
 	s.mu.Unlock()
+}
+
+// AddRunner spawns one runner at runtime, after Spawn — the path a screener-driven
+// watchlist uses to start a strategy as an item qualifies. It registers the runner's
+// per-code channels before subscribing (so the first ticks are not missed),
+// subscribes its codes incrementally, and launches Run under a per-runner context
+// derived from ctx so RemoveRunner can stop just this one. A runner with no items is
+// a no-op; a name already running is an error. On a subscribe failure it rolls back,
+// leaving nothing registered.
+func (s *Engine) AddRunner(ctx context.Context, r Runner) error {
+	if len(r.Items) == 0 {
+		return nil
+	}
+	name := r.Strategy.Name()
+
+	s.mu.Lock()
+	if _, ok := s.dynamic[name]; ok {
+		s.mu.Unlock()
+		return fmt.Errorf("strategy: runner %q already running", name)
+	}
+	// A dynamic runner must not collide with a permanent (Spawn) runner's name, or an
+	// attributed order would route to both and their ledgers would conflate.
+	for i := range s.runners {
+		if s.runners[i].Strategy.Name() == name {
+			s.mu.Unlock()
+			return fmt.Errorf("strategy: runner %q collides with a permanent runner", name)
+		}
+	}
+	tickCh := make(chan indicator.Tick, 100*len(r.Items))
+	obCh := make(chan indicator.OrderBook, 100*len(r.Items))
+	for _, itm := range r.Items {
+		s.channels[itm.Code] = append(s.channels[itm.Code], tickCh)
+		s.obChannels[itm.Code] = append(s.obChannels[itm.Code], obCh)
+	}
+	rctx, cancel := context.WithCancel(ctx)
+	h := &runnerHandle{runner: r, tickCh: tickCh, obCh: obCh, cancel: cancel}
+	s.dynamic[name] = h
+	s.mu.Unlock()
+
+	// Register-before-subscribe holds: the channels are already in the maps, so a tick
+	// arriving the moment the feed opens is routed rather than dropped.
+	if err := s.store.Subscribe(rctx, func() []*item.Item { return r.Items }); err != nil {
+		cancel()
+		s.mu.Lock()
+		s.removeChannelsLocked(h)
+		delete(s.dynamic, name)
+		s.mu.Unlock()
+		return fmt.Errorf("strategy: subscribe %q: %w", name, err)
+	}
+
+	bk := s.broker.Scoped(name)
+	u := &universe{items: r.Items, ticks: tickCh, orderbooks: obCh}
+	st := r.Strategy
+	// Run blocks until rctx is canceled (by RemoveRunner or shutdown), so it runs in
+	// its own goroutine.
+	s.wg.Go(func() {
+		st.Run(rctx, u, bk)
+	})
+	return nil
+}
+
+// RemoveRunner stops a runner added by AddRunner: it unregisters the runner's
+// channels from the fanout maps and cancels its Run (which returns on ctx.Done). The
+// channels are left to be garbage-collected rather than closed, so an in-flight
+// Listen fanout never sends on a closed channel. If the market adapter implements
+// market.Unsubscriber, the codes' feed is released; otherwise routing simply stops.
+// Removing an unknown, already-removed, or Spawn-permanent runner is a no-op.
+func (s *Engine) RemoveRunner(ctx context.Context, name string) {
+	s.mu.Lock()
+	h, ok := s.dynamic[name]
+	if !ok {
+		s.mu.Unlock()
+		return
+	}
+	s.removeChannelsLocked(h)
+	delete(s.dynamic, name)
+	// Only codes no longer routed to ANY runner are safe to unsubscribe;
+	// removeChannelsLocked deletes a code's entry when its last channel is gone, so an
+	// absent entry means no remaining user (dynamic or permanent). A code another live
+	// runner still trades must keep its feed.
+	var orphan []string
+	for _, it := range h.runner.Items {
+		if len(s.channels[it.Code]) == 0 {
+			orphan = append(orphan, it.Code)
+		}
+	}
+	s.mu.Unlock()
+
+	h.cancel()
+
+	if u, ok := s.store.(market.Unsubscriber); ok && len(orphan) > 0 {
+		if err := u.Unsubscribe(ctx, orphan); err != nil {
+			s.log.Info("unsubscribe", "strategy", name, "err", err)
+		}
+	}
+}
+
+// removeChannelsLocked drops h's channels from the per-code fanout maps by identity.
+// Caller holds s.mu.
+func (s *Engine) removeChannelsLocked(h *runnerHandle) {
+	for _, itm := range h.runner.Items {
+		s.channels[itm.Code] = slices.DeleteFunc(s.channels[itm.Code], func(c chan indicator.Tick) bool {
+			return c == h.tickCh
+		})
+		if len(s.channels[itm.Code]) == 0 {
+			delete(s.channels, itm.Code)
+		}
+		s.obChannels[itm.Code] = slices.DeleteFunc(s.obChannels[itm.Code], func(c chan indicator.OrderBook) bool {
+			return c == h.obCh
+		})
+		if len(s.obChannels[itm.Code]) == 0 {
+			delete(s.obChannels, itm.Code)
+		}
+	}
 }
 
 // Wait blocks until every Run goroutine has returned.
@@ -163,12 +311,25 @@ func (s *Engine) Listen(ctx context.Context, e any) {
 		// Route the order update to its owning strategy only. Unattributed orders
 		// (no strategy tag) go to every strategy, preserving prior behavior. Runner
 		// names are unique (enforced at startup), so an attributed order reaches
-		// exactly one runner.
+		// exactly one runner. Collect targets under the lock (dynamic runners are added
+		// and removed concurrently), then notify outside it so user code never runs
+		// while the lock is held.
 		owner := et.Strategy()
+		s.mu.RLock()
+		targets := make([]Strategy, 0, len(s.runners)+len(s.dynamic))
 		for i := range s.runners {
 			if owner == "" || s.runners[i].Strategy.Name() == owner {
-				s.runners[i].Strategy.NotifyOrder(et)
+				targets = append(targets, s.runners[i].Strategy)
 			}
+		}
+		for _, h := range s.dynamic {
+			if owner == "" || h.runner.Strategy.Name() == owner {
+				targets = append(targets, h.runner.Strategy)
+			}
+		}
+		s.mu.RUnlock()
+		for _, st := range targets {
+			st.NotifyOrder(et)
 		}
 	case indicator.Tick:
 		s.mu.RLock()
@@ -178,6 +339,18 @@ func (s *Engine) Listen(ctx context.Context, e any) {
 		// non-blocking: a runner that isn't keeping up (or has exited during
 		// shutdown) drops the tick instead of stalling delivery to the others or the
 		// dispatcher.
+		for _, c := range chs {
+			select {
+			case c <- et:
+			default:
+			}
+		}
+	case indicator.OrderBook:
+		s.mu.RLock()
+		chs := slices.Clone(s.obChannels[et.Code])
+		s.mu.RUnlock()
+		// Fan the order-book snapshot out to every runner subscribed to its code, with
+		// the same non-blocking, drop-if-behind delivery as ticks.
 		for _, c := range chs {
 			select {
 			case c <- et:

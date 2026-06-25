@@ -38,8 +38,10 @@ type Market interface {
 	Order(ctx context.Context, o order.Order) error
 	AccountPositions(ctx context.Context) []position.Position
 	AccountBalance(ctx context.Context) decimal.Decimal
-	// Events streams the adapter's ticks and order/balance changes until ctx is
-	// canceled. Liveness contract for a live adapter: it must survive a transient
+	// Events streams the adapter's ticks, order/balance changes, and optionally
+	// order-book snapshots (indicator.OrderBook, delivered to a strategy's
+	// Universe.OrderBooks) until ctx is canceled. Liveness contract for a live
+	// adapter: it must survive a transient
 	// disconnect by reconnecting internally and keeping this channel open — a drop
 	// must not close the channel. It SHOULD emit a FeedStatusEvent on disconnect and
 	// reconnect so operators see feed health and Cerebro's staleness watchdog
@@ -55,4 +57,13 @@ type Market interface {
 	// value): it is read inside the broker's lock and on every fill, so it takes no
 	// context and must not do I/O.
 	Commission() Rate
+}
+
+// Unsubscriber is an optional capability a Market adapter may implement so Cerebro
+// can release a set of codes' feed when a dynamic watchlist (a screener) drops them.
+// An adapter that does not implement it keeps streaming those codes; Cerebro then
+// simply stops routing their updates to any strategy. Like Subscribe, it may be
+// called more than once over a run as the watchlist churns.
+type Unsubscriber interface {
+	Unsubscribe(ctx context.Context, codes []string) error
 }

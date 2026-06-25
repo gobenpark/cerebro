@@ -93,7 +93,6 @@ func TestCerebro_PortfolioStrategyTradesBothLegs(t *testing.T) {
 	cb := cerebro.NewCerebro(
 		cerebro.WithMarket(mkt),
 		cerebro.WithStrategy(&pairBuyer{}, "AAA", "BBB"),
-		cerebro.WithTargetItem(&item.Item{Code: "AAA"}, &item.Item{Code: "BBB"}),
 		cerebro.WithLogger(slog.New(slog.DiscardHandler)),
 	)
 
@@ -149,7 +148,7 @@ func (s *codeBuyer) NotifyTrade()            {}
 func (s *codeBuyer) NotifyFund()             {}
 
 // TestCerebro_ForEachReplicatesPerItem verifies WithStrategyForEach instantiates
-// one strategy per target with isolated state and attribution: each instance
+// one strategy per watchlist with isolated state and attribution: each instance
 // trades only its own code and reports under its own name.
 func TestCerebro_ForEachReplicatesPerItem(t *testing.T) {
 	is := assert.New(t)
@@ -165,10 +164,9 @@ func TestCerebro_ForEachReplicatesPerItem(t *testing.T) {
 
 	cb := cerebro.NewCerebro(
 		cerebro.WithMarket(mkt),
-		cerebro.WithStrategyForEach(func(it *item.Item) strategy.Strategy {
+		cerebro.WithScreener(cerebro.StaticScreener(&item.Item{Code: "AAA"}, &item.Item{Code: "BBB"}), func(it *item.Item) strategy.Strategy {
 			return &codeBuyer{name: "buy:" + it.Code}
 		}),
-		cerebro.WithTargetItem(&item.Item{Code: "AAA"}, &item.Item{Code: "BBB"}),
 		cerebro.WithLogger(slog.New(slog.DiscardHandler)),
 	)
 
@@ -180,7 +178,7 @@ func TestCerebro_ForEachReplicatesPerItem(t *testing.T) {
 		rep := cb.Report()
 		return len(rep) == 2 &&
 			len(rep[0].Positions) == 1 && len(rep[1].Positions) == 1
-	}, 5*time.Second, 15*time.Millisecond, "each target should get its own attributed instance")
+	}, 5*time.Second, 15*time.Millisecond, "each watchlist should get its own attributed instance")
 
 	rep := cb.Report()
 	// Report is sorted by strategy name: buy:AAA then buy:BBB.
@@ -211,10 +209,9 @@ func TestCerebro_MultipleStrategiesShareSymbol(t *testing.T) {
 
 	cb := cerebro.NewCerebro(
 		cerebro.WithMarket(mkt),
-		// Two strategies over the same single target — they share code AAA.
-		cerebro.WithStrategy(&codeBuyer{name: "share-a"}),
-		cerebro.WithStrategy(&codeBuyer{name: "share-b"}),
-		cerebro.WithTargetItem(&item.Item{Code: "AAA"}),
+		// Two strategies over the same single watchlist — they share code AAA.
+		cerebro.WithStrategy(&codeBuyer{name: "share-a"}, "AAA"),
+		cerebro.WithStrategy(&codeBuyer{name: "share-b"}, "AAA"),
 		cerebro.WithLogger(slog.New(slog.DiscardHandler)),
 	)
 
@@ -231,24 +228,6 @@ func TestCerebro_MultipleStrategiesShareSymbol(t *testing.T) {
 	cb.Shutdown()
 }
 
-// TestStart_RejectsUnknownUniverseCode guards that a strategy whose universe names
-// a code that is not a registered target item fails fast at Start.
-func TestStart_RejectsUnknownUniverseCode(t *testing.T) {
-	must := require.New(t)
-
-	mkt := replay.New(replay.WithBalance(decimal.NewFromInt(100_000)))
-	cb := cerebro.NewCerebro(
-		cerebro.WithMarket(mkt),
-		cerebro.WithStrategy(dupStub{name: "s"}, "ZZZ"), // ZZZ is not a target
-		cerebro.WithTargetItem(&item.Item{Code: "AAA"}),
-		cerebro.WithLogger(slog.New(slog.DiscardHandler)),
-	)
-
-	err := cb.Start(context.Background())
-	must.Error(err)
-	must.ErrorContains(err, "ZZZ")
-}
-
 // TestStart_RejectsDuplicateUniverseCode guards that a universe listing the same
 // code twice is rejected, so a runner's channel is never registered twice under a
 // code (which would deliver every tick to the strategy twice).
@@ -259,7 +238,6 @@ func TestStart_RejectsDuplicateUniverseCode(t *testing.T) {
 	cb := cerebro.NewCerebro(
 		cerebro.WithMarket(mkt),
 		cerebro.WithStrategy(dupStub{name: "s"}, "AAA", "AAA"),
-		cerebro.WithTargetItem(&item.Item{Code: "AAA"}),
 		cerebro.WithLogger(slog.New(slog.DiscardHandler)),
 	)
 
@@ -286,9 +264,8 @@ func TestStart_RejectsDuplicateStrategyName(t *testing.T) {
 	mkt := replay.New(replay.WithBalance(decimal.NewFromInt(100_000)))
 	cb := cerebro.NewCerebro(
 		cerebro.WithMarket(mkt),
-		cerebro.WithStrategy(dupStub{id: "a", name: "same"}),
-		cerebro.WithStrategy(dupStub{id: "b", name: "same"}),
-		cerebro.WithTargetItem(&item.Item{Code: "AAA"}),
+		cerebro.WithStrategy(dupStub{id: "a", name: "same"}, "AAA"),
+		cerebro.WithStrategy(dupStub{id: "b", name: "same"}, "AAA"),
 		cerebro.WithLogger(slog.New(slog.DiscardHandler)),
 	)
 

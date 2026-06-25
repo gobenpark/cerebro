@@ -144,7 +144,6 @@ func main() {
 		cerebro.WithMarket(mkt),
 		// One strategy, two-instrument universe — this is the pairs entry point.
 		cerebro.WithStrategy(&spread{codeA: "AAA", codeB: "BBB"}, "AAA", "BBB"),
-		cerebro.WithTargetItem(&item.Item{Code: "AAA"}, &item.Item{Code: "BBB"}),
 		cerebro.WithLogLevel(slog.LevelError),
 	)
 

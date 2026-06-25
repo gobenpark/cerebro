@@ -10,6 +10,7 @@ import (
 
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
 	"go.uber.org/mock/gomock"
 
@@ -185,6 +186,119 @@ func TestEngine_PortfolioRunnerReceivesAllCodes(t *testing.T) {
 	is.Eventually(func() bool {
 		return rec.seen("AAA") > 0 && rec.seen("BBB") > 0
 	}, 2*time.Second, 10*time.Millisecond, "one runner must receive both codes of its universe")
+
+	cancel()
+	eng.Wait()
+}
+
+// bookRecorder records the distinct codes it receives on its order-book channel.
+type bookRecorder struct {
+	mu    sync.Mutex
+	codes map[string]int
+}
+
+func (s *bookRecorder) Name() string { return "book" }
+func (s *bookRecorder) Run(ctx context.Context, u strategy.Universe, _ broker.Submitter) {
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case ob, ok := <-u.OrderBooks():
+			if !ok {
+				return
+			}
+			s.mu.Lock()
+			s.codes[ob.Code]++
+			s.mu.Unlock()
+		}
+	}
+}
+func (s *bookRecorder) NotifyOrder(order.Order) {}
+func (s *bookRecorder) NotifyTrade()            {}
+func (s *bookRecorder) NotifyFund()             {}
+func (s *bookRecorder) seen(code string) int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.codes[code]
+}
+
+// TestEngine_RoutesOrderBooksByCode is the order-book counterpart of the tick
+// routing: a runner over {AAA,BBB} receives order-book snapshots for BOTH codes on
+// its single OrderBooks() channel, demultiplexed by indicator.OrderBook.Code.
+func TestEngine_RoutesOrderBooksByCode(t *testing.T) {
+	defer goleak.VerifyNone(t)
+	is := assert.New(t)
+
+	ctrl := gomock.NewController(t)
+	mk := marketmock.NewMockMarket(ctrl)
+	mk.EXPECT().Subscribe(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
+
+	rec := &bookRecorder{codes: map[string]int{}}
+	runners := []strategy.Runner{{
+		Strategy: rec,
+		Items:    []*item.Item{{Code: "AAA"}, {Code: "BBB"}},
+	}}
+	eng := strategy.NewEngine(slog.New(slog.DiscardHandler), nil, runners, mk, 0)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	eng.Spawn(ctx) // blocks through the launch throttle; the Run goroutine is live after
+	eng.Listen(ctx, indicator.OrderBook{
+		Code: "AAA",
+		Bids: []indicator.Level{{Price: decimal.NewFromInt(99), Size: decimal.NewFromInt(1)}},
+	})
+	eng.Listen(ctx, indicator.OrderBook{
+		Code: "BBB",
+		Asks: []indicator.Level{{Price: decimal.NewFromInt(101), Size: decimal.NewFromInt(1)}},
+	})
+
+	is.Eventually(func() bool {
+		return rec.seen("AAA") > 0 && rec.seen("BBB") > 0
+	}, 2*time.Second, 10*time.Millisecond, "one runner must receive order books for both codes of its universe")
+
+	cancel()
+	eng.Wait()
+}
+
+// TestEngine_AddRunnerThenRemove exercises the dynamic lifecycle: a runner added
+// after Spawn receives ticks for its code, a duplicate add is rejected, and
+// RemoveRunner both stops its Run goroutine (goleak fails if it leaked) and
+// unregisters its channel so later ticks are no longer routed to it.
+func TestEngine_AddRunnerThenRemove(t *testing.T) {
+	defer goleak.VerifyNone(t)
+	is := assert.New(t)
+	must := require.New(t)
+
+	ctrl := gomock.NewController(t)
+	mk := marketmock.NewMockMarket(ctrl)
+	mk.EXPECT().Subscribe(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
+
+	eng := strategy.NewEngine(slog.New(slog.DiscardHandler), nil, nil, mk, 0)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	eng.Spawn(ctx) // no initial runners
+
+	rec := &tickRecorder{codes: map[string]int{}}
+	r := strategy.Runner{Strategy: rec, Items: []*item.Item{{Code: "AAA"}}}
+	must.NoError(eng.AddRunner(ctx, r))
+
+	// The runtime-added runner receives ticks for its code.
+	eng.Listen(ctx, indicator.Tick{Code: "AAA", Price: decimal.NewFromInt(10)})
+	is.Eventually(func() bool { return rec.seen("AAA") > 0 }, 2*time.Second, 10*time.Millisecond,
+		"a runner added after Spawn must receive ticks for its code")
+
+	// A second add under the same name is rejected.
+	is.Error(eng.AddRunner(ctx, r), "a runner already running cannot be added again")
+
+	// Remove it: its Run goroutine must exit (goleak verifies) and a later tick must
+	// neither panic on the abandoned channel nor reach the removed runner.
+	before := rec.seen("AAA")
+	eng.RemoveRunner(ctx, rec.Name())
+	eng.Listen(ctx, indicator.Tick{Code: "AAA", Price: decimal.NewFromInt(11)})
+	is.Never(func() bool { return rec.seen("AAA") > before }, 200*time.Millisecond, 20*time.Millisecond,
+		"a removed runner must no longer receive ticks")
 
 	cancel()
 	eng.Wait()

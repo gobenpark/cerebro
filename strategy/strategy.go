@@ -68,4 +68,10 @@ type RiskAware interface {
 type Universe interface {
 	Items() []*item.Item
 	Ticks() <-chan indicator.Tick
+	// OrderBooks is the merged order-book (호가) stream for the universe, tagged by
+	// indicator.OrderBook.Code. It carries values only when the market adapter
+	// publishes order books; a strategy that decides on trades alone can ignore it.
+	// Like Ticks, updates are delivered best-effort — a strategy that does not keep up
+	// drops snapshots rather than stalling the feed.
+	OrderBooks() <-chan indicator.OrderBook
 }

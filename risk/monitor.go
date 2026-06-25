@@ -19,6 +19,7 @@ package risk
 import (
 	"context"
 	"log/slog"
+	"sync"
 
 	"github.com/shopspring/decimal"
 
@@ -49,14 +50,20 @@ type Book interface {
 // fires. The broker owns the position ledger; the Monitor only keeps the trailing
 // peak and an in-flight exit guard.
 //
-// It is an event.Listener. The event engine drives each listener from a single
-// dedicated goroutine, so Listen is never called concurrently with itself; the
-// Monitor's own state therefore needs no locking.
+// It is an event.Listener driven from the dispatcher's single goroutine, so Listen
+// is never concurrent with itself. AddPolicy/RemovePolicy, however, are called from
+// the screener reconcile goroutine to attach and detach a dynamically spawned
+// strategy's exit policy, so mu guards the Monitor's maps against that concurrency.
 type Monitor struct {
 	logger    *slog.Logger
-	policies  map[string]Policy
 	submitter func(strategy string) Submitter
 	book      Book
+
+	// mu guards policies, peak, and exiting: Listen mutates them on the dispatcher
+	// goroutine while AddPolicy/RemovePolicy mutate policies (and clean peak/exiting)
+	// from the reconcile goroutine.
+	mu       sync.Mutex
+	policies map[string]Policy
 
 	// peak[strategy][code] is the highest price seen since entry, driving trailing
 	// stops. It folds the broker's high-water fill price with the ticks the Monitor
@@ -93,6 +100,29 @@ func (m *Monitor) Listen(ctx context.Context, e any) {
 	}
 }
 
+// AddPolicy attaches a dynamically spawned strategy's exit policy under its name, so
+// the Monitor enforces stop-loss/trailing/take-profit for screener-spawned items the
+// same as for static ones. A disabled policy is ignored.
+func (m *Monitor) AddPolicy(name string, p Policy) {
+	if !p.Enabled() {
+		return
+	}
+	m.mu.Lock()
+	m.policies[name] = p
+	m.mu.Unlock()
+}
+
+// RemovePolicy detaches a strategy's policy and drops its trailing peak and exit
+// guard, so an evicted screener strategy is no longer monitored and a later re-entry
+// under the same name starts clean.
+func (m *Monitor) RemovePolicy(name string) {
+	m.mu.Lock()
+	delete(m.policies, name)
+	delete(m.peak, name)
+	delete(m.exiting, name)
+	m.mu.Unlock()
+}
+
 // applyOrder reacts to a terminal order for a policy-bearing strategy. If the
 // position is now flat — closed by the Monitor's own exit or by the strategy's own
 // sell — its trailing peak and guard are dropped so an immediate re-entry (before
@@ -105,6 +135,8 @@ func (m *Monitor) applyOrder(o order.Order) {
 	if !isTerminal(o.Status()) {
 		return
 	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	strategy, code := o.Strategy(), o.Item().Code
 	if _, ok := m.policies[strategy]; !ok {
 		return // not a policy-bearing strategy
@@ -122,6 +154,8 @@ func (m *Monitor) applyOrder(o order.Order) {
 // submitting an exit when a trigger fires. A strategy that is flat in the code has
 // its trailing peak and any stale guard reset so a re-entry starts clean.
 func (m *Monitor) onTick(ctx context.Context, tk indicator.Tick) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	for strategy, policy := range m.policies {
 		pos, fillPeak, ok := m.book.StrategyPosition(strategy, tk.Code)
 		if !ok {

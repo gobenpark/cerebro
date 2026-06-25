@@ -34,20 +34,33 @@ func WithMarket(s market.Market) Option {
 	}
 }
 
-func WithTargetItem(codes ...*item.Item) Option {
+// WithScreener registers a dynamic screening group: the screener streams watchlist
+// snapshots, and for each screened item Cerebro spawns a per-item strategy from
+// factory, retiring it (per the eviction policy) when the item drops out. Call it
+// again for an independent group — its own screener, factory, and policy — so several
+// screeners can drive several strategies at once. Use StaticScreener for a fixed
+// list. The factory must give each instance a unique Name() (e.g. derived from the
+// item's Code) so orders attribute and route one-to-one.
+func WithScreener(s Screener, factory func(*item.Item) strategy.Strategy, opts ...ScreenOption) Option {
 	return func(c *Cerebro) {
-		c.target = codes
+		g := screenGroup{screener: s, factory: factory, evict: KeepUntilFlat}
+		for _, o := range opts {
+			o(&g)
+		}
+		c.screenGroups = append(c.screenGroups, g)
 	}
 }
 
-// WithScreener supplies the trading watchlist dynamically: at Start, Cerebro calls
-// Screen and merges the returned items into the target set (deduped), so
-// WithStrategyForEach spawns a strategy per selected item. It composes with
-// WithTargetItem — the union is traded. This is the seam that connects screening
-// ("what to trade") to strategy execution ("when to trade").
-func WithScreener(s Screener) Option {
-	return func(c *Cerebro) {
-		c.screener = s
+// ScreenOption configures one WithScreener group.
+type ScreenOption func(*screenGroup)
+
+// WithEviction sets a screening group's eviction policy — what happens to a per-item
+// strategy when the screener drops its code. Defaults to KeepUntilFlat (retires it
+// only once flat, never orphaning or force-closing a position); Flatten and
+// DropImmediately are also provided, or pass your own.
+func WithEviction(p EvictionPolicy) ScreenOption {
+	return func(g *screenGroup) {
+		g.evict = p
 	}
 }
 
@@ -68,27 +81,15 @@ func WithLogger(l *slog.Logger) Option {
 	}
 }
 
-// WithStrategy registers one strategy instance. The codes select the universe it
-// trades together — give two or more for a pairs/portfolio strategy that decides
-// over them in one Run; give none to trade the whole target set. Every code must
-// be a registered target item (WithTargetItem). Call it again to add more
-// strategies. Orders are attributed to the strategy's Name(), which must be
-// unique across all registrations.
+// WithStrategy registers one strategy over an explicit, fixed universe: the codes are
+// the instruments it trades together — give two or more for a pairs/portfolio
+// strategy that decides over them in one Run. At least one code is required (a
+// strategy with no universe has nothing to trade). Call it again to add more
+// strategies. Orders are attributed to the strategy's Name(), which must be unique
+// across all registrations. For a dynamic, screener-driven universe use WithScreener.
 func WithStrategy(s strategy.Strategy, codes ...string) Option {
 	return func(c *Cerebro) {
 		c.stratRegs = append(c.stratRegs, stratReg{s: s, codes: codes})
-	}
-}
-
-// WithStrategyForEach registers a strategy per target item: the factory is called
-// once for each WithTargetItem, producing a fresh instance with a single-item
-// universe. Use it to run the same logic independently across a watchlist with
-// isolated per-instance state. The factory must give each instance a unique
-// Name() (e.g. derived from the item's Code) so orders attribute and route
-// correctly.
-func WithStrategyForEach(factory func(*item.Item) strategy.Strategy) Option {
-	return func(c *Cerebro) {
-		c.forEachRegs = append(c.forEachRegs, forEachReg{factory: factory})
 	}
 }
 

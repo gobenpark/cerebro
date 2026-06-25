@@ -21,14 +21,34 @@ import (
 	"github.com/gobenpark/cerebro/item"
 )
 
-// Screener selects the watchlist Cerebro trades. It is the dynamic counterpart of
-// WithTargetItem: at Start, Cerebro calls Screen and merges the returned items
-// into the target set, so WithStrategyForEach spawns a strategy per selected
-// item. Returning items from a screener is how "what to trade" (screening)
-// connects to "when to trade" (the strategy).
+// Screener is the single source of the watchlist Cerebro trades. Screen streams
+// watchlist snapshots until ctx is canceled: each emitted value is the FULL set of
+// items to trade at that moment (a declarative snapshot, not a delta), and Cerebro
+// reconciles the running per-item strategies (WithStrategyForEach) to match —
+// spawning one for a newly added item and, per the EvictionPolicy, retiring one whose
+// item dropped out.
 //
-// Screen runs once at Start today; the same interface is the seam for periodic
-// re-screening (dynamic spawn/stop of per-item strategies) later.
+// A streaming source (e.g. a websocket "top by turnover" feed with the user's filter
+// applied) drives dynamic, real-time screening; StaticScreener wraps a fixed list for
+// backtests or a known universe. Close the channel when no more snapshots will come
+// (a static screen, or a feed that ends); a live source may leave it open until ctx
+// is canceled. Cerebro stops reading on shutdown regardless.
 type Screener interface {
-	Screen(ctx context.Context) ([]*item.Item, error)
+	Screen(ctx context.Context) <-chan []*item.Item
+}
+
+// StaticScreener adapts a fixed list of items to the streaming Screener model: it
+// emits the items once and closes, so reconcile spawns a strategy per item and then
+// has nothing more to do. Use it for backtests or a universe known up front.
+func StaticScreener(items ...*item.Item) Screener {
+	return staticScreener(items)
+}
+
+type staticScreener []*item.Item
+
+func (s staticScreener) Screen(_ context.Context) <-chan []*item.Item {
+	out := make(chan []*item.Item, 1)
+	out <- []*item.Item(s)
+	close(out)
+	return out
 }

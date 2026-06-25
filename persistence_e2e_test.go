@@ -29,7 +29,6 @@ import (
 	"github.com/gobenpark/cerebro"
 	"github.com/gobenpark/cerebro/broker"
 	"github.com/gobenpark/cerebro/indicator"
-	"github.com/gobenpark/cerebro/item"
 	"github.com/gobenpark/cerebro/market"
 	"github.com/gobenpark/cerebro/market/replay"
 	"github.com/gobenpark/cerebro/order"
@@ -82,8 +81,7 @@ func TestCerebro_PersistsAndRestoresLedgerAcrossRestart(t *testing.T) {
 			replay.WithInterval(20*time.Millisecond),
 			replay.WithCandles("AAA", candles()),
 		)),
-		cerebro.WithStrategy(&buyOnceStrategy{}),
-		cerebro.WithTargetItem(&item.Item{Code: "AAA"}),
+		cerebro.WithStrategy(&buyOnceStrategy{}, "AAA"),
 		cerebro.WithStorage(st),
 		cerebro.WithLogger(slog.New(slog.DiscardHandler)),
 	)
@@ -107,8 +105,7 @@ func TestCerebro_PersistsAndRestoresLedgerAcrossRestart(t *testing.T) {
 			replay.WithInterval(20*time.Millisecond),
 			replay.WithCandles("AAA", candles()),
 		)),
-		cerebro.WithStrategy(holdStrategy{}),
-		cerebro.WithTargetItem(&item.Item{Code: "AAA"}),
+		cerebro.WithStrategy(holdStrategy{}, "AAA"),
 		cerebro.WithStorage(st),
 		cerebro.WithLogger(slog.New(slog.DiscardHandler)),
 	)

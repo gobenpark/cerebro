@@ -20,7 +20,6 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
-	"slices"
 	"sync"
 	"time"
 
@@ -42,13 +41,8 @@ type Cerebro struct {
 	// broker buy, sell and manage order
 	broker *broker.Broker
 
-	target []*item.Item
-
-	// screener, when set, supplies the watchlist dynamically at Start by merging
-	// its picks into target (the dynamic counterpart of WithTargetItem).
-	screener Screener
-	// started guards Start: the screener merge mutates target, so Start is a
-	// one-shot — a repeat call is rejected rather than re-merging into stale state.
+	// started guards Start: it is one-shot (it latches state and spawns reconcile
+	// loops), so a repeat call is rejected.
 	started bool
 
 	market market.Market
@@ -59,11 +53,12 @@ type Cerebro struct {
 	eventEngine *event.Engine
 
 	// stratRegs are explicit-universe strategy registrations (WithStrategy): one
-	// instance trading a fixed set of codes (or all targets when none are given).
+	// instance trading a fixed, explicit set of codes.
 	stratRegs []stratReg
-	// forEachRegs are per-item registrations (WithStrategyForEach): a fresh instance
-	// per target item, each with a single-item universe.
-	forEachRegs []forEachReg
+	// screenGroups are dynamic screening registrations (WithScreener): each pairs a
+	// screener with a per-item strategy factory and an eviction policy, reconciled
+	// independently for the life of the run.
+	screenGroups []screenGroup
 
 	// risk is the optional pre-trade gate; installed on the broker when set.
 	risk *risk.Manager
@@ -89,7 +84,12 @@ type Cerebro struct {
 	feedLossHandler func(reason string)
 
 	engines []engine.Engine
-	// wg tracks the producer goroutines (spawn, market events) started by Start.
+	// engine is the concrete strategy engine (also held in engines as engine.Engine).
+	// The reconcile loop needs its AddRunner/RemoveRunner, which the engine.Engine
+	// interface deliberately does not expose (it would pull strategy.Runner into the
+	// engine package and cycle).
+	engine *strategy.Engine
+	// wg tracks the producer goroutines (spawn, market events, reconcile) started by Start.
 	wg sync.WaitGroup
 	// eventCancel stops the event dispatcher; it runs on its own context so the
 	// dispatcher can outlive producers and be torn down last during shutdown.
@@ -132,105 +132,61 @@ func NewCerebro(opts ...Option) *Cerebro {
 	}
 	// The reactive exit monitor is built in Start, once runners — and thus their
 	// names and any strategy-declared ExitPolicy (strategy.RiskAware) — are known.
-	// The strategy engine is built in Start, once target items are known, since
+	// The strategy engine is built in Start, once watchlist items are known, since
 	// resolving registrations into runners needs them and can fail (e.g. a strategy
 	// references an unknown code).
 
 	return c
 }
 
-// stratReg is one WithStrategy registration: a strategy instance and the codes it
-// trades. An empty codes slice means "the whole target set".
+// stratReg is one WithStrategy registration: a strategy instance and the explicit
+// codes it trades.
 type stratReg struct {
 	s     strategy.Strategy
 	codes []string
 }
 
-// forEachReg is one WithStrategyForEach registration: a factory that produces a
-// fresh strategy instance for each target item.
-type forEachReg struct {
-	factory func(*item.Item) strategy.Strategy
+// screenGroup is one WithScreener registration: a screener whose snapshots spawn a
+// per-item strategy from factory, retired by evict when an item drops out.
+type screenGroup struct {
+	screener Screener
+	factory  func(*item.Item) strategy.Strategy
+	evict    EvictionPolicy
 }
 
-// resolveRunners turns the strategy registrations into the flat list of runners
-// the engine executes, validating that referenced codes exist and that every
-// runner's name is unique (so order notifications route to exactly one runner).
-func (c *Cerebro) resolveRunners(target []*item.Item) ([]strategy.Runner, error) {
-	byCode := make(map[string]*item.Item, len(target))
-	for _, it := range target {
-		byCode[it.Code] = it
-	}
-
+// fixedRunners resolves the WithStrategy registrations into runners over their
+// explicit universes. Each strategy self-defines its items from its codes (there is
+// no shared watchlist), so it validates that every strategy lists at least one code,
+// lists no duplicate, and has a unique name.
+func (c *Cerebro) fixedRunners() ([]strategy.Runner, error) {
 	var runners []strategy.Runner
 	for _, reg := range c.stratRegs {
-		items := target
-		if len(reg.codes) > 0 {
-			items = make([]*item.Item, 0, len(reg.codes))
-			seenCode := make(map[string]struct{}, len(reg.codes))
-			for _, code := range reg.codes {
-				if _, dup := seenCode[code]; dup {
-					// A repeated code would register the runner's tick channel twice
-					// under that code, delivering every tick to the strategy twice.
-					return nil, fmt.Errorf("strategy %q lists duplicate code %q", reg.s.Name(), code)
-				}
-				seenCode[code] = struct{}{}
-				it, ok := byCode[code]
-				if !ok {
-					return nil, fmt.Errorf("strategy %q references unknown target code %q", reg.s.Name(), code)
-				}
-				items = append(items, it)
+		if len(reg.codes) == 0 {
+			return nil, fmt.Errorf("strategy %q must list at least one code", reg.s.Name())
+		}
+		items := make([]*item.Item, 0, len(reg.codes))
+		seenCode := make(map[string]struct{}, len(reg.codes))
+		for _, code := range reg.codes {
+			if _, dup := seenCode[code]; dup {
+				// A repeated code would register the runner's tick channel twice under
+				// that code, delivering every tick to the strategy twice.
+				return nil, fmt.Errorf("strategy %q lists duplicate code %q", reg.s.Name(), code)
 			}
+			seenCode[code] = struct{}{}
+			items = append(items, &item.Item{Code: code})
 		}
 		runners = append(runners, strategy.Runner{Strategy: reg.s, Items: items})
-	}
-	for _, reg := range c.forEachRegs {
-		for _, it := range target {
-			runners = append(runners, strategy.Runner{Strategy: reg.factory(it), Items: []*item.Item{it}})
-		}
 	}
 
 	seen := make(map[string]struct{}, len(runners))
 	for _, r := range runners {
 		name := r.Strategy.Name()
 		if _, dup := seen[name]; dup {
-			return nil, fmt.Errorf("duplicate strategy name %q (names must be unique across strategies and per-item instances)", name)
+			return nil, fmt.Errorf("duplicate strategy name %q", name)
 		}
 		seen[name] = struct{}{}
 	}
 	return runners, nil
-}
-
-// resolveTarget builds the effective watchlist for this run: a clone of the
-// configured target merged (deduped by code) with any screener picks. Cloning keeps
-// Start retryable — a failure never mutates c.target. A configured screener that
-// returns nothing is reported distinctly from a missing-target error, since an empty
-// screen (no name qualified today) is a common, expected case rather than misconfig.
-func (c *Cerebro) resolveTarget(ctx context.Context) ([]*item.Item, error) {
-	target := slices.Clone(c.target)
-	if c.screener != nil {
-		items, err := c.screener.Screen(ctx)
-		if err != nil {
-			return nil, fmt.Errorf("screener: %w", err)
-		}
-		seen := make(map[string]struct{}, len(target))
-		for _, it := range target {
-			seen[it.Code] = struct{}{}
-		}
-		for _, it := range items {
-			if _, ok := seen[it.Code]; ok {
-				continue
-			}
-			seen[it.Code] = struct{}{}
-			target = append(target, it)
-		}
-		if len(target) == 0 {
-			return nil, fmt.Errorf("screener returned an empty watchlist and no target was set")
-		}
-	}
-	if len(target) == 0 {
-		return nil, fmt.Errorf("no target items set")
-	}
-	return target, nil
 }
 
 // validatePolicies rejects an enabled exit policy that names a strategy no runner
@@ -238,6 +194,13 @@ func (c *Cerebro) resolveTarget(ctx context.Context) ([]*item.Item, error) {
 // name), so a typo must fail fast. Disabled (empty) policies are inert and skipped.
 func (c *Cerebro) validatePolicies(runners []strategy.Runner) error {
 	if len(c.policies) == 0 {
+		return nil
+	}
+	// A screener spawns strategies whose names are not known until run time, so an
+	// unknown name may legitimately match a screener-spawned strategy (the reconciler
+	// applies the override via exitPolicy). Only catch typos when there is no screener
+	// to possibly produce the name.
+	if len(c.screenGroups) > 0 {
 		return nil
 	}
 	known := make(map[string]struct{}, len(runners))
@@ -288,15 +251,18 @@ func (c *Cerebro) buildMonitor(runners []strategy.Runner) {
 			delete(policies, name)
 		}
 	}
-	if len(policies) > 0 {
+	// Build the monitor if any policy is set now, or if a screener group exists — a
+	// dynamically spawned RiskAware strategy needs a live monitor to attach to, even
+	// when the initial policy set is empty.
+	if len(policies) > 0 || len(c.screenGroups) > 0 {
 		c.monitor = risk.NewMonitor(c.log, policies, func(name string) risk.Submitter {
 			return c.broker.Scoped(name)
 		}, c.broker)
 	}
 }
 
-// Start run cerebro. It is one-shot: the screener merge mutates target, so a
-// second call is rejected.
+// Start run cerebro. It is one-shot: it latches state and (with a screener) spawns a
+// reconcile loop, so a second call is rejected.
 func (c *Cerebro) Start(ctx context.Context) error {
 	if c.started {
 		return fmt.Errorf("cerebro: Start called more than once")
@@ -304,24 +270,24 @@ func (c *Cerebro) Start(ctx context.Context) error {
 
 	// Resolve and validate the run configuration before spawning anything, so a bad
 	// config fails fast and leaks no goroutines.
-	target, err := c.resolveTarget(ctx)
-	if err != nil {
-		return err
-	}
-	if len(c.stratRegs) == 0 && len(c.forEachRegs) == 0 {
+	if len(c.stratRegs) == 0 && len(c.screenGroups) == 0 {
 		return fmt.Errorf("no strategies registered")
 	}
-	// resolveRunners validates referenced codes and name uniqueness; validatePolicies
-	// rejects an exit policy that names a strategy no runner provides.
-	runners, err := c.resolveRunners(target)
+	// fixedRunners resolves the explicit-universe (WithStrategy) registrations; screener
+	// groups add their per-item strategies dynamically at run time.
+	runners, err := c.fixedRunners()
 	if err != nil {
 		return err
+	}
+	if len(runners) == 0 && len(c.screenGroups) == 0 {
+		return fmt.Errorf("no runnable strategies")
 	}
 	if err := c.validatePolicies(runners); err != nil {
 		return err
 	}
-	// Build the reactive exit monitor now that runner names (and any dynamically
-	// spawned strategies' declared ExitPolicy) are known.
+	// Build the reactive exit monitor now that fixed-runner names are known; it is also
+	// created when screener groups exist, so dynamically spawned RiskAware strategies
+	// can attach their exit policies to it.
 	c.buildMonitor(runners)
 	// Restore the persisted ledger (per-strategy PnL/fees/open lots) as the final
 	// fallible step — before any context or goroutine is created — so a restore
@@ -345,27 +311,40 @@ func (c *Cerebro) Start(ctx context.Context) error {
 	// Build the strategy engine only after every fallible step has succeeded, and
 	// assign (not append) so retrying Start after an earlier failure does not leave
 	// a stale engine behind that would double-register and double-spawn.
-	c.engines = []engine.Engine{strategy.NewEngine(c.log, c.broker, runners, c.market, c.timeout)}
+	c.engine = strategy.NewEngine(c.log, c.broker, runners, c.market, c.timeout)
+	c.engines = []engine.Engine{c.engine}
 
-	c.markHeldItemsActive(ctx, target)
+	c.markHeldItemsActive(ctx, runners)
 
-	// Every fallible step has succeeded: commit the resolved watchlist and latch
-	// the one-shot guard. A failure before here leaves the instance retryable
-	// (c.target and c.started unchanged).
-	c.target = target
+	// Every fallible step has succeeded: latch the one-shot guard.
 	c.started = true
 
 	c.eventWg.Go(func() {
 		c.eventEngine.Start(eventCtx)
 	})
 
-	// Register every listener synchronously BEFORE the producers run, then spawn the
-	// strategy producers and the market-events pump.
+	// Register listeners, then set up the fixed runners synchronously BEFORE any
+	// screener reconcile loop runs: Spawn resets the engine's channel maps, so a
+	// reconciler's AddRunner must not race ahead of it or the dynamic channels it
+	// registered would be wiped.
 	c.registerListeners(ctx)
-	c.spawnStrategies(ctx)
+	c.engine.Spawn(ctx)
 	c.wg.Go(func() {
 		c.pumpEvents(ctx, eventCtx)
 	})
+
+	// Each screener group reconciles its own dynamic per-item strategies against its
+	// snapshots for the life of the run — its own screener, factory, and eviction
+	// policy. AddRunner rejects a name that collides with a fixed runner, so groups and
+	// fixed strategies coexist safely.
+	for i := range c.screenGroups {
+		g := c.screenGroups[i]
+		rec := newReconciler(c.log, c.engine, c.broker, c.monitor, c.policies, g.factory, g.evict)
+		screen := g.screener.Screen(ctx)
+		c.wg.Go(func() {
+			rec.run(ctx, screen)
+		})
+	}
 
 	// Register the cancellation hook only after every goroutine and shutdown field
 	// exists, so an already-canceled context can't consume shutdownOnce before the
@@ -407,14 +386,19 @@ func (c *Cerebro) onFeedLoss(reason string) {
 	go c.Shutdown()
 }
 
-// markHeldItemsActive flags each target item the exchange already reports a position
-// in as active, so strategies see their pre-existing inventory at start.
-func (c *Cerebro) markHeldItemsActive(ctx context.Context, target []*item.Item) {
+// markHeldItemsActive flags each fixed runner's item that the exchange already reports
+// a position in as active, so strategies see their pre-existing inventory at start.
+// (Screener-spawned items are resolved dynamically and are not known here.)
+func (c *Cerebro) markHeldItemsActive(ctx context.Context, runners []strategy.Runner) {
 	positions := c.market.AccountPositions(ctx)
+	held := make(map[string]struct{}, len(positions))
 	for i := range positions {
-		for j := range target {
-			if target[j].Code == positions[i].Item.Code {
-				target[j].UpdateStatus(item.Activate)
+		held[positions[i].Item.Code] = struct{}{}
+	}
+	for _, r := range runners {
+		for _, it := range r.Items {
+			if _, ok := held[it.Code]; ok {
+				it.UpdateStatus(item.Activate)
 			}
 		}
 	}
@@ -434,16 +418,6 @@ func (c *Cerebro) registerListeners(ctx context.Context) {
 	}
 	for i := range c.engines {
 		c.eventEngine.Register(ctx, c.engines[i])
-	}
-}
-
-// spawnStrategies launches each strategy engine's producer goroutines. Listeners are
-// already live, so the first ticks they emit are delivered rather than dropped.
-func (c *Cerebro) spawnStrategies(ctx context.Context) {
-	for i := range c.engines {
-		c.wg.Go(func() {
-			c.engines[i].Spawn(ctx)
-		})
 	}
 }
 
@@ -487,7 +461,7 @@ func (c *Cerebro) pumpEvents(ctx, eventCtx context.Context) {
 			}
 			if watchdog != nil {
 				switch e.(type) {
-				case indicator.Tick, market.FeedStatusEvent:
+				case indicator.Tick, indicator.OrderBook, market.FeedStatusEvent:
 					watchdog.Reset(c.feedTimeout)
 				}
 			}

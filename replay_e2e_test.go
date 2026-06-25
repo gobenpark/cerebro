@@ -100,8 +100,7 @@ func TestCerebro_ReplayEndToEnd(t *testing.T) {
 
 	cb := cerebro.NewCerebro(
 		cerebro.WithMarket(mkt),
-		cerebro.WithStrategy(&buyOnceStrategy{}),
-		cerebro.WithTargetItem(&item.Item{Code: "AAA"}),
+		cerebro.WithStrategy(&buyOnceStrategy{}, "AAA"),
 		cerebro.WithLogger(slog.New(slog.DiscardHandler)),
 	)
 
@@ -163,8 +162,7 @@ func TestCerebro_RiskPolicyExits(t *testing.T) {
 
 	cb := cerebro.NewCerebro(
 		cerebro.WithMarket(mkt),
-		cerebro.WithStrategy(&buyOnceStrategy{}),
-		cerebro.WithTargetItem(&item.Item{Code: "AAA"}),
+		cerebro.WithStrategy(&buyOnceStrategy{}, "AAA"),
 		cerebro.WithRiskPolicy("buy-once", risk.Policy{StopLoss: 0.05}),
 		cerebro.WithLogger(slog.New(slog.DiscardHandler)),
 	)
@@ -201,8 +199,7 @@ func TestStart_RejectsPolicyForUnknownStrategy(t *testing.T) {
 	)
 	cb := cerebro.NewCerebro(
 		cerebro.WithMarket(mkt),
-		cerebro.WithStrategy(&buyOnceStrategy{}), // Name() == "buy-once"
-		cerebro.WithTargetItem(&item.Item{Code: "AAA"}),
+		cerebro.WithStrategy(&buyOnceStrategy{}, "AAA"), // Name() == "buy-once"
 		cerebro.WithRiskPolicy("typo", risk.Policy{StopLoss: 0.05}),
 		cerebro.WithLogger(slog.New(slog.DiscardHandler)),
 	)
@@ -224,8 +221,7 @@ func TestStart_IgnoresDisabledPolicyForUnknownStrategy(t *testing.T) {
 	)
 	cb := cerebro.NewCerebro(
 		cerebro.WithMarket(mkt),
-		cerebro.WithStrategy(&buyOnceStrategy{}),
-		cerebro.WithTargetItem(&item.Item{Code: "AAA"}),
+		cerebro.WithStrategy(&buyOnceStrategy{}, "AAA"),
 		cerebro.WithRiskPolicy("nobody", risk.Policy{}), // empty == disabled
 		cerebro.WithLogger(slog.New(slog.DiscardHandler)),
 	)
@@ -257,8 +253,7 @@ func TestCerebro_DisabledOverrideClearsRiskAware(t *testing.T) {
 
 	cb := cerebro.NewCerebro(
 		cerebro.WithMarket(mkt),
-		cerebro.WithTargetItem(&item.Item{Code: "AAA"}),
-		cerebro.WithStrategyForEach(func(it *item.Item) strategy.Strategy {
+		cerebro.WithScreener(cerebro.StaticScreener(&item.Item{Code: "AAA"}), func(it *item.Item) strategy.Strategy {
 			return &riskAwareBuyOnce{name: "ra:" + it.Code, policy: risk.Policy{TakeProfit: 0.05}}
 		}),
 		cerebro.WithRiskPolicy("ra:AAA", risk.Policy{}), // explicit disable clears the declared take-profit
@@ -269,17 +264,20 @@ func TestCerebro_DisabledOverrideClearsRiskAware(t *testing.T) {
 	defer cancel()
 	must.NoError(cb.Start(ctx))
 
-	// The buy (10 @ 100) fills and is HELD: with the declared take-profit cleared, the
-	// rise to 110 triggers no exit, so the position stays open and realized stays 0.
+	// The buy (10 @ 100) fills and is held.
 	is.Eventually(func() bool {
 		rep := cb.Report()
-		if len(rep) != 1 || rep[0].Strategy != "ra:AAA" {
-			return false
-		}
-		return rep[0].Realized.IsZero() &&
-			len(rep[0].Positions) == 1 &&
-			rep[0].Positions[0].Size.Equal(decimal.NewFromInt(10))
-	}, 5*time.Second, 10*time.Millisecond, "disabled override should leave the position held with no realized PnL")
+		return len(rep) == 1 && rep[0].Strategy == "ra:AAA" &&
+			len(rep[0].Positions) == 1 && rep[0].Positions[0].Size.Equal(decimal.NewFromInt(10))
+	}, 5*time.Second, 10*time.Millisecond, "the buy should fill and be held")
+
+	// With the declared take-profit cleared by the disabled override, the rise to 110
+	// must NOT trigger an exit — the position stays held and realized stays zero through
+	// the whole tail (a firing take-profit would flatten it and book PnL).
+	is.Never(func() bool {
+		rep := cb.Report()
+		return len(rep) == 1 && (len(rep[0].Positions) == 0 || !rep[0].Realized.IsZero())
+	}, time.Second, 20*time.Millisecond, "disabled override must not let the take-profit fire")
 
 	cancel()
 	cb.Shutdown()
@@ -323,8 +321,7 @@ func TestCerebro_RiskAwareExits_ForEach(t *testing.T) {
 
 	cb := cerebro.NewCerebro(
 		cerebro.WithMarket(mkt),
-		cerebro.WithTargetItem(&item.Item{Code: "AAA"}),
-		cerebro.WithStrategyForEach(func(it *item.Item) strategy.Strategy {
+		cerebro.WithScreener(cerebro.StaticScreener(&item.Item{Code: "AAA"}), func(it *item.Item) strategy.Strategy {
 			return &riskAwareBuyOnce{name: "ra:" + it.Code, policy: risk.Policy{TakeProfit: 0.05}}
 		}),
 		cerebro.WithLogger(slog.New(slog.DiscardHandler)),

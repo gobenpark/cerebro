@@ -33,7 +33,6 @@ import (
 	"github.com/gobenpark/cerebro"
 	"github.com/gobenpark/cerebro/broker"
 	"github.com/gobenpark/cerebro/indicator"
-	"github.com/gobenpark/cerebro/item"
 	"github.com/gobenpark/cerebro/market"
 	"github.com/gobenpark/cerebro/market/replay"
 	"github.com/gobenpark/cerebro/order"
@@ -115,8 +114,7 @@ func main() {
 
 	cb := cerebro.NewCerebro(
 		cerebro.WithMarket(mkt),
-		cerebro.WithStrategy(&dipBuyer{name: "dip"}),
-		cerebro.WithTargetItem(&item.Item{Code: "AAA"}),
+		cerebro.WithStrategy(&dipBuyer{name: "dip"}, "AAA"),
 		// Risk gate is active (here the order is well within limits, so it passes).
 		cerebro.WithRisk(
 			risk.MaxPositionPct(0.5),

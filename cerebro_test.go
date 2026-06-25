@@ -30,7 +30,6 @@ import (
 	"log/slog"
 
 	"github.com/gobenpark/cerebro/broker"
-	"github.com/gobenpark/cerebro/item"
 	"github.com/gobenpark/cerebro/market"
 	marketmock "github.com/gobenpark/cerebro/market/mock"
 	"github.com/gobenpark/cerebro/order"
@@ -85,8 +84,7 @@ func TestStart_RetryAfterFailedRestoreDoesNotDuplicateEngine(t *testing.T) {
 
 	c := NewCerebro(
 		WithMarket(mk),
-		WithStrategy(stubStrategy{}),
-		WithTargetItem(&item.Item{Code: "AAA"}),
+		WithStrategy(stubStrategy{}, "AAA"),
 		WithStorage(&flakyStorage{}),
 		WithLogger(slog.New(slog.DiscardHandler)),
 	)
@@ -133,8 +131,7 @@ func TestStart_WiresBrokerAsEventListener(t *testing.T) {
 
 	c := NewCerebro(
 		WithMarket(mk),
-		WithStrategy(stubStrategy{}),
-		WithTargetItem(&item.Item{Code: "AAA"}),
+		WithStrategy(stubStrategy{}, "AAA"),
 		WithLogger(slog.New(slog.DiscardHandler)),
 	)
 

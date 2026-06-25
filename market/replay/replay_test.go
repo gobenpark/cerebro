@@ -5,13 +5,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gobenpark/cerebro/market"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gobenpark/cerebro/indicator"
 	"github.com/gobenpark/cerebro/item"
+	"github.com/gobenpark/cerebro/market"
 	"github.com/gobenpark/cerebro/order"
 )
 

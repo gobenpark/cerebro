@@ -103,7 +103,7 @@ func (e *exchange) Candles(ctx context.Context, code string, level market.Candle
 	panic("implement me")
 }
 
-// Subscribe is called once per target item; start streaming its ticks here.
+// Subscribe is called once per watchlist item; start streaming its ticks here.
 // The handler reports which items to subscribe.
 func (e *exchange) Subscribe(ctx context.Context, handler market.TickEventHandler) error {
 	panic("implement me")
@@ -115,8 +115,9 @@ func (e *exchange) Order(ctx context.Context, o order.Order) error { panic("impl
 func (e *exchange) AccountPositions(ctx context.Context) []position.Position { panic("implement me") }
 func (e *exchange) AccountBalance(ctx context.Context) decimal.Decimal       { panic("implement me") }
 
-// Events streams market events to Cerebro: indicator.Tick for price updates and
-// market.ChangeOrderEvent / market.ChangeBalanceEvent for fills and settlement.
+// Events streams market events to Cerebro: indicator.Tick for price updates,
+// indicator.OrderBook for order-book (호가) snapshots, and market.ChangeOrderEvent /
+// market.ChangeBalanceEvent for fills and settlement.
 // Liveness contract: a live adapter survives a transient disconnect by reconnecting
 // internally and keeping this channel open (a drop must not close it), and SHOULD
 // emit a market.FeedStatusEvent on disconnect/reconnect — it surfaces feed health and
@@ -136,8 +137,11 @@ func (e *exchange) Commission() market.Rate { panic("implement me") }
 set of instruments it trades together plus their merged tick stream — until the
 context is canceled. A single-instrument strategy reads `u.Items()[0]` and ranges
 over `u.Ticks()`; a pairs/portfolio strategy ranges over `u.Items()` and
-demultiplexes `u.Ticks()` by `indicator.Tick.Code`. Place orders through the
-broker; `NotifyOrder` is called whenever one of your orders changes state.
+demultiplexes `u.Ticks()` by `indicator.Tick.Code`. When the market adapter
+publishes order books, `u.OrderBooks()` carries `indicator.OrderBook` snapshots
+(bids/asks with `BestBid` / `BestAsk` / `Spread` / `Mid` / `Imbalance` helpers).
+Place orders through the broker; `NotifyOrder` is called whenever one of your orders
+changes state.
 
 ```go
 package main
@@ -154,8 +158,8 @@ import (
 
 type MyStrategy struct{ code string }
 
-// Name must be unique per running instance. When replicated across a watchlist
-// with WithStrategyForEach, derive it from the item so each instance differs.
+// Name must be unique per running instance. When spawned per item by a WithScreener
+// factory, derive it from the item's Code so each instance differs.
 func (s *MyStrategy) Name() string { return "my-strategy:" + s.code }
 
 func (s *MyStrategy) Run(ctx context.Context, u strategy.Universe, b broker.Submitter) {
@@ -216,15 +220,19 @@ import (
 func main() {
 	cb := cerebro.NewCerebro(
 		cerebro.WithMarket(&exchange{}),
-		// Run a fresh MyStrategy instance per target item (a watchlist). For a
-		// pairs/portfolio strategy that decides over several instruments at once,
-		// use cerebro.WithStrategy(&PairsStrategy{}, "KRW-BTC", "KRW-ETH") instead.
-		cerebro.WithStrategyForEach(func(it *item.Item) strategy.Strategy {
-			return &MyStrategy{code: it.Code}
-		}),
-		cerebro.WithTargetItem(
-			&item.Item{Code: "KRW-BTC"},
-			&item.Item{Code: "KRW-ETH"},
+		// Run a fresh MyStrategy per screened item. StaticScreener wraps a fixed list;
+		// swap in a streaming Screener (e.g. a "top by turnover" feed with your filter)
+		// for a dynamic, real-time watchlist that spawns and retires per-item strategies
+		// as it changes. For one strategy over a fixed, explicit universe instead, use
+		// cerebro.WithStrategy(&PairsStrategy{}, "KRW-BTC", "KRW-ETH").
+		cerebro.WithScreener(
+			cerebro.StaticScreener(
+				&item.Item{Code: "KRW-BTC"},
+				&item.Item{Code: "KRW-ETH"},
+			),
+			func(it *item.Item) strategy.Strategy {
+				return &MyStrategy{code: it.Code}
+			},
 		),
 		cerebro.WithStrategyTimeout(5*time.Second),
 		cerebro.WithLogLevel(slog.LevelInfo),
@@ -250,10 +258,9 @@ func main() {
 | Option | Description |
 | --- | --- |
 | `WithMarket(market.Market)` | Exchange adapter (required). |
-| `WithStrategy(strategy.Strategy, codes...)` | Register one strategy over a universe of codes (omit codes for all targets; give several for a pairs/portfolio strategy). At least one strategy is required. |
-| `WithStrategyForEach(func(*item.Item) strategy.Strategy)` | Run a fresh strategy instance per target item (watchlist replication with isolated state). |
-| `WithTargetItem(...*item.Item)` | Items to trade (required unless a screener supplies them). |
-| `WithScreener(cerebro.Screener)` | Supply the watchlist dynamically: at Start its picks are merged (deduped) into the target set, so `WithStrategyForEach` spawns a strategy per selected item. |
+| `WithStrategy(strategy.Strategy, codes...)` | Register one strategy over a fixed, explicit universe (at least one code; give several for a pairs/portfolio strategy). |
+| `WithScreener(cerebro.Screener, factory, ...ScreenOption)` | Register a dynamic screening group: the screener streams watchlist snapshots and a per-item strategy is spawned from `factory` for each, retired (per the eviction policy) when it drops out. Call again for an independent group. `StaticScreener` wraps a fixed list. |
+| `WithEviction(cerebro.EvictionPolicy)` | A `WithScreener` group option: what to do with a dropped item's strategy — `KeepUntilFlat` (default), `Flatten`, `DropImmediately`, or your own. |
 | `WithStrategyTimeout(time.Duration)` | Per-strategy `Run` timeout budget. |
 | `WithRisk(...risk.Rule)` | Pre-trade risk gate (position/order/rate limits). |
 | `WithRiskPolicy(name, risk.Policy)` | Per-strategy reactive exit (stop-loss / trailing-stop / take-profit). |
@@ -306,13 +313,18 @@ Cerebro is composed of a few cooperating parts:
 - **Multi-asset strategies** — a strategy decides over a **Universe** of
   instruments. Register one over several codes for **pairs/portfolio** trading
   (`cerebro.WithStrategy(s, "AAA", "BBB")`) — one `Run` sees every leg's ticks and
-  trades them together — or replicate one per item across a watchlist with
-  `cerebro.WithStrategyForEach`. See the runnable
-  [`examples/pairs`](examples/pairs/main.go).
-- **Screening** — supply the watchlist dynamically with `cerebro.WithScreener`: at
-  Start its picks are merged (deduped) into the target set, so `WithStrategyForEach`
-  spawns a strategy per selected item. It is the seam connecting "what to trade"
-  (screening) to "when to trade" (the strategy).
+  trades them together. See the runnable [`examples/pairs`](examples/pairs/main.go).
+- **Dynamic screening** — `cerebro.WithScreener(screener, factory, ...)` registers a
+  group: the screener streams watchlist snapshots and a per-item strategy is spawned
+  from `factory` for each screened item, then retired — per a `WithEviction` policy
+  (`KeepUntilFlat` by default, or `Flatten`) — when it drops out. Register several
+  groups for several screener→strategy pipelines; `StaticScreener` wraps a fixed list.
+  It is the seam connecting "what to trade" (screening) to "when to trade" (strategy).
+- **Order book (호가)** — when the market adapter publishes `indicator.OrderBook`
+  snapshots, each strategy receives them for its universe on `u.OrderBooks()`
+  (best-first bids/asks with `BestBid` / `BestAsk` / `Spread` / `Mid` / `Imbalance`
+  helpers), delivered best-effort alongside ticks. Adapters emit them on the existing
+  event stream — no interface change.
 - **Strategy attribution** — each strategy submits through a broker handle scoped
   to its `Name()`, so orders and their fills are attributed back to it.
 - **Realized PnL & reporting** — the broker books realized PnL and fees per

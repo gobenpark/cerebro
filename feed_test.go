@@ -31,7 +31,6 @@ import (
 
 	"github.com/gobenpark/cerebro/broker"
 	"github.com/gobenpark/cerebro/indicator"
-	"github.com/gobenpark/cerebro/item"
 	"github.com/gobenpark/cerebro/market"
 	marketmock "github.com/gobenpark/cerebro/market/mock"
 	"github.com/gobenpark/cerebro/order"
@@ -80,8 +79,7 @@ func TestCerebro_FeedGuardedReflectsOptions(t *testing.T) {
 
 	base := []Option{
 		WithMarket(mk),
-		WithStrategy(stubStrategy{}),
-		WithTargetItem(&item.Item{Code: "AAA"}),
+		WithStrategy(stubStrategy{}, "AAA"),
 		WithLogger(slog.New(slog.DiscardHandler)),
 	}
 
@@ -106,8 +104,7 @@ func TestStart_FeedSilenceTriggersDefaultShutdown(t *testing.T) {
 	sig := &signalStrategy{name: "sig", done: make(chan struct{})}
 	c := NewCerebro(
 		WithMarket(mk),
-		WithStrategy(sig),
-		WithTargetItem(&item.Item{Code: "AAA"}),
+		WithStrategy(sig, "AAA"),
 		WithFeedTimeout(50*time.Millisecond), // no handler -> default fail-safe Shutdown
 		WithLogger(slog.New(slog.DiscardHandler)),
 	)
@@ -136,8 +133,7 @@ func TestStart_FeedSilenceInvokesCustomHandler(t *testing.T) {
 	reasons := make(chan string, 4)
 	c := NewCerebro(
 		WithMarket(mk),
-		WithStrategy(stubStrategy{}),
-		WithTargetItem(&item.Item{Code: "AAA"}),
+		WithStrategy(stubStrategy{}, "AAA"),
 		WithFeedTimeout(50*time.Millisecond),
 		WithFeedLossHandler(func(reason string) { reasons <- reason }),
 		WithLogger(slog.New(slog.DiscardHandler)),
@@ -171,8 +167,7 @@ func TestStart_FeedChannelCloseInvokesHandler(t *testing.T) {
 	reasons := make(chan string, 4)
 	c := NewCerebro(
 		WithMarket(mk),
-		WithStrategy(stubStrategy{}),
-		WithTargetItem(&item.Item{Code: "AAA"}),
+		WithStrategy(stubStrategy{}, "AAA"),
 		WithFeedLossHandler(func(reason string) { reasons <- reason }), // guard on, no timeout
 		WithLogger(slog.New(slog.DiscardHandler)),
 	)
@@ -207,8 +202,7 @@ func TestStart_FeedWatchdogResetByTicks(t *testing.T) {
 	reasons := make(chan string, 4)
 	c := NewCerebro(
 		WithMarket(mk),
-		WithStrategy(stubStrategy{}),
-		WithTargetItem(&item.Item{Code: "AAA"}),
+		WithStrategy(stubStrategy{}, "AAA"),
 		WithFeedTimeout(100*time.Millisecond),
 		WithFeedLossHandler(func(reason string) { reasons <- reason }),
 		WithLogger(slog.New(slog.DiscardHandler)),
@@ -271,8 +265,7 @@ func TestStart_FeedHeartbeatResetsWatchdog(t *testing.T) {
 	reasons := make(chan string, 4)
 	c := NewCerebro(
 		WithMarket(mk),
-		WithStrategy(stubStrategy{}),
-		WithTargetItem(&item.Item{Code: "AAA"}),
+		WithStrategy(stubStrategy{}, "AAA"),
 		WithFeedTimeout(100*time.Millisecond),
 		WithFeedLossHandler(func(reason string) { reasons <- reason }),
 		WithLogger(slog.New(slog.DiscardHandler)),
@@ -328,8 +321,7 @@ func TestStart_UnguardedChannelCloseIsGraceful(t *testing.T) {
 	sig := &signalStrategy{name: "sig", done: make(chan struct{})}
 	c := NewCerebro(
 		WithMarket(mk),
-		WithStrategy(sig),
-		WithTargetItem(&item.Item{Code: "AAA"}),
+		WithStrategy(sig, "AAA"),
 		WithLogger(slog.New(slog.DiscardHandler)), // no feed options -> unguarded
 	)
 	is.False(c.feedGuarded())

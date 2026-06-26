@@ -4,6 +4,7 @@ package market
 
 import (
 	"context"
+	"time"
 
 	"github.com/shopspring/decimal"
 
@@ -30,6 +31,30 @@ const (
 	Day
 	Week
 )
+
+// Duration is the wall-clock width of one candle at this level. It maps a level to
+// the compress a Resampler folds live ticks with, so a warm-up's historical level
+// and the live bars it continues stay the same width. An unknown level returns 0.
+func (c CandleType) Duration() time.Duration {
+	switch c {
+	case Min:
+		return time.Minute
+	case Min2:
+		return 2 * time.Minute
+	case Min3:
+		return 3 * time.Minute
+	case Min4:
+		return 4 * time.Minute
+	case Min5:
+		return 5 * time.Minute
+	case Day:
+		return 24 * time.Hour
+	case Week:
+		return 7 * 24 * time.Hour
+	default:
+		return 0
+	}
+}
 
 type Market interface {
 	Stocks(ctx context.Context) []*item.Item

@@ -23,6 +23,7 @@ import (
 	"github.com/gobenpark/cerebro/broker"
 	"github.com/gobenpark/cerebro/indicator"
 	"github.com/gobenpark/cerebro/item"
+	"github.com/gobenpark/cerebro/market"
 	"github.com/gobenpark/cerebro/order"
 	"github.com/gobenpark/cerebro/risk"
 )
@@ -88,6 +89,18 @@ type Universe interface {
 	// adapter type) or one raw range with a type switch (several types). Two readers
 	// compete for the one channel and drop each other's values; see Stream.
 	Extras() <-chan any
+	// Warmup returns a warm candle stream for code at the given level: pre-seeded with
+	// the adapter's historical candles (Market.Candles) so indicators are valid from
+	// the first bar instead of cold-starting, then advanced as the universe's live
+	// ticks close new bars. Call it once per (code, level) at the top of Run; for a
+	// single-instrument strategy that code is u.Items()[0].Code.
+	//
+	// SINGLE CONSUMER of the tick feed: a strategy that uses Warmup must drive its
+	// decisions from the returned stream(s), NOT Ticks(). An internal dispatcher
+	// consumes the universe's ticks to fold them into candles, so a strategy that also
+	// ranges Ticks() competes for the same feed and both drop values. Use one or the
+	// other.
+	Warmup(ctx context.Context, code string, level market.CandleType) (CandleStream, error)
 }
 
 // Coded is an optional capability an adapter-specific Extras event may implement so

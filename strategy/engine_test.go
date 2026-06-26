@@ -325,6 +325,9 @@ func (f *fakeUniverse) Items() []*item.Item                    { return nil }
 func (f *fakeUniverse) Ticks() <-chan indicator.Tick           { return nil }
 func (f *fakeUniverse) OrderBooks() <-chan indicator.OrderBook { return nil }
 func (f *fakeUniverse) Extras() <-chan any                     { return f.extras }
+func (f *fakeUniverse) Warmup(context.Context, string, market.CandleType) (strategy.CandleStream, error) {
+	return nil, nil
+}
 
 // TestStream_FiltersByTypeAndStopsOnCancel verifies Stream[T] forwards only the Extras
 // values whose dynamic type is T (dropping the rest), and that its goroutine exits when

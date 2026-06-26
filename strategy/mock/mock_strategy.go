@@ -16,6 +16,7 @@ import (
 	broker "github.com/gobenpark/cerebro/broker"
 	indicator "github.com/gobenpark/cerebro/indicator"
 	item "github.com/gobenpark/cerebro/item"
+	market "github.com/gobenpark/cerebro/market"
 	order "github.com/gobenpark/cerebro/order"
 	risk "github.com/gobenpark/cerebro/risk"
 	strategy "github.com/gobenpark/cerebro/strategy"
@@ -286,6 +287,21 @@ func (m *MockUniverse) Ticks() <-chan indicator.Tick {
 func (mr *MockUniverseMockRecorder) Ticks() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Ticks", reflect.TypeOf((*MockUniverse)(nil).Ticks))
+}
+
+// Warmup mocks base method.
+func (m *MockUniverse) Warmup(ctx context.Context, code string, level market.CandleType) (strategy.CandleStream, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Warmup", ctx, code, level)
+	ret0, _ := ret[0].(strategy.CandleStream)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// Warmup indicates an expected call of Warmup.
+func (mr *MockUniverseMockRecorder) Warmup(ctx, code, level any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Warmup", reflect.TypeOf((*MockUniverse)(nil).Warmup), ctx, code, level)
 }
 
 // MockCoded is a mock of Coded interface.

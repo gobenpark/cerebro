@@ -207,3 +207,36 @@ func TestReplay_OtherCodeIsNotFilled(t *testing.T) {
 	is.Empty(r.matchAndFill("BBB", dec(50)), "a tick for another code must not fill this order")
 	is.True(dec(100_000).Equal(r.AccountBalance(context.Background())))
 }
+
+// TestReplay_CandlesReturnsWarmupNotReplayWindow guards against warm-up look-ahead:
+// Candles must return the separate WithWarmup history, never the WithCandles window
+// that is streamed as ticks (which would leak future bars and duplicate them live).
+func TestReplay_CandlesReturnsWarmupNotReplayWindow(t *testing.T) {
+	is := assert.New(t)
+	must := require.New(t)
+
+	window := indicator.Candles{{Code: "AAA", Close: dec(100)}, {Code: "AAA", Close: dec(101)}}
+	warmMin := indicator.Candles{{Code: "AAA", Close: dec(98)}}
+	warmMin5 := indicator.Candles{{Code: "AAA", Close: dec(97)}, {Code: "AAA", Close: dec(96)}}
+	r := New(
+		WithCandles("AAA", window),
+		WithWarmup("AAA", market.Min, warmMin),
+		WithWarmup("AAA", market.Min5, warmMin5),
+	)
+
+	got, err := r.Candles(context.Background(), "AAA", market.Min)
+	must.NoError(err)
+	must.Len(got, 1, "Candles must return the warm-up set, not the 2-bar replay window")
+	is.True(got[0].Close.Equal(dec(98)))
+
+	// Same code, different level: must return that level's own warm-up, not the other's.
+	got5, err := r.Candles(context.Background(), "AAA", market.Min5)
+	must.NoError(err)
+	must.Len(got5, 2)
+	is.True(got5[0].Close.Equal(dec(97)))
+
+	// A code with a replay window but no warm-up cold-starts: Candles returns nil.
+	none, err := r.Candles(context.Background(), "BBB", market.Min)
+	must.NoError(err)
+	is.Nil(none)
+}

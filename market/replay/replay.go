@@ -48,8 +48,16 @@ type Replay struct {
 	commission market.Rate
 	interval   time.Duration // pacing between emitted ticks
 	data       map[string]indicator.Candles
-	positions  map[string]position.Position
-	pending    []order.Order
+	// warmup holds historical candles returned by Candles for strategy warm-up
+	// (Universe.Warmup), keyed by code AND level so a strategy warming the same symbol
+	// at several timeframes gets bars of the right width. It is SEPARATE from data:
+	// data is replayed as ticks, so returning it from Candles would both leak future
+	// bars (look-ahead) and make live ticks duplicate the seeded bars. warmup must be
+	// bars from BEFORE the replay window; it is never emitted as ticks. Empty by
+	// default — a backtest then cold-starts, which is the safe default.
+	warmup    map[warmupKey]indicator.Candles
+	positions map[string]position.Position
+	pending   []order.Order
 	// subscribed marks codes a strategy has subscribed to; ready[code] is closed
 	// when that code is subscribed, releasing its per-code emitter. A code is
 	// replayed only after it is subscribed, so a loaded-but-untargeted code neither
@@ -59,6 +67,13 @@ type Replay struct {
 	// done is closed when the replay loop ends (every code's candles exhausted, or
 	// the context is canceled), giving callers a clean "backtest finished" signal.
 	done chan struct{}
+}
+
+// warmupKey identifies a warm-up series by code and candle level, so the same symbol
+// can be warmed at several timeframes.
+type warmupKey struct {
+	code  string
+	level market.CandleType
 }
 
 // Ensure Replay satisfies the market interface at compile time.
@@ -83,9 +98,21 @@ func WithCandles(code string, candles indicator.Candles) Option {
 	return func(r *Replay) { r.data[code] = candles }
 }
 
+// WithWarmup registers candles returned by Candles for a code's strategy warm-up
+// (Universe.Warmup) at a specific level, separate from the replayed window set by
+// WithCandles. These bars must predate the replay window — they seed indicators and
+// are never emitted as ticks, so they neither leak future data nor duplicate replayed
+// bars. Keyed by level, so the same symbol can be warmed at several timeframes.
+// Without it, Candles returns nothing for that (code, level) and a backtest
+// cold-starts.
+func WithWarmup(code string, level market.CandleType, candles indicator.Candles) Option {
+	return func(r *Replay) { r.warmup[warmupKey{code: code, level: level}] = candles }
+}
+
 func New(opts ...Option) *Replay {
 	r := &Replay{
 		data:       map[string]indicator.Candles{},
+		warmup:     map[warmupKey]indicator.Candles{},
 		positions:  map[string]position.Position{},
 		subscribed: map[string]struct{}{},
 		done:       make(chan struct{}),
@@ -111,10 +138,14 @@ func (r *Replay) Stocks(_ context.Context) []*item.Item {
 	return out
 }
 
-func (r *Replay) Candles(_ context.Context, code string, _ market.CandleType) (indicator.Candles, error) {
+// Candles returns the (code, level) warm-up history (WithWarmup), NOT the replayed
+// window (WithCandles): the window is streamed as ticks, so returning it would leak
+// future bars and duplicate them once they arrive live. Returns nil when no warm-up
+// is set for that code and level.
+func (r *Replay) Candles(_ context.Context, code string, level market.CandleType) (indicator.Candles, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	return r.data[code], nil
+	return r.warmup[warmupKey{code: code, level: level}], nil
 }
 
 // Subscribe records the handler's codes and releases each one's emitter. A code

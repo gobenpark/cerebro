@@ -70,7 +70,7 @@ type Engine struct {
 	// here, deduplicated.
 	extraChannels map[string][]chan any
 	runners       []Runner
-	timeout    time.Duration
+	timeout       time.Duration
 	// dynamic holds runners added at runtime via AddRunner (a screener-driven
 	// watchlist), keyed by strategy name, so RemoveRunner can stop exactly one. The
 	// runners from Spawn are permanent and are not tracked here.
@@ -88,10 +88,10 @@ type Engine struct {
 // AddRunner's can be removed.
 func NewEngine(log *slog.Logger, bk *broker.Broker, runners []Runner, store market.Market, timeout time.Duration) *Engine {
 	return &Engine{
-		broker:     bk,
-		log:        log,
-		store:      store,
-		timeout:    timeout,
+		broker:        bk,
+		log:           log,
+		store:         store,
+		timeout:       timeout,
 		channels:      map[string][]chan indicator.Tick{},
 		obChannels:    map[string][]chan indicator.OrderBook{},
 		extraChannels: map[string][]chan any{},
@@ -106,6 +106,17 @@ type universe struct {
 	ticks      <-chan indicator.Tick
 	orderbooks <-chan indicator.OrderBook
 	extras     <-chan any
+
+	// market sources historical candles for Warmup. cmu guards the lazily-started
+	// candle dispatcher's state (see warmup.go): streams holds the per-code seeded
+	// resamplers, started marks the single tick-consuming goroutine as running, and
+	// pending buffers ticks for a code whose stream is not registered yet (a later
+	// Warmup in a multi-code strategy) so it catches up instead of missing bars.
+	market  market.Market
+	cmu     sync.Mutex
+	streams map[string][]*candleStream
+	pending map[string][]indicator.Tick
+	started bool
 }
 
 func (u *universe) Items() []*item.Item                    { return u.items }
@@ -181,7 +192,7 @@ func (s *Engine) Spawn(ctx context.Context) {
 	for _, a := range actives {
 		// Hand each strategy a broker scoped to its name so its orders are attributed.
 		bk := s.broker.Scoped(a.r.Strategy.Name())
-		u := &universe{items: a.r.Items, ticks: a.ch, orderbooks: a.obch, extras: a.exch}
+		u := &universe{items: a.r.Items, ticks: a.ch, orderbooks: a.obch, extras: a.exch, market: s.store}
 		st := a.r.Strategy
 		// Run blocks until ctx is canceled, so it runs in its own goroutine.
 		s.wg.Go(func() {
@@ -251,7 +262,7 @@ func (s *Engine) AddRunner(ctx context.Context, r Runner) error {
 	}
 
 	bk := s.broker.Scoped(name)
-	u := &universe{items: r.Items, ticks: tickCh, orderbooks: obCh, extras: exCh}
+	u := &universe{items: r.Items, ticks: tickCh, orderbooks: obCh, extras: exCh, market: s.store}
 	st := r.Strategy
 	// Run blocks until rctx is canceled (by RemoveRunner or shutdown), so it runs in
 	// its own goroutine.

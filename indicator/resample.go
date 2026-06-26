@@ -82,12 +82,23 @@ func WithWindow(n int) ResamplerOption {
 	return func(r *Resampler) { r.window = n }
 }
 
+// WithSeed pre-loads the Resampler's closed-bar history with past candles, so
+// History (and the indicators computed from it) are warm from the first live tick
+// instead of starting empty. It clones history, leaving the caller's slice
+// untouched; the seed is bounded to WithWindow like any other closed bar. The
+// seeded bars should be older than the first tick fed to Add (they are treated as
+// already closed and are never re-folded).
+func WithSeed(history Candles) ResamplerOption {
+	return func(r *Resampler) { r.history = slices.Clone(history) }
+}
+
 // NewResampler returns a Resampler that buckets ticks into compress-wide candles.
 func NewResampler(compress time.Duration, opts ...ResamplerOption) *Resampler {
 	r := &Resampler{compress: compress}
 	for _, o := range opts {
 		o(r)
 	}
+	r.trim() // bound a seeded history to the window regardless of option order
 	return r
 }
 

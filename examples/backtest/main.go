@@ -40,12 +40,14 @@ import (
 	"github.com/gobenpark/cerebro/strategy"
 )
 
-// dipBuyer buys once the price dips a threshold below the first price it sees,
-// then holds. Minimal, just enough to show the full tick -> order -> fill loop.
+// dipBuyer buys once the price dips a threshold below the first price it sees, then
+// sells the position back once the price recovers to the opening level — a complete
+// round-trip, so the run produces a closed trade for the performance report.
 type dipBuyer struct {
 	name   string
 	first  decimal.Decimal
 	bought bool
+	sold   bool
 }
 
 func (s *dipBuyer) Name() string { return s.name }
@@ -64,11 +66,18 @@ func (s *dipBuyer) Run(ctx context.Context, u strategy.Universe, b broker.Submit
 			if s.first.IsZero() {
 				s.first = tk.Price
 			}
+			switch {
 			// Buy 10 units once the price is 2% under the opening price.
-			if !s.bought && tk.Price.LessThan(s.first.Mul(decimal.NewFromFloat(0.98))) {
-				o := order.NewOrder(it, order.Buy, order.Limit, decimal.NewFromInt(10), tk.Price)
+			case !s.bought && tk.Price.LessThan(s.first.Mul(decimal.NewFromFloat(0.98))):
+				o := order.NewOrder(it, order.Buy, order.Limit, decimal.NewFromInt(40), tk.Price)
 				if err := b.Order(ctx, o, true); err == nil {
 					s.bought = true
+				}
+			// Sell back once the price recovers to the opening level — closes the trade.
+			case s.bought && !s.sold && tk.Price.GreaterThanOrEqual(s.first):
+				o := order.NewOrder(it, order.Sell, order.Limit, decimal.NewFromInt(40), tk.Price)
+				if err := b.Order(ctx, o, true); err == nil {
+					s.sold = true
 				}
 			}
 		}
@@ -82,7 +91,9 @@ func (s *dipBuyer) NotifyOrder(o order.Order) {
 func (s *dipBuyer) NotifyTrade() {}
 func (s *dipBuyer) NotifyFund()  {}
 
-// series builds candles whose OHLC all equal the given closing prices.
+// series builds candles whose OHLC all equal the given closing prices, one per day
+// so the run spans several calendar days and the equity curve is sampled daily —
+// enough points for the drawdown and Sharpe figures in the performance report.
 func series(code string, prices ...int64) indicator.Candles {
 	base := time.Date(2024, 1, 1, 9, 0, 0, 0, time.UTC)
 	cds := make(indicator.Candles, len(prices))
@@ -90,7 +101,7 @@ func series(code string, prices ...int64) indicator.Candles {
 		d := decimal.NewFromInt(p)
 		cds[i] = &indicator.Candle{
 			Code:   code,
-			Date:   base.Add(time.Duration(i) * time.Minute),
+			Date:   base.AddDate(0, 0, i),
 			Open:   d,
 			High:   d,
 			Low:    d,
@@ -106,7 +117,7 @@ func main() {
 	prices := []int64{100, 100, 99, 98, 97, 97, 97, 98, 99, 100, 101, 102, 103}
 
 	mkt := replay.New(
-		replay.WithBalance(decimal.NewFromInt(1_000_000)),
+		replay.WithBalance(decimal.NewFromInt(10_000)),
 		replay.WithCommission(market.Percent(decimal.NewFromFloat(0.015))), // 0.015%
 		replay.WithInterval(10*time.Millisecond),
 		replay.WithCandles("AAA", series("AAA", prices...)),
@@ -143,4 +154,13 @@ func main() {
 	for _, p := range positions {
 		fmt.Printf("position %s size=%s avg=%s\n", p.Item.Code, p.Size, p.Price.StringFixed(2))
 	}
+
+	// Performance summary: trade-level stats from the closed-trade log and time-level
+	// stats from the daily equity curve.
+	p := cb.Performance()
+	fmt.Printf("\nperformance\n")
+	fmt.Printf("  trades=%d  winRate=%.0f%%  profitFactor=%.2f  netPnL=%s\n",
+		p.Trades, p.WinRate*100, p.ProfitFactor, p.NetPnL.StringFixed(2))
+	fmt.Printf("  maxDrawdown=%s (%.2f%%)  sharpe=%.2f  totalReturn=%.2f%%\n",
+		p.MaxDrawdown.StringFixed(2), p.MaxDrawdownPct*100, p.Sharpe, p.TotalReturn*100)
 }

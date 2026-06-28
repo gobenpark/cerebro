@@ -22,6 +22,7 @@ import (
 	"slices"
 	"sort"
 	"sync"
+	"time"
 
 	"github.com/samber/lo"
 	"github.com/shopspring/decimal"
@@ -69,6 +70,16 @@ type Broker struct {
 	// valuing a market fill whose event and order both carry no price, so positions
 	// (and the PnL/risk that read them) are still tracked for such adapters.
 	lastPrice map[string]decimal.Decimal
+	// now is the latest observed tick time, the clock the broker stamps trades and
+	// equity samples with (sim time under replay, wall time live). Zero until the
+	// first tick.
+	now time.Time
+	// trades is the closed round-trip log, appended when a lot returns to flat, the
+	// basis for trade-level performance metrics (win rate, profit factor, ...).
+	trades []Trade
+	// equity is the account equity sampled once per calendar day (by tick time), the
+	// basis for time-level metrics (max drawdown, Sharpe, total return).
+	equity []EquityPoint
 	// mu guards orders, positions, balance, and the PnL ledger (lots/realized/fees).
 	mu sync.RWMutex
 	// wg tracks in-flight submit goroutines so Wait can join them on shutdown.
@@ -83,12 +94,47 @@ type Broker struct {
 	saveMu sync.Mutex
 }
 
-// lot is one strategy's open position in one code.
+// lot is one strategy's open position in one code. The round-trip accumulators below
+// span the lot's life (first buy to flat) so a Trade can be emitted when it closes;
+// they are distinct from size/cost, which track only the currently-held quantity.
 type lot struct {
 	item *item.Item
 	size decimal.Decimal // held quantity
 	cost decimal.Decimal // acquisition cost of the held quantity (price*size, no fees)
 	peak decimal.Decimal // highest fill price since the lot opened (seeds trailing stops)
+
+	openedAt    time.Time       // time of the first buy that opened this round-trip
+	lastAt      time.Time       // time of the most recent fill (becomes Trade.ClosedAt)
+	boughtQty   decimal.Decimal // total quantity bought over the round-trip
+	boughtValue decimal.Decimal // total buy notional (price*size) — avg entry is value/qty
+	soldQty     decimal.Decimal // total quantity sold over the round-trip
+	soldValue   decimal.Decimal // total sell notional — avg exit is value/qty
+	realized    decimal.Decimal // round-trip realized PnL (price gains on closed quantity)
+	feesPaid    decimal.Decimal // round-trip commission (buys + sells)
+}
+
+// Trade is one completed round-trip: a position opened from flat and returned to
+// flat. NetPnL is Realized minus Fees; a winning trade has NetPnL > 0.
+type Trade struct {
+	Strategy string
+	Code     string
+	Qty      decimal.Decimal // quantity traded (entry size)
+	Entry    decimal.Decimal // average entry price
+	Exit     decimal.Decimal // average exit price
+	Realized decimal.Decimal // gross realized PnL over the round-trip
+	Fees     decimal.Decimal // commission over the round-trip
+	OpenedAt time.Time
+	ClosedAt time.Time
+}
+
+// NetPnL is the round-trip profit after commission.
+func (t Trade) NetPnL() decimal.Decimal { return t.Realized.Sub(t.Fees) }
+
+// EquityPoint is account equity (settled cash plus the mark-to-market value of open
+// positions) sampled at a point in time.
+type EquityPoint struct {
+	Time   time.Time
+	Equity decimal.Decimal
 }
 
 // StrategyReport is a per-strategy view of trading performance at a point in time.
@@ -128,16 +174,21 @@ func (b *Broker) recordFillLocked(strategy string, it *item.Item, action order.A
 	}
 	l := lots[it.Code]
 	if l == nil {
-		l = &lot{item: it}
+		l = &lot{item: it, openedAt: b.now}
 		lots[it.Code] = l
 	}
+	l.lastAt = b.now
 	rate := b.market.Commission()
 
 	switch action {
 	case order.Buy:
-		b.fees[strategy] = b.fees[strategy].Add(rate.Of(price.Mul(size)))
+		fee := rate.Of(price.Mul(size))
+		b.fees[strategy] = b.fees[strategy].Add(fee)
+		l.feesPaid = l.feesPaid.Add(fee)
 		l.cost = l.cost.Add(price.Mul(size))
 		l.size = l.size.Add(size)
+		l.boughtQty = l.boughtQty.Add(size)
+		l.boughtValue = l.boughtValue.Add(price.Mul(size))
 		if price.GreaterThan(l.peak) {
 			l.peak = price // track the high-water fill price for trailing stops
 		}
@@ -147,12 +198,19 @@ func (b *Broker) recordFillLocked(strategy string, it *item.Item, action order.A
 		sold := decimal.Min(size, l.size)
 		if sold.GreaterThan(decimal.Zero) {
 			avg := l.cost.Div(l.size)
-			b.fees[strategy] = b.fees[strategy].Add(rate.Of(price.Mul(sold)))
-			b.realized[strategy] = b.realized[strategy].Add(price.Sub(avg).Mul(sold))
+			fee := rate.Of(price.Mul(sold))
+			gain := price.Sub(avg).Mul(sold)
+			b.fees[strategy] = b.fees[strategy].Add(fee)
+			b.realized[strategy] = b.realized[strategy].Add(gain)
+			l.feesPaid = l.feesPaid.Add(fee)
+			l.realized = l.realized.Add(gain)
+			l.soldQty = l.soldQty.Add(sold)
+			l.soldValue = l.soldValue.Add(price.Mul(sold))
 			l.cost = l.cost.Sub(avg.Mul(sold))
 			l.size = l.size.Sub(sold)
 		}
 		if l.size.LessThanOrEqual(decimal.Zero) {
+			b.trades = append(b.trades, tradeFromLot(strategy, l))
 			delete(lots, it.Code)
 			if len(lots) == 0 {
 				delete(b.lots, strategy)
@@ -161,6 +219,26 @@ func (b *Broker) recordFillLocked(strategy string, it *item.Item, action order.A
 	default:
 		// Cancel/Edit are not fills and do not move the position.
 	}
+}
+
+// tradeFromLot builds the closed-trade record for a lot that has returned to flat.
+func tradeFromLot(strategy string, l *lot) Trade {
+	t := Trade{
+		Strategy: strategy,
+		Code:     l.item.Code,
+		Qty:      l.boughtQty,
+		Realized: l.realized,
+		Fees:     l.feesPaid,
+		OpenedAt: l.openedAt,
+		ClosedAt: l.lastAt,
+	}
+	if l.boughtQty.GreaterThan(decimal.Zero) {
+		t.Entry = l.boughtValue.Div(l.boughtQty)
+	}
+	if l.soldQty.GreaterThan(decimal.Zero) {
+		t.Exit = l.soldValue.Div(l.soldQty)
+	}
+	return t
 }
 
 // totalRealizedLocked sums realized PnL across strategies. Caller holds b.mu.
@@ -235,6 +313,80 @@ func (b *Broker) Report() []StrategyReport {
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].Strategy < out[j].Strategy })
 	return out
+}
+
+// equityLocked is settled cash plus the mark-to-market value of every open lot,
+// valued at the latest tick price (falling back to average entry when a held code
+// has no observed price yet). Caller holds b.mu.
+func (b *Broker) equityLocked() decimal.Decimal {
+	eq := b.balance
+	for _, lots := range b.lots {
+		for code, l := range lots {
+			if l.size.LessThanOrEqual(decimal.Zero) {
+				continue
+			}
+			px, ok := b.lastPrice[code]
+			if !ok {
+				px = l.cost.Div(l.size) // no tick yet: mark at entry (unrealized 0)
+			}
+			eq = eq.Add(px.Mul(l.size))
+		}
+	}
+	return eq
+}
+
+// sampleEquityLocked keeps one equity point per calendar day (in tick time): it
+// appends a point on a new day and otherwise updates the current day's point to the
+// latest equity, so each completed day holds that day's closing equity (reflecting
+// intraday price moves and fills) rather than its open. Caller holds b.mu.
+func (b *Broker) sampleEquityLocked(now time.Time) {
+	eq := b.equityLocked()
+	if n := len(b.equity); n > 0 && sameDay(b.equity[n-1].Time, now) {
+		b.equity[n-1] = EquityPoint{Time: now, Equity: eq}
+		return
+	}
+	b.equity = append(b.equity, EquityPoint{Time: now, Equity: eq})
+}
+
+// sameDay reports whether a and b fall on the same UTC calendar day.
+func sameDay(a, c time.Time) bool {
+	ay, am, ad := a.UTC().Date()
+	cy, cm, cd := c.UTC().Date()
+	return ay == cy && am == cm && ad == cd
+}
+
+// Equity returns the current account equity (settled cash plus mark-to-market open
+// positions).
+func (b *Broker) Equity() decimal.Decimal {
+	b.mu.RLock()
+	defer b.mu.RUnlock()
+	return b.equityLocked()
+}
+
+// Trades returns a copy of the closed round-trip log, oldest first.
+func (b *Broker) Trades() []Trade {
+	b.mu.RLock()
+	defer b.mu.RUnlock()
+	return slices.Clone(b.trades)
+}
+
+// EquityCurve returns the daily-sampled equity series, oldest first, with the final
+// (current) day reflecting equity as of now — including fills booked since the last
+// tick — so the curve always ends at the live equity.
+func (b *Broker) EquityCurve() []EquityPoint {
+	b.mu.RLock()
+	defer b.mu.RUnlock()
+	curve := slices.Clone(b.equity)
+	if b.now.IsZero() {
+		return curve
+	}
+	cur := b.equityLocked()
+	if n := len(curve); n > 0 && sameDay(curve[n-1].Time, b.now) {
+		curve[n-1] = EquityPoint{Time: b.now, Equity: cur}
+	} else {
+		curve = append(curve, EquityPoint{Time: b.now, Equity: cur})
+	}
+	return curve
 }
 
 // Submitter is the broker surface a strategy uses. A scoped Submitter tags every
@@ -462,9 +614,16 @@ func (b *Broker) Listen(ctx context.Context, e any) {
 		}
 	case indicator.Tick:
 		// Remember the latest price per code so a market fill that carries no price
-		// can still be valued (see applyOrderChange).
+		// can still be valued (see applyOrderChange), advance the broker clock, and
+		// sample equity once per day for the performance time series.
 		b.mu.Lock()
 		b.lastPrice[evt.Code] = evt.Price
+		if evt.Date.After(b.now) {
+			b.now = evt.Date
+		}
+		if !b.now.IsZero() {
+			b.sampleEquityLocked(b.now)
+		}
 		b.mu.Unlock()
 	case market.MarketEvent:
 		b.handleMarketEvent(ctx, evt)

@@ -43,14 +43,19 @@ running backtest over 13 bars ...
   notify [dip] AAA status=2
   notify [dip] AAA status=5
 
-final balance: 999029.85
-position AAA size=10 avg=97.00
+final balance: 10118.82
+no open positions
+
+performance
+  trades=1  winRate=100%  profitFactor=0.00  netPnL=118.82
+  maxDrawdown=40.60 (0.40%)  sharpe=7.62  totalReturn=1.19%
 ```
 
 That example ([`examples/backtest/main.go`](examples/backtest/main.go)) wires the
 replay market, a small dip-buying strategy, and a risk gate through Cerebro and
-prints the result. It is the place to start reading; the sections below show how
-to plug in a **real** exchange for live trading.
+prints both the final state and a performance summary (`Cerebro.Performance()`). It
+is the place to start reading; the sections below show how to plug in a **real**
+exchange for live trading.
 
 ## How it works
 
@@ -327,6 +332,12 @@ Cerebro is composed of a few cooperating parts:
 - **Realized PnL & reporting** — the broker books realized PnL and fees per
   strategy from attributed fills (average-cost basis); `Cerebro.Report()` returns
   a per-strategy snapshot of realized PnL, fees, and open positions.
+- **Performance analytics** — the broker logs each closed round-trip and samples
+  account equity daily; `Cerebro.Performance()` turns them into a summary (win rate,
+  profit factor, expectancy, average win/loss, max drawdown, Sharpe, total return)
+  via the `analysis` package. `Cerebro.Trades()` and `Cerebro.EquityCurve()` expose
+  the raw series for custom analysis (e.g. `analysis.Summarize(..., 252)` for
+  trading-day Sharpe).
 - **Persistence & crash recovery** — attach a `broker.Storage` with
   `cerebro.WithStorage` and the broker restores its per-strategy ledger (realized
   PnL, fees, and open lots) on start and writes it back after each booked fill, so

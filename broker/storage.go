@@ -106,7 +106,14 @@ func (b *Broker) Restore(ctx context.Context) error {
 			codes = map[string]*lot{}
 			lots[ls.Strategy] = codes
 		}
-		codes[ls.Item.Code] = &lot{item: ls.Item, size: ls.Size, cost: ls.Cost, peak: ls.Peak}
+		// Seed the round-trip accumulators from the restored position so a later close
+		// still emits a sane Trade. The pre-restart entry detail (open time, buy-side
+		// fees) is not persisted, so a trade spanning a restart records exact
+		// quantity/entry/realized but an approximate fee total and a zero open time.
+		codes[ls.Item.Code] = &lot{
+			item: ls.Item, size: ls.Size, cost: ls.Cost, peak: ls.Peak,
+			boughtQty: ls.Size, boughtValue: ls.Cost,
+		}
 	}
 
 	b.mu.Lock()

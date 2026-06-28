@@ -23,6 +23,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/gobenpark/cerebro/analysis"
 	"github.com/gobenpark/cerebro/broker"
 	"github.com/gobenpark/cerebro/engine"
 	"github.com/gobenpark/cerebro/event"
@@ -360,6 +361,31 @@ func (c *Cerebro) Start(ctx context.Context) error {
 // handy to print at the end of a run.
 func (c *Cerebro) Report() []broker.StrategyReport {
 	return c.broker.Report()
+}
+
+// defaultPeriodsPerYear annualizes Sharpe for the daily equity sampling. 365 suits a
+// 24/7 market (e.g. crypto); callers wanting trading-day annualization (252) can call
+// analysis.Summarize directly with Trades() and EquityCurve().
+const defaultPeriodsPerYear = 365
+
+// Performance summarizes the run's trade log and equity curve into headline metrics
+// (win rate, profit factor, expectancy, max drawdown, Sharpe, ...). It is most useful
+// after a backtest but is safe to call at any time. Sharpe is annualized for the daily
+// equity sampling; for trading-day annualization use analysis.Summarize directly.
+func (c *Cerebro) Performance() analysis.Summary {
+	return analysis.Summarize(c.broker.Trades(), c.broker.EquityCurve(), defaultPeriodsPerYear)
+}
+
+// Trades returns the closed round-trip log, oldest first — the raw input for custom
+// trade-level analysis beyond Performance.
+func (c *Cerebro) Trades() []broker.Trade {
+	return c.broker.Trades()
+}
+
+// EquityCurve returns the daily-sampled account equity series, oldest first — the raw
+// input for custom time-level analysis beyond Performance.
+func (c *Cerebro) EquityCurve() []broker.EquityPoint {
+	return c.broker.EquityCurve()
 }
 
 // feedGuarded reports whether live-feed guarding is active — either a staleness

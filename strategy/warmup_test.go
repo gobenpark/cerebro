@@ -43,6 +43,7 @@ func (f fakeMarket) Candles(context.Context, string, market.CandleType) (indicat
 }
 func (f fakeMarket) Subscribe(context.Context, market.TickEventHandler) error { return nil }
 func (f fakeMarket) Order(context.Context, order.Order) error                 { return nil }
+func (f fakeMarket) Cancel(context.Context, order.Order) error                { return nil }
 func (f fakeMarket) AccountPositions(context.Context) []position.Position     { return nil }
 func (f fakeMarket) AccountBalance(context.Context) decimal.Decimal           { return decimal.Zero }
 func (f fakeMarket) Events(context.Context) <-chan any                        { return nil }

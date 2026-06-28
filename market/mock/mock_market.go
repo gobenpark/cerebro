@@ -74,6 +74,20 @@ func (mr *MockMarketMockRecorder) AccountPositions(ctx any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AccountPositions", reflect.TypeOf((*MockMarket)(nil).AccountPositions), ctx)
 }
 
+// Cancel mocks base method.
+func (m *MockMarket) Cancel(ctx context.Context, o order.Order) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Cancel", ctx, o)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// Cancel indicates an expected call of Cancel.
+func (mr *MockMarketMockRecorder) Cancel(ctx, o any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Cancel", reflect.TypeOf((*MockMarket)(nil).Cancel), ctx, o)
+}
+
 // Candles mocks base method.
 func (m *MockMarket) Candles(ctx context.Context, code string, level market.CandleType) (indicator.Candles, error) {
 	m.ctrl.T.Helper()
@@ -157,4 +171,42 @@ func (m *MockMarket) Subscribe(ctx context.Context, handler market.TickEventHand
 func (mr *MockMarketMockRecorder) Subscribe(ctx, handler any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Subscribe", reflect.TypeOf((*MockMarket)(nil).Subscribe), ctx, handler)
+}
+
+// MockUnsubscriber is a mock of Unsubscriber interface.
+type MockUnsubscriber struct {
+	ctrl     *gomock.Controller
+	recorder *MockUnsubscriberMockRecorder
+	isgomock struct{}
+}
+
+// MockUnsubscriberMockRecorder is the mock recorder for MockUnsubscriber.
+type MockUnsubscriberMockRecorder struct {
+	mock *MockUnsubscriber
+}
+
+// NewMockUnsubscriber creates a new mock instance.
+func NewMockUnsubscriber(ctrl *gomock.Controller) *MockUnsubscriber {
+	mock := &MockUnsubscriber{ctrl: ctrl}
+	mock.recorder = &MockUnsubscriberMockRecorder{mock}
+	return mock
+}
+
+// EXPECT returns an object that allows the caller to indicate expected use.
+func (m *MockUnsubscriber) EXPECT() *MockUnsubscriberMockRecorder {
+	return m.recorder
+}
+
+// Unsubscribe mocks base method.
+func (m *MockUnsubscriber) Unsubscribe(ctx context.Context, codes []string) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Unsubscribe", ctx, codes)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// Unsubscribe indicates an expected call of Unsubscribe.
+func (mr *MockUnsubscriberMockRecorder) Unsubscribe(ctx, codes any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Unsubscribe", reflect.TypeOf((*MockUnsubscriber)(nil).Unsubscribe), ctx, codes)
 }

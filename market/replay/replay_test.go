@@ -104,6 +104,107 @@ func TestReplay_MarketOrderFillsAtCurrentPrice(t *testing.T) {
 	is.True(dec(200).Equal(pos[0].Price))
 }
 
+// TestReplay_CancelRemovesPendingOrder verifies a canceled resting order no longer
+// fills when its price condition is later met.
+func TestReplay_CancelRemovesPendingOrder(t *testing.T) {
+	is := assert.New(t)
+	must := require.New(t)
+
+	r := New(WithBalance(dec(100_000)))
+	o := order.NewOrder(&item.Item{Code: "AAA"}, order.Buy, order.Limit, dec(10), dec(100))
+	must.NoError(r.Order(context.Background(), o))
+	must.NoError(r.Cancel(context.Background(), o))
+
+	is.Empty(r.matchAndFill("AAA", dec(100)), "a canceled order must not fill")
+	is.Empty(r.AccountPositions(context.Background()), "no position from a canceled order")
+}
+
+// TestReplay_CancelEmitsCanceledEvent verifies Cancel emits a Canceled event on the
+// running Events channel, so the broker releases the reservation the live way. ZZZ is
+// loaded but never subscribed, so its emitter blocks and the run loop (and its event
+// channel) stays alive for the cancellation to emit on.
+func TestReplay_CancelEmitsCanceledEvent(t *testing.T) {
+	is := assert.New(t)
+	must := require.New(t)
+
+	r := New(WithBalance(dec(100_000)), WithCandles("ZZZ", indicator.Candles{{Code: "ZZZ", Close: dec(1)}}))
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	ch := r.Events(ctx)
+
+	o := order.NewOrder(&item.Item{Code: "AAA"}, order.Buy, order.Limit, dec(10), dec(100))
+	must.NoError(r.Order(ctx, o))
+	must.NoError(r.Cancel(ctx, o))
+
+	select {
+	case e := <-ch:
+		ev, ok := e.(market.ChangeOrderEvent)
+		must.True(ok, "expected a ChangeOrderEvent")
+		is.Equal(o.ID(), ev.ID)
+		is.Equal(order.Canceled, ev.Action)
+	case <-time.After(time.Second):
+		t.Fatal("Cancel did not emit a Canceled event")
+	}
+}
+
+// TestReplay_CancelBeforeEventsIsBuffered guards that a cancel issued before Events
+// is opened (a submit+cancel during Start) is not lost: its Canceled confirmation is
+// buffered and flushed once the event stream starts, so the broker can release the
+// reservation.
+func TestReplay_CancelBeforeEventsIsBuffered(t *testing.T) {
+	is := assert.New(t)
+	must := require.New(t)
+
+	r := New(WithBalance(dec(100_000)))
+	o := order.NewOrder(&item.Item{Code: "AAA"}, order.Buy, order.Limit, dec(10), dec(100))
+	must.NoError(r.Order(context.Background(), o))
+	must.NoError(r.Cancel(context.Background(), o)) // before Events — must be buffered
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	ch := r.Events(ctx) // opening the stream flushes the buffered confirmation
+
+	select {
+	case e := <-ch:
+		ev, ok := e.(market.ChangeOrderEvent)
+		must.True(ok, "expected a ChangeOrderEvent")
+		is.Equal(o.ID(), ev.ID)
+		is.Equal(order.Canceled, ev.Action)
+	case <-time.After(time.Second):
+		t.Fatal("a cancel before Events was not flushed when the stream opened")
+	}
+}
+
+// TestReplay_ShutdownNotBlockedByStuckCancelSend guards that a cancel send blocked on
+// a full, undrained event channel (with a non-canceling context) does not deadlock
+// the replay's shutdown: closeEvents releases the blocked send via stopSend, so the
+// run loop can still close the stream when its context is canceled.
+func TestReplay_ShutdownNotBlockedByStuckCancelSend(t *testing.T) {
+	// ZZZ is loaded but never subscribed, so the run loop stays alive until runCtx is
+	// canceled; the event channel is intentionally never drained.
+	r := New(WithBalance(dec(100_000)), WithCandles("ZZZ", indicator.Candles{{Code: "ZZZ", Close: dec(1)}}))
+	runCtx, runCancel := context.WithCancel(context.Background())
+	_ = r.Events(runCtx)
+
+	// Flood cancels with a non-canceling context: once the 16-slot buffer fills, a
+	// send blocks. It must not hold emitMu, or the shutdown below would deadlock.
+	go func() {
+		for range 30 {
+			o := order.NewOrder(&item.Item{Code: "AAA"}, order.Buy, order.Limit, dec(1), dec(100))
+			_ = r.Order(context.Background(), o)
+			_ = r.Cancel(context.Background(), o)
+		}
+	}()
+	time.Sleep(50 * time.Millisecond) // let the buffer fill and a send block
+
+	runCancel()
+	select {
+	case <-r.Done():
+	case <-time.After(2 * time.Second):
+		t.Fatal("replay shutdown deadlocked on a blocked cancel send")
+	}
+}
+
 func TestReplay_SellWithoutHoldingsDoesNotFill(t *testing.T) {
 	is := assert.New(t)
 	must := require.New(t)

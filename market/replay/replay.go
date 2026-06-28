@@ -27,6 +27,7 @@ package replay
 
 import (
 	"context"
+	"slices"
 	"sort"
 	"sync"
 	"time"
@@ -67,6 +68,25 @@ type Replay struct {
 	// done is closed when the replay loop ends (every code's candles exhausted, or
 	// the context is canceled), giving callers a clean "backtest finished" signal.
 	done chan struct{}
+	// eventCh is the live Events channel, retained so Cancel can emit a Canceled event
+	// the same way the replay loop emits fills. emitMu serializes a Cancel emit with
+	// the loop's close so a cancellation never sends on a closed channel; eventClosed
+	// marks the channel closed once the loop ends.
+	eventCh     chan any
+	emitMu      sync.Mutex
+	eventClosed bool
+	// preEvents buffers events (e.g. a Cancel confirmation) produced before Events is
+	// opened, so a strategy that submits and cancels during Start — before pumpEvents
+	// calls Events — does not lose the confirmation and leave the broker holding a
+	// permanently reserved order. They are flushed when the run loop starts.
+	preEvents []any
+	// sendWg counts in-flight Cancel sends so closeEvents waits for them before
+	// closing the channel; stopSend is closed first to release a send stuck on a full,
+	// undrained channel. Together they let Cancel send WITHOUT holding emitMu (so a
+	// blocking send can never deadlock the loop's close) while still never racing or
+	// sending on the closed channel.
+	sendWg   sync.WaitGroup
+	stopSend chan struct{}
 }
 
 // warmupKey identifies a warm-up series by code and candle level, so the same symbol
@@ -200,6 +220,10 @@ func (r *Replay) Commission() market.Rate { return r.commission }
 // code's candles are exhausted; untargeted codes wait until ctx is canceled).
 func (r *Replay) Events(ctx context.Context) <-chan any {
 	ch := make(chan any, 16)
+	r.emitMu.Lock()
+	r.eventCh = ch // retained so Cancel can emit on the same channel
+	r.stopSend = make(chan struct{})
+	r.emitMu.Unlock()
 	go r.run(ctx, ch)
 	return ch
 }
@@ -210,7 +234,18 @@ func (r *Replay) Done() <-chan struct{} { return r.done }
 
 func (r *Replay) run(ctx context.Context, ch chan any) {
 	defer close(r.done)
-	defer close(ch)
+
+	// Flush confirmations buffered before Events was opened (a cancel during Start).
+	r.emitMu.Lock()
+	pre := r.preEvents
+	r.preEvents = nil
+	r.emitMu.Unlock()
+	for _, e := range pre {
+		if !send(ctx, ch, e) {
+			r.closeEvents(ch)
+			return
+		}
+	}
 
 	r.mu.Lock()
 	codes := make([]string, 0, len(r.data))
@@ -228,6 +263,64 @@ func (r *Replay) run(ctx context.Context, ch chan any) {
 		}(code)
 	}
 	wg.Wait()
+
+	r.closeEvents(ch)
+}
+
+// closeEvents ends the event stream without racing a concurrent Cancel: it marks the
+// stream closed and closes stopSend (releasing any send blocked on a full channel),
+// waits for in-flight Cancel sends to finish, then closes the channel. Because sends
+// run outside emitMu, a blocked send can never deadlock this close.
+func (r *Replay) closeEvents(ch chan any) {
+	r.emitMu.Lock()
+	r.eventClosed = true
+	close(r.stopSend)
+	r.emitMu.Unlock()
+	r.sendWg.Wait()
+	close(ch)
+}
+
+// Cancel removes a resting order from the pending set and emits a Canceled event so
+// the broker releases its reservation, mirroring a live exchange's confirmation.
+// Canceling an order that already filled or is unknown is a no-op.
+func (r *Replay) Cancel(ctx context.Context, o order.Order) error {
+	r.mu.Lock()
+	idx := slices.IndexFunc(r.pending, func(p order.Order) bool { return p.ID() == o.ID() })
+	if idx < 0 {
+		r.mu.Unlock()
+		return nil
+	}
+	r.pending = slices.Delete(r.pending, idx, idx+1)
+	r.mu.Unlock()
+
+	ev := market.ChangeOrderEvent{ID: o.ID(), Action: order.Canceled, Message: "canceled"}
+
+	r.emitMu.Lock()
+	if r.eventClosed {
+		r.emitMu.Unlock()
+		return nil // replay ended; the order is already gone
+	}
+	if r.eventCh == nil {
+		// Events not opened yet (a cancel during Start): buffer so the confirmation is
+		// flushed when the run loop starts, rather than lost.
+		r.preEvents = append(r.preEvents, ev)
+		r.emitMu.Unlock()
+		return nil
+	}
+	// Register the send, then release emitMu BEFORE sending: a full/undrained channel
+	// must not block the mutex closeEvents needs. closeEvents closes stopSend to
+	// release us and waits on sendWg before closing ch, so this neither hangs the loop
+	// nor sends on a closed channel.
+	r.sendWg.Add(1)
+	ch, stop := r.eventCh, r.stopSend
+	r.emitMu.Unlock()
+	defer r.sendWg.Done()
+	select {
+	case ch <- ev:
+	case <-ctx.Done():
+	case <-stop:
+	}
+	return nil
 }
 
 // emit waits for code to be subscribed, then replays its candles in time order,

@@ -18,6 +18,7 @@ package broker
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"slices"
 	"sort"
@@ -66,6 +67,13 @@ type Broker struct {
 	// not the order's remaining size, which a market adapter may mutate on the
 	// shared order object before the broker observes the fill event.
 	filled map[string]decimal.Decimal
+	// submitted holds the ids of orders the market has been told about (market.Order
+	// returned). cancelPending holds ids a strategy asked to cancel before submission
+	// completed. Together they serialize Cancel with the async submit goroutine: a
+	// cancel that arrives before the market knows the order is deferred and forwarded
+	// once submit registers it, rather than lost as an unknown cancel.
+	submitted     map[string]struct{}
+	cancelPending map[string]struct{}
 	// lastPrice is the most recent tick price per code. It is the final fallback for
 	// valuing a market fill whose event and order both carry no price, so positions
 	// (and the PnL/risk that read them) are still tracked for such adapters.
@@ -390,9 +398,14 @@ func (b *Broker) EquityCurve() []EquityPoint {
 }
 
 // Submitter is the broker surface a strategy uses. A scoped Submitter tags every
-// order with the strategy's name so fills can be attributed back to it.
+// order with the strategy's name so fills can be attributed back to it, and Cancel
+// only acts on orders that strategy placed.
 type Submitter interface {
 	Order(ctx context.Context, o order.Order, safe bool) error
+	// Cancel requests cancellation of one of this strategy's open orders by id. It
+	// returns an error if no such open order is owned by the strategy; the order's
+	// cash reservation is released when the exchange confirms the cancellation.
+	Cancel(ctx context.Context, orderID string) error
 	Available() decimal.Decimal
 	Balance() decimal.Decimal
 	Position(ticker string) (position.Position, bool)
@@ -420,6 +433,12 @@ func (s *scopedBroker) Order(ctx context.Context, o order.Order, safe bool) erro
 	return s.Broker.Order(ctx, o, safe)
 }
 
+// Cancel cancels one of this strategy's own open orders; an order placed by another
+// strategy is not cancelable through this scoped handle.
+func (s *scopedBroker) Cancel(ctx context.Context, orderID string) error {
+	return s.cancel(ctx, orderID, s.strategy)
+}
+
 func NewDefaultBroker(eventEngine event.Broadcaster, store market.Market, logger *slog.Logger) *Broker {
 	return &Broker{
 		orders:      []order.Order{},
@@ -429,13 +448,15 @@ func NewDefaultBroker(eventEngine event.Broadcaster, store market.Market, logger
 		// Seed settled cash and positions from the exchange at startup. There is no
 		// request context here, so use Background; the adapter must keep these reads
 		// time-bounded.
-		positions: store.AccountPositions(context.Background()),
-		balance:   store.AccountBalance(context.Background()),
-		lots:      map[string]map[string]*lot{},
-		realized:  map[string]decimal.Decimal{},
-		fees:      map[string]decimal.Decimal{},
-		filled:    map[string]decimal.Decimal{},
-		lastPrice: map[string]decimal.Decimal{},
+		positions:     store.AccountPositions(context.Background()),
+		balance:       store.AccountBalance(context.Background()),
+		lots:          map[string]map[string]*lot{},
+		realized:      map[string]decimal.Decimal{},
+		fees:          map[string]decimal.Decimal{},
+		filled:        map[string]decimal.Decimal{},
+		lastPrice:     map[string]decimal.Decimal{},
+		submitted:     map[string]struct{}{},
+		cancelPending: map[string]struct{}{},
 	}
 }
 
@@ -537,6 +558,45 @@ func (b *Broker) Order(ctx context.Context, o order.Order, safe bool) error {
 	return nil
 }
 
+// Cancel requests cancellation of the open order with orderID, regardless of which
+// strategy placed it. The reservation is released when the exchange confirms with a
+// Canceled event (see applyOrderChange), so live and replay share one path.
+func (b *Broker) Cancel(ctx context.Context, orderID string) error {
+	return b.cancel(ctx, orderID, "")
+}
+
+// cancel finds the open order by id and asks the market to cancel it. owner, when
+// non-empty, restricts cancellation to orders that strategy placed, so a scoped
+// Submitter cannot cancel another strategy's order.
+func (b *Broker) cancel(ctx context.Context, orderID, owner string) error {
+	b.mu.Lock()
+	var target order.Order
+	for _, o := range b.orders {
+		if o.ID() == orderID {
+			target = o
+			break
+		}
+	}
+	if target == nil {
+		b.mu.Unlock()
+		return fmt.Errorf("cancel: no open order %q", orderID)
+	}
+	if owner != "" && target.Strategy() != owner {
+		b.mu.Unlock()
+		return fmt.Errorf("cancel: order %q not owned by %q", orderID, owner)
+	}
+	if _, ok := b.submitted[orderID]; !ok {
+		// The order has not reached the market yet (submit is still in flight). Defer
+		// the cancel so submit forwards it once registered, instead of racing ahead of
+		// the order and being dropped as an unknown cancel.
+		b.cancelPending[orderID] = struct{}{}
+		b.mu.Unlock()
+		return nil
+	}
+	b.mu.Unlock()
+	return b.market.Cancel(ctx, target)
+}
+
 // Wait blocks until all in-flight order submissions have completed. Callers must
 // keep the event dispatcher alive until Wait returns, since submit broadcasts.
 func (b *Broker) Wait() {
@@ -553,8 +613,30 @@ func (b *Broker) submit(ctx context.Context, o order.Order) {
 	if err := b.market.Order(ctx, o); err != nil {
 		b.logger.Info("reject order", "order", o, "error", err)
 		o.Reject()
-		b.removeOrder(o)
+		b.removeOrder(o) // also clears any pending cancel for this id
 		b.notifyOrder(ctx, o.Copy())
+		return
+	}
+
+	// The market now knows the order. Mark it submitted only if it is still open: a
+	// terminal event (a fast fill/reject) can arrive and be processed before this
+	// returns, which already removed and cleared the id — re-adding it would leave a
+	// stale submitted id that a later order reusing it could trip over. If a Cancel
+	// arrived before the market did (a cancel right after Order), forward it now that
+	// there is something to cancel — otherwise it would have been lost as unknown.
+	b.mu.Lock()
+	stillOpen := slices.ContainsFunc(b.orders, func(od order.Order) bool { return od.ID() == o.ID() })
+	cancelNow := false
+	if stillOpen {
+		b.submitted[o.ID()] = struct{}{}
+		_, cancelNow = b.cancelPending[o.ID()]
+	}
+	delete(b.cancelPending, o.ID())
+	b.mu.Unlock()
+	if cancelNow {
+		if err := b.market.Cancel(ctx, o); err != nil {
+			b.logger.Info("cancel after submit", "order", o.ID(), "error", err)
+		}
 	}
 }
 
@@ -570,6 +652,8 @@ func (b *Broker) removeOrder(o order.Order) {
 	b.orders = slices.DeleteFunc(b.orders, func(od order.Order) bool {
 		return od.ID() == o.ID()
 	})
+	delete(b.submitted, o.ID())
+	delete(b.cancelPending, o.ID())
 }
 
 func (b *Broker) Orders(code string) []order.Order {
@@ -718,6 +802,8 @@ func (b *Broker) applyOrderChange(ctx context.Context, evt market.ChangeOrderEve
 	if isTerminalStatus(evt.Action) {
 		b.orders = slices.Delete(b.orders, idx, idx+1)
 		delete(b.filled, evt.ID)
+		delete(b.submitted, evt.ID)
+		delete(b.cancelPending, evt.ID)
 	}
 	b.positions = positions
 	// Only a booked fill moves the durable ledger (lots/realized/fees); other

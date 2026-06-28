@@ -34,8 +34,9 @@ func (c *captureSubmitter) Order(_ context.Context, o order.Order, _ bool) error
 	c.orders = append(c.orders, o)
 	return nil
 }
-func (c *captureSubmitter) Available() decimal.Decimal { return decimal.Zero }
-func (c *captureSubmitter) Balance() decimal.Decimal   { return decimal.Zero }
+func (c *captureSubmitter) Cancel(context.Context, string) error { return nil }
+func (c *captureSubmitter) Available() decimal.Decimal           { return decimal.Zero }
+func (c *captureSubmitter) Balance() decimal.Decimal             { return decimal.Zero }
 func (c *captureSubmitter) Position(string) (position.Position, bool) {
 	return position.Position{}, false
 }

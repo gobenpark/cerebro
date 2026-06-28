@@ -61,6 +61,11 @@ type Market interface {
 	Candles(ctx context.Context, code string, level CandleType) (indicator.Candles, error)
 	Subscribe(ctx context.Context, handler TickEventHandler) error
 	Order(ctx context.Context, o order.Order) error
+	// Cancel requests cancellation of a resting order. Like Order it is asynchronous:
+	// the adapter sends the request and the broker releases the order's reservation
+	// when the exchange confirms with a ChangeOrderEvent of status Canceled. Canceling
+	// an order that is unknown or already terminal is a no-op (nil error).
+	Cancel(ctx context.Context, o order.Order) error
 	AccountPositions(ctx context.Context) []position.Position
 	AccountBalance(ctx context.Context) decimal.Decimal
 	// Events streams the adapter's ticks, order/balance changes, and optionally

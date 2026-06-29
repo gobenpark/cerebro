@@ -161,6 +161,13 @@ func (o *order) Item() *item.Item {
 	return o.item
 }
 
+// ID returns the order's stable client order id: a UUID minted at NewOrder that does
+// not change for the life of the order object. It is two things at once: the broker's
+// key for matching exchange events (market.ChangeOrderEvent.ID) and recovering open
+// orders on restart, and a stable idempotency key an adapter should send to the
+// exchange as the client order id, so a retried submission is de-duplicated by the
+// exchange rather than doubled. SetID overrides it only when the exchange mandates its
+// own id format.
 func (o *order) ID() string {
 	o.mu.RLock()
 	defer o.mu.RUnlock()

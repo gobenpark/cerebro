@@ -28,8 +28,10 @@ import (
 
 // ledgerVersion is the on-disk schema version of a Ledger. Bump it whenever the
 // shape of the persisted state changes so a Storage can migrate or reject an
-// incompatible snapshot instead of silently misreading it.
-const ledgerVersion = 1
+// incompatible snapshot instead of silently misreading it. v2 added Filled
+// (per-order observed fill progress); a v1 snapshot is still loaded, but open-order
+// recovery treats it as legacy (see Broker.legacyLedger).
+const ledgerVersion = 2
 
 // Storage persists and restores the broker's durable per-strategy ledger so that
 // realized PnL, fees, and open lots survive a process restart. It captures only
@@ -42,10 +44,10 @@ const ledgerVersion = 1
 // is called once, before any event is processed, and must report a fresh start
 // (a zero-value Ledger, Version 0) when nothing has been persisted yet.
 //
-// In-flight orders and their partial-fill progress are NOT part of the ledger:
-// the market interface exposes no open-order query to reconcile them against on
-// restart, so a restart mid-order may miss that order's remaining fills. Only the
-// settled per-strategy attribution ledger is durable in this version.
+// In-flight orders are NOT part of the ledger: they are exchange-authoritative like
+// cash and positions, so they are recovered directly from the exchange on start via
+// market.OpenOrderReporter (broker.ReconcileOpenOrders) rather than persisted here.
+// Only the settled per-strategy attribution ledger is durable through this Storage.
 type Storage interface {
 	Save(ctx context.Context, l Ledger) error
 	Load(ctx context.Context) (Ledger, error)
@@ -61,6 +63,13 @@ type Ledger struct {
 	Lots     []LotState                 `json:"lots"`
 	Realized map[string]decimal.Decimal `json:"realized"`
 	Fees     map[string]decimal.Decimal `json:"fees"`
+	// Filled is the cumulative fill quantity the broker has OBSERVED per open order id
+	// (its in-flight fill tracking). It is persisted so open-order recovery seeds a
+	// recovered order with what was actually booked, not what the exchange reports as
+	// filled: a partial that filled offline (never observed, so absent here) is still
+	// counted on completion, while a persisted partial is not double-counted. An order
+	// carries an entry only while open and partially filled, so the map stays small.
+	Filled map[string]decimal.Decimal `json:"filled"`
 }
 
 // LotState is one strategy's open position in one code, flattened for storage.
@@ -120,6 +129,12 @@ func (b *Broker) Restore(ctx context.Context) error {
 	b.lots = lots
 	b.realized = cloneDecMap(l.Realized)
 	b.fees = cloneDecMap(l.Fees)
+	// Restore observed per-order fill progress so ReconcileOpenOrders can tell an
+	// already-booked partial from one that filled offline. A pre-Filled (legacy) snapshot
+	// has none, so flag it: recovery then falls back to the exchange's reported fill
+	// rather than treating an already-booked partial as fully unobserved (double-count).
+	b.filled = cloneDecMap(l.Filled)
+	b.legacyLedger = l.Version < 2
 	b.mu.Unlock()
 	return nil
 }
@@ -156,6 +171,7 @@ func (b *Broker) snapshotLedger() Ledger {
 		Lots:     lots,
 		Realized: cloneDecMap(b.realized),
 		Fees:     cloneDecMap(b.fees),
+		Filled:   cloneDecMap(b.filled),
 	}
 }
 

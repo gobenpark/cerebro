@@ -60,6 +60,14 @@ type Market interface {
 	Stocks(ctx context.Context) []*item.Item
 	Candles(ctx context.Context, code string, level CandleType) (indicator.Candles, error)
 	Subscribe(ctx context.Context, handler TickEventHandler) error
+	// Order submits an order to the exchange. o.ID() is a stable client order id (an
+	// idempotency key): send it to the exchange as the client order id so that a
+	// retried submission is de-duplicated rather than doubled, and so the resulting
+	// ChangeOrderEvent (matched by ID) and any restart recovery (OpenOrderReporter)
+	// line up with the broker's view. The call should honor ctx; if it exceeds
+	// cerebro's WithOrderTimeout the broker treats the submission as in-doubt — the
+	// order is kept open and its cash reserved, NOT rejected — so a slow ack does not
+	// turn a possibly-live order into a phantom.
 	Order(ctx context.Context, o order.Order) error
 	// Cancel requests cancellation of a resting order. Like Order it is asynchronous:
 	// the adapter sends the request and the broker releases the order's reservation
@@ -96,4 +104,48 @@ type Market interface {
 // called more than once over a run as the watchlist churns.
 type Unsubscriber interface {
 	Unsubscribe(ctx context.Context, codes []string) error
+}
+
+// OpenOrderReporter is an optional capability a live Market adapter implements so
+// Cerebro can recover resting orders on restart — the orders the exchange still has
+// working that the local process forgot when it stopped. Cerebro seeds them into the
+// broker's open set on Start (broker.ReconcileOpenOrders) so their cash is reserved
+// again and their later fill/cancel events are recognized and applied, rather than
+// arriving as unknown orders.
+//
+// Contract for the returned orders:
+//   - each must carry the exchange's order id (order.SetID) so subsequent
+//     ChangeOrderEvents match it;
+//   - Size() must be the order's ORIGINAL quantity and RemainingSize() its still-open
+//     remainder — construct the order with the original size, then apply the already-
+//     filled portion (e.g. order.Partial), do NOT build it straight from the remainder.
+//     RemainingSize drives the cash reservation; the broker books a completion as Size()
+//     minus the fills it has observed (persisted across restarts), so reporting Size() as
+//     the remainder would under-book the completion (the broker drops obviously
+//     inconsistent progress and warns, but cannot recover the original size);
+//   - attribution: the exchange does not record which strategy placed an order. The
+//     adapter SHOULD recover it from the client order id (order.SetStrategy) — that is
+//     the reliable source. Absent that, the broker attributes only an unattributed SELL
+//     to the sole strategy holding a lot in its code (so a recovered exit closes the
+//     right position); a buy, or a code held by several strategies, stays unattributed,
+//     so an adapter that opens positions across restarts or runs several strategies in
+//     one code must supply the strategy from the client id.
+//
+// A backtest adapter (e.g. replay) need not implement this — reconciliation is then a
+// no-op, which is the correct behavior for a cold-started simulation.
+//
+// Startup consistency: Cerebro takes this snapshot during Start and only begins
+// consuming Events afterward, so the adapter MUST NOT lose order/balance events that
+// occur after the snapshot is taken — it should already be connected and buffer them
+// (the same persistent-connection behavior the Events liveness contract assumes), so
+// they are delivered once Cerebro drains the stream. An adapter that subscribes to
+// order updates only inside Events, discarding anything earlier, can drop a recovered
+// order's fill/cancel in that window; the order then stays open with its cash reserved
+// until a later reconcile or restart. That failure is conservative (it over-reserves,
+// never under-reserves, so it cannot cause a double-commit), but a faithful live
+// adapter avoids it by buffering from connection. Fully closing the snapshot-vs-stream
+// gap without that guarantee needs exchange sequence numbers (replay events past the
+// snapshot's sequence) and is out of scope here.
+type OpenOrderReporter interface {
+	OpenOrders(ctx context.Context) ([]order.Order, error)
 }

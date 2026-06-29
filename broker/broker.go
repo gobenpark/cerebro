@@ -97,9 +97,19 @@ type Broker struct {
 	// store is the optional durable ledger persisted after each booked fill and
 	// reloaded on Restore; nil means no persistence (existing behavior).
 	store Storage
+	// legacyLedger is set when Restore loaded a pre-fill-progress ledger (schema < 2):
+	// b.filled could not be restored, so open-order recovery falls back to the exchange's
+	// reported fill to avoid double-counting a partial the restored lots already include.
+	legacyLedger bool
 	// saveMu serializes ledger writes through store so overlapping saves cannot
 	// interleave or move the persisted state backwards.
 	saveMu sync.Mutex
+	// orderTimeout, when > 0, bounds the market.Order call in submit; exceeding it
+	// makes the submission in-doubt (kept open and reserved) rather than rejected.
+	orderTimeout time.Duration
+	// inDoubtHandler is invoked on its own goroutine when a submission ends in-doubt;
+	// nil means the broker only logs it.
+	inDoubtHandler func(o order.Order, err error)
 }
 
 // lot is one strategy's open position in one code. The round-trip accumulators below
@@ -156,6 +166,16 @@ type StrategyReport struct {
 // SetRisk installs the pre-trade risk gate. It is set once at construction before
 // any order flows, so it needs no synchronization.
 func (b *Broker) SetRisk(rm *risk.Manager) { b.risk = rm }
+
+// SetOrderTimeout bounds the market.Order call in submit. Set once at construction
+// before any order flows, like SetRisk, so it needs no synchronization. Zero leaves
+// the call unbounded (existing behavior).
+func (b *Broker) SetOrderTimeout(d time.Duration) { b.orderTimeout = d }
+
+// SetInDoubtHandler installs the callback run when a submission ends in-doubt (the
+// market.Order call exceeded the order timeout). Set once at construction, like
+// SetRisk.
+func (b *Broker) SetInDoubtHandler(fn func(o order.Order, err error)) { b.inDoubtHandler = fn }
 
 // snapshotLocked captures the account state the risk rules vet an order against.
 // Callers must hold b.mu so the snapshot (including pending orders) is consistent
@@ -597,52 +617,293 @@ func (b *Broker) cancel(ctx context.Context, orderID, owner string) error {
 	return b.market.Cancel(ctx, target)
 }
 
+// ReconcileOpenOrders recovers the orders the exchange still has working into the
+// broker's open set, so a process that restarts mid-order does not forget them. Each
+// recovered order has its cash reserved again — against its unfilled remainder, since
+// orderValue is based on RemainingSize, so an order that partially filled while the
+// process was down reserves only what is left — and is marked submitted (the exchange
+// already knows it). Without this, those orders' fill/cancel events would arrive as
+// unknown and their reserved cash would be silently double-spendable.
+//
+// It is a no-op when the market adapter does not implement market.OpenOrderReporter
+// (e.g. a backtest), so cold-started simulations are unaffected. The open-order
+// bookkeeping is replaced wholesale from the exchange snapshot, which makes it
+// idempotent: a retried Start cannot double-count. The durable per-strategy PnL
+// ledger (Restore) is independent and left untouched.
+//
+// Attribution matters here: a recovered order's later fill must update the right
+// strategy's lot, or a restored position can be left open after its exit order fills —
+// the broker would still think the strategy holds it and could fire a duplicate exit.
+// The exchange does not record the strategy. An attribution the adapter set (recovered
+// from a client id) always wins. Otherwise the broker attributes only an unattributed
+// SELL to the sole strategy holding a lot in its code — safe in a long-only book, where
+// just the holder can sell — so a recovered exit closes the right position. A buy is
+// left unattributed (holding a code does not prove the holder placed a buy on it), as
+// is a sell on a code several strategies hold; the adapter should attribute those from
+// the client id. A
+// partial's already-booked quantity is carried over from the restored ledger (the fill
+// progress the broker actually observed), so a completion books only what was not yet
+// booked: a fill that landed offline — never observed, so absent — is still counted,
+// while a persisted partial is not double-counted. Run after Restore so both the
+// restored lots (for attribution) and the restored fill progress are available.
+//
+// It is a no-op when the market adapter does not implement market.OpenOrderReporter
+// (e.g. a backtest). The open-order bookkeeping is replaced wholesale from the exchange
+// snapshot, which makes it idempotent: a retried Start cannot double-count.
+func (b *Broker) ReconcileOpenOrders(ctx context.Context) error {
+	reporter, ok := b.market.(market.OpenOrderReporter)
+	if !ok {
+		return nil
+	}
+	orders, err := reporter.OpenOrders(ctx)
+	if err != nil {
+		return fmt.Errorf("reconcile open orders: %w", err)
+	}
+
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	open := make([]order.Order, 0, len(orders))
+	submitted := make(map[string]struct{}, len(orders))
+	filled := make(map[string]decimal.Decimal, len(orders))
+	for _, o := range orders {
+		// Defensive: only resting orders belong in the open set. A terminal one would
+		// never receive a follow-up event to release its (here, reserved) cash.
+		if o == nil || isTerminalStatus(o.Status()) {
+			continue
+		}
+		// Reflect that the order is working on the exchange in its public status: callers
+		// of Orders() filter on it, so a recovered live order must not read as Created. A
+		// partial already reads Partial (its fills were applied on construction); advance
+		// a not-yet-acknowledged order to Accepted.
+		if s := o.Status(); s == order.Created || s == order.Submitted {
+			o.Accept()
+		}
+		// Attribute an unattributed SELL to the sole strategy holding its code, so its
+		// fill closes the right position — a recovered exit must not leave a phantom open
+		// lot that then gets re-exited. In a long-only book only the holder can sell, so
+		// this inference is safe. A buy is left unattributed: holding a code does not
+		// prove the holder placed a buy on it (another strategy may be opening its own
+		// position there), and mis-crediting would contaminate that lot. The adapter
+		// should attribute buys — and any ambiguous order — from the client id.
+		if o.Strategy() == "" && o.Action() == order.Sell {
+			if owner, ok := b.soleLotOwnerLocked(o.Item().Code); ok {
+				o.SetStrategy(owner)
+			}
+		}
+		open = append(open, o)
+		submitted[o.ID()] = struct{}{}
+		if done, ok := b.recoveredFillProgressLocked(o); ok {
+			filled[o.ID()] = done
+		}
+	}
+
+	b.orders = open
+	b.submitted = submitted
+	b.filled = filled
+	b.cancelPending = map[string]struct{}{}
+	return nil
+}
+
+// recoveredFillProgressLocked returns the quantity of a recovered order already booked
+// into the ledger, so a completion books only the rest. For a current-schema ledger (or
+// no storage) this is the progress the broker actually observed, restored into b.filled
+// — a partial that filled offline has no entry, so it books fully on completion, while a
+// persisted partial keeps its entry and is not re-counted. It guards the Size()=original
+// contract: progress exceeding Size() means the adapter reported Size() as the remainder,
+// which would make the increment negative and book nothing, so it is dropped (with a
+// warn) to at least book the reported remainder.
+//
+// For a legacy ledger (schema < 2, no persisted progress) b.filled is empty even though
+// the restored lots may already include a partial; there it falls back to the exchange's
+// reported fill (Size-RemainingSize), assuming the lots account for it, to avoid
+// double-counting — an offline fill may then be undercounted, which is unavoidable for
+// the old schema and safer than double-counting. Caller holds b.mu.
+func (b *Broker) recoveredFillProgressLocked(o order.Order) (decimal.Decimal, bool) {
+	if b.legacyLedger {
+		done := o.Size().Sub(o.RemainingSize())
+		return done, done.GreaterThan(decimal.Zero)
+	}
+	done, ok := b.filled[o.ID()]
+	if !ok || done.LessThanOrEqual(decimal.Zero) {
+		return decimal.Zero, false
+	}
+	if done.GreaterThan(o.Size()) {
+		b.logger.Warn("recovered order fill progress exceeds its size; dropping it (adapter must report the original Size, not the remainder)",
+			"order", o.ID(), "size", o.Size().String(), "observed", done.String())
+		return decimal.Zero, false
+	}
+	return done, true
+}
+
+// soleLotOwnerLocked returns the only strategy holding an open lot in code, if exactly
+// one does — the basis for attributing an unattributed recovered order to the position
+// it must belong to. Returns ok=false when no strategy or more than one holds the code.
+// Caller holds b.mu.
+func (b *Broker) soleLotOwnerLocked(code string) (string, bool) {
+	owner := ""
+	for strategy, lots := range b.lots {
+		if l, ok := lots[code]; ok && l.size.GreaterThan(decimal.Zero) {
+			if owner != "" {
+				return "", false // ambiguous: more than one strategy holds this code
+			}
+			owner = strategy
+		}
+	}
+	return owner, owner != ""
+}
+
 // Wait blocks until all in-flight order submissions have completed. Callers must
 // keep the event dispatcher alive until Wait returns, since submit broadcasts.
 func (b *Broker) Wait() {
 	b.wg.Wait()
 }
 
+// submitToMarket sends the order to the market. Without an order timeout it is a plain
+// synchronous call (existing behavior). With one, it time-boxes the call: the adapter
+// runs on a side goroutine and, when octx ends first — its deadline trips or the
+// parent context is canceled — this returns octx.Err() without waiting for the adapter
+// to return. That guards the genuinely hung case — an adapter or HTTP client that does
+// not honor context cancellation — so a stuck call can never pin the submit goroutine
+// (and Wait) forever. Because the detached call may still reach the exchange, the
+// caller treats any octx-ended return as in-doubt (it does not free the reservation).
+// The side goroutine keeps running until the adapter finally returns; the buffered
+// channel lets it exit without leaking once it does, and its (unread) result is
+// harmless because the submission has already been resolved in-doubt.
+func (b *Broker) submitToMarket(octx context.Context, o order.Order) error {
+	if b.orderTimeout == 0 {
+		return b.market.Order(octx, o)
+	}
+	done := make(chan error, 1)
+	go func() { done <- b.market.Order(octx, o) }()
+	select {
+	case err := <-done:
+		return err
+	case <-octx.Done():
+		return octx.Err()
+	}
+}
+
 // submit sends the order to the market in a goroutine. Cash accounting follows
 // the exchange: balance is updated from ChangeBalanceEvent and an order's
 // reservation is released once it leaves b.orders (complete/cancel/reject).
 func (b *Broker) submit(ctx context.Context, o order.Order) {
-	o.Submit()
-	b.notifyOrder(ctx, o.Copy())
-
-	if err := b.market.Order(ctx, o); err != nil {
-		b.logger.Info("reject order", "order", o, "error", err)
-		o.Reject()
-		b.removeOrder(o) // also clears any pending cancel for this id
-		b.notifyOrder(ctx, o.Copy())
+	// If the run is already shutting down before we submit, the order never reached the
+	// exchange, so reject it outright rather than sending it. This also keeps the
+	// in-doubt path honest: that path is for a call that may have actually gone out, not
+	// for one we never started because the context was already dead.
+	if ctx.Err() != nil {
+		b.rejectOrder(ctx, o, ctx.Err())
 		return
 	}
 
-	// The market now knows the order. Mark it submitted only if it is still open: a
-	// terminal event (a fast fill/reject) can arrive and be processed before this
-	// returns, which already removed and cleared the id — re-adding it would leave a
-	// stale submitted id that a later order reusing it could trip over. If a Cancel
-	// arrived before the market did (a cancel right after Order), forward it now that
-	// there is something to cancel — otherwise it would have been lost as unknown.
-	b.mu.Lock()
-	stillOpen := slices.ContainsFunc(b.orders, func(od order.Order) bool { return od.ID() == o.ID() })
-	cancelNow := false
-	if stillOpen {
-		b.submitted[o.ID()] = struct{}{}
-		_, cancelNow = b.cancelPending[o.ID()]
+	o.Submit()
+	b.notifyOrder(ctx, o.Copy())
+
+	// Optionally bound the adapter's Order call so a hung exchange API cannot pin a
+	// submission open forever. The bounded context governs only the call; the order's
+	// own lifetime still follows the parent ctx.
+	octx := ctx
+	if b.orderTimeout > 0 {
+		var cancel context.CancelFunc
+		octx, cancel = context.WithTimeout(ctx, b.orderTimeout)
+		defer cancel()
 	}
-	delete(b.cancelPending, o.ID())
-	b.mu.Unlock()
-	if cancelNow {
-		if err := b.market.Cancel(ctx, o); err != nil {
-			b.logger.Info("cancel after submit", "order", o.ID(), "error", err)
+
+	if err := b.submitToMarket(octx, o); err != nil {
+		// In-doubt, not a rejection: if our own context ended the call — the order
+		// timeout deadline, OR a parent-context cancellation (shutdown) — the detached
+		// adapter call may still be reaching the exchange, so the order's fate is
+		// unknown. Rejecting it would release the cash reservation while the exchange
+		// might still be working the order — a double-exposure risk. Keep it open and
+		// reserved, mark it submitted so a later cancel can target it, and hand it to
+		// the operator to resolve. It stays Submitted (already broadcast above), which
+		// is honest: it may well be live. Only an error returned while our context is
+		// still live is a true adapter rejection (the exchange did not get it), so that
+		// alone rejects.
+		if b.orderTimeout > 0 && octx.Err() != nil {
+			cancelNow := b.registerSubmitted(o)
+			b.logger.Warn("order submit in doubt", "order", o.ID(), "code", o.Item().Code, "error", err)
+			if b.inDoubtHandler != nil {
+				go b.inDoubtHandler(o.Copy(), err)
+			}
+			// A cancel deferred while this submit was in flight must still be honored:
+			// in-doubt means the order may be live on the exchange — exactly when a
+			// cancel matters most. market.Cancel is a no-op if the order never arrived,
+			// so forwarding is safe whichever way the in-doubt resolves.
+			if cancelNow {
+				b.forwardDeferredCancel(ctx, o)
+			}
+			return
 		}
+		b.rejectOrder(ctx, o, err)
+		return
+	}
+
+	// The market now knows the order: register it submitted and forward any cancel that
+	// was deferred while the submit was in flight (a cancel right after Order), which
+	// would otherwise be lost as unknown.
+	if b.registerSubmitted(o) {
+		b.forwardDeferredCancel(ctx, o)
+	}
+}
+
+// forwardDeferredCancel sends a cancel that was deferred while the order's submit was in
+// flight (registerSubmitted has cleared cancelPending, so the broker now owns it).
+//
+// With an order timeout configured, it forwards on a context that is non-canceled but
+// bounded — context.WithoutCancel stripped of the run's cancellation so a cancel the
+// caller already requested is still sent during shutdown, then re-bounded by the same
+// order timeout so a slow/hung adapter Cancel cannot pin the submit goroutine (and
+// Wait) once cancellation is gone. Without an order timeout there is no in-doubt path
+// and no configured bound, so it forwards on the caller context unchanged (the prior
+// behavior). Best-effort either way: market.Cancel is a no-op if the order never
+// reached the exchange.
+func (b *Broker) forwardDeferredCancel(ctx context.Context, o order.Order) {
+	cctx := ctx
+	if b.orderTimeout > 0 {
+		var cancel context.CancelFunc
+		cctx, cancel = context.WithTimeout(context.WithoutCancel(ctx), b.orderTimeout)
+		defer cancel()
+	}
+	if err := b.market.Cancel(cctx, o); err != nil {
+		b.logger.Info("forward deferred cancel", "order", o.ID(), "error", err)
 	}
 }
 
 func (b *Broker) notifyOrder(ctx context.Context, o order.Order) {
 	// Drop the notification if shutdown is underway; the dispatcher may be draining.
 	b.EventEngine.BroadCastContext(ctx, o)
+}
+
+// rejectOrder marks o rejected, drops it from the open set (releasing its cash
+// reservation), and notifies listeners. It is the terminal path for an order the
+// exchange definitively did not get — an outright adapter error, or a submit attempted
+// after the run was already canceled.
+func (b *Broker) rejectOrder(ctx context.Context, o order.Order, err error) {
+	b.logger.Info("reject order", "order", o, "error", err)
+	o.Reject()
+	b.removeOrder(o) // also clears any pending cancel for this id
+	b.notifyOrder(ctx, o.Copy())
+}
+
+// registerSubmitted records that the market has been told about an order — or may
+// have been, on an in-doubt timeout — and reports whether a cancel was deferred while
+// the submission was in flight, so the caller can forward it now. It marks the id
+// submitted only while the order is still open: a terminal event (a fast fill/reject)
+// may have already removed and cleared the id, and re-adding it would strand a stale
+// submitted id that a later order reusing it could trip over. It always clears any
+// deferred cancel for the id (the caller is now responsible for forwarding it). Both
+// the success and the in-doubt path share this, so a cancel queued during submission
+// is forwarded in either outcome, never silently dropped.
+func (b *Broker) registerSubmitted(o order.Order) (cancelPending bool) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	if slices.ContainsFunc(b.orders, func(od order.Order) bool { return od.ID() == o.ID() }) {
+		b.submitted[o.ID()] = struct{}{}
+		_, cancelPending = b.cancelPending[o.ID()]
+	}
+	delete(b.cancelPending, o.ID())
+	return cancelPending
 }
 
 // removeOrder drops an order from the open set, releasing its cash reservation.

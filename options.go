@@ -22,6 +22,7 @@ import (
 	"github.com/gobenpark/cerebro/broker"
 	"github.com/gobenpark/cerebro/item"
 	"github.com/gobenpark/cerebro/market"
+	"github.com/gobenpark/cerebro/order"
 	"github.com/gobenpark/cerebro/risk"
 	"github.com/gobenpark/cerebro/strategy"
 )
@@ -144,6 +145,36 @@ func WithFeedTimeout(d time.Duration) Option {
 func WithFeedLossHandler(fn func(reason string)) Option {
 	return func(c *Cerebro) {
 		c.feedLossHandler = fn
+	}
+}
+
+// WithOrderTimeout bounds how long the broker waits for the market adapter's Order
+// call to return before treating the submission as in-doubt. Zero (the default) leaves
+// it unbounded, so only the adapter's own context governs the call (existing behavior).
+//
+// A timeout is NOT a rejection. When it trips, the order may well have reached the
+// exchange — its outcome is simply unknown — so the broker keeps the order open and
+// its cash reserved rather than rejecting it (which would free the cash while the
+// exchange might still be working the order, risking a double exposure). The order
+// stays Submitted until a later exchange fill/cancel event, a restart reconcile
+// (OpenOrderReporter), or an operator (WithInDoubtHandler) resolves it. Set it for a
+// live adapter; leave it off for backtests, whose simulated Order returns promptly.
+func WithOrderTimeout(d time.Duration) Option {
+	return func(c *Cerebro) {
+		c.orderTimeout = d
+	}
+}
+
+// WithInDoubtHandler installs a callback invoked when an order submission ends
+// in-doubt: the adapter's Order call exceeded WithOrderTimeout, so whether the
+// exchange received the order is unknown. The order is left open with its cash still
+// reserved; the handler is the operator's hook to resolve it — query the exchange by
+// the order's (client) id, alert, or attempt a cancel. It runs on its own goroutine
+// and receives a copy of the order plus the underlying error. Without it the broker
+// only logs the in-doubt submission. It never fires unless WithOrderTimeout is set.
+func WithInDoubtHandler(fn func(o order.Order, err error)) Option {
+	return func(c *Cerebro) {
+		c.inDoubtHandler = fn
 	}
 }
 

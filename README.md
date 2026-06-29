@@ -266,6 +266,8 @@ func main() {
 | `WithRisk(...risk.Rule)` | Pre-trade risk gate (position/order/rate limits). |
 | `WithRiskPolicy(name, risk.Policy)` | Per-strategy reactive exit (stop-loss / trailing-stop / take-profit). |
 | `WithStorage(broker.Storage)` | Persist/restore the per-strategy ledger (realized PnL, fees, open lots) across restarts. |
+| `WithOrderTimeout(time.Duration)` | Bound the adapter's `Order` call; on timeout the submission is held **in-doubt** (kept open and reserved), not rejected (off by default; for live adapters). |
+| `WithInDoubtHandler(func(order.Order, error))` | Operator hook for an in-doubt submission (timed-out `Order` call) — query/alert/cancel by the order's client id. Requires `WithOrderTimeout`. |
 | `WithFeedTimeout(time.Duration)` | Arm a live-feed staleness watchdog: trip the feed-loss handler if no tick or `market.FeedStatusEvent` heartbeat arrives in time (off by default; for live feeds, not backtests). |
 | `WithFeedLossHandler(func(reason string))` | Handle a lost feed (gone stale, or its channel closed mid-run). Replaces the default fail-safe `Shutdown`. |
 | `WithLogLevel(slog.Level)` | Level of the default stderr `slog` logger. |
@@ -342,9 +344,24 @@ Cerebro is composed of a few cooperating parts:
   `cerebro.WithStorage` and the broker restores its per-strategy ledger (realized
   PnL, fees, and open lots) on start and writes it back after each booked fill, so
   attributed trading state survives a restart. `store.NewFileStorage` (atomic JSON
-  file) and `store.NewMemoryStorage` ship in the box. Cash balance and account
-  positions are exchange-authoritative and re-fetched on start, so they are not
-  persisted; in-flight orders are not yet restored.
+  file) and `store.NewMemoryStorage` ship in the box. Cash balance, account
+  positions, and in-flight orders are exchange-authoritative and recovered from the
+  exchange on start (see **Open-order recovery**), so they are not persisted here.
+- **Open-order recovery** — a live adapter that implements the optional
+  `market.OpenOrderReporter` (`OpenOrders(ctx)`) lets Cerebro recover the orders the
+  exchange still has working when the process restarts mid-order. On start the broker
+  seeds them into its open set — reserving their cash again and tracking partial-fill
+  progress — so their later fill/cancel events are recognized instead of arriving as
+  unknown, and `Available` stays correct across a restart. Recovered orders are
+  unattributed (the exchange does not record which strategy placed them). A backtest
+  adapter need not implement it; recovery is then a no-op.
+- **Idempotent submission & in-doubt safety** — every order carries a stable client
+  order id (`order.ID()`) an adapter sends to the exchange as an idempotency key, so a
+  retried submission is de-duplicated rather than doubled. With `cerebro.WithOrderTimeout`
+  the broker bounds the adapter's `Order` call and treats a timeout as **in-doubt, not a
+  rejection**: the order may have reached the exchange, so its cash stays reserved and it
+  stays open (rejecting would risk a double exposure). A later fill/cancel event, a
+  restart reconcile, or a `cerebro.WithInDoubtHandler` resolves it.
 - **Feed resilience** — arm a market-data staleness watchdog with
   `cerebro.WithFeedTimeout`: if ticks (or a `market.FeedStatusEvent` heartbeat) stop
   flowing, or the feed's channel closes while the run is still live, Cerebro fails
@@ -363,7 +380,6 @@ Toward production live-trading safety:
 
 1. Runtime kill switch / control surface
 2. Broker slippage modeling
-3. Open-order persistence and reconciliation on restart
 
 ## Versioning
 

@@ -30,6 +30,7 @@ import (
 	"github.com/gobenpark/cerebro/indicator"
 	"github.com/gobenpark/cerebro/item"
 	"github.com/gobenpark/cerebro/market"
+	"github.com/gobenpark/cerebro/order"
 	"github.com/gobenpark/cerebro/risk"
 	"github.com/gobenpark/cerebro/strategy"
 )
@@ -67,6 +68,13 @@ type Cerebro struct {
 	// storage is the optional durable ledger store; installed on the broker when
 	// set so per-strategy PnL/fees/lots survive a restart.
 	storage broker.Storage
+
+	// orderTimeout, when > 0, bounds the market adapter's Order call; exceeding it
+	// makes the submission in-doubt rather than rejected (WithOrderTimeout).
+	orderTimeout time.Duration
+	// inDoubtHandler runs when a submission ends in-doubt (the Order call exceeded
+	// orderTimeout); nil means the broker only logs it (WithInDoubtHandler).
+	inDoubtHandler func(o order.Order, err error)
 
 	// policies maps a strategy name to its reactive exit policy (WithRiskPolicy).
 	policies map[string]risk.Policy
@@ -130,6 +138,12 @@ func NewCerebro(opts ...Option) *Cerebro {
 	}
 	if c.storage != nil {
 		c.broker.SetStorage(c.storage)
+	}
+	if c.orderTimeout > 0 {
+		c.broker.SetOrderTimeout(c.orderTimeout)
+	}
+	if c.inDoubtHandler != nil {
+		c.broker.SetInDoubtHandler(c.inDoubtHandler)
 	}
 	// The reactive exit monitor is built in Start, once runners — and thus their
 	// names and any strategy-declared ExitPolicy (strategy.RiskAware) — are known.
@@ -296,6 +310,15 @@ func (c *Cerebro) Start(ctx context.Context) error {
 	// The broker is populated before listeners go live, so the first fill event sees it.
 	if err := c.broker.Restore(ctx); err != nil {
 		return fmt.Errorf("restore broker ledger: %w", err)
+	}
+	// Recover any resting orders the exchange still has working — a restart mid-order —
+	// before listeners go live, so their cash is reserved again and their later
+	// fill/cancel events are recognized rather than dropped as unknown. Another fallible
+	// pre-spawn step (after Restore, before any context/goroutine), so a failure leaves
+	// nothing to tear down and the instance retryable. A no-op for adapters that don't
+	// report open orders (e.g. a backtest).
+	if err := c.broker.ReconcileOpenOrders(ctx); err != nil {
+		return err
 	}
 
 	ctx, cancel := context.WithCancel(ctx)

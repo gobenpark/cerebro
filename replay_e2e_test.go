@@ -64,8 +64,6 @@ func (s *buyOnceStrategy) Run(ctx context.Context, u strategy.Universe, b broker
 }
 
 func (s *buyOnceStrategy) NotifyOrder(order.Order) {}
-func (s *buyOnceStrategy) NotifyTrade()            {}
-func (s *buyOnceStrategy) NotifyFund()             {}
 
 func flatCandles(code string, n int, price int64) indicator.Candles {
 	base := time.Date(2024, 1, 1, 9, 0, 0, 0, time.UTC)

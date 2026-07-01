@@ -54,8 +54,6 @@ func (s *spawnedStrategy) Run(ctx context.Context, _ strategy.Universe, _ broker
 	close(s.stopped)
 }
 func (s *spawnedStrategy) NotifyOrder(order.Order) {}
-func (s *spawnedStrategy) NotifyTrade()            {}
-func (s *spawnedStrategy) NotifyFund()             {}
 
 // TestStart_ScreenerSpawnsAndEvictsDynamically drives the whole dynamic-screening
 // path: a screened code spawns a per-item strategy, and dropping it (flat) evicts the

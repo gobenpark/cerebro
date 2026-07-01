@@ -42,8 +42,6 @@ type Strategy interface {
 	Run(ctx context.Context, u Universe, b broker.Submitter)
 	// NotifyOrder is when event rise order then called
 	NotifyOrder(o order.Order)
-	NotifyTrade()
-	NotifyFund()
 	Name() string
 }
 

@@ -88,9 +88,6 @@ func (s *dipBuyer) NotifyOrder(o order.Order) {
 	fmt.Printf("  notify [%s] %s status=%v\n", s.name, o.Item().Code, o.Status())
 }
 
-func (s *dipBuyer) NotifyTrade() {}
-func (s *dipBuyer) NotifyFund()  {}
-
 // series builds candles whose OHLC all equal the given closing prices, one per day
 // so the run spans several calendar days and the equity curve is sampled daily —
 // enough points for the drawdown and Sharpe figures in the performance report.

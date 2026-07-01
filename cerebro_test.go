@@ -45,8 +45,6 @@ func (stubStrategy) Run(ctx context.Context, _ strategy.Universe, _ broker.Submi
 	<-ctx.Done()
 }
 func (stubStrategy) NotifyOrder(order.Order) {}
-func (stubStrategy) NotifyTrade()            {}
-func (stubStrategy) NotifyFund()             {}
 func (stubStrategy) Name() string            { return "stub" }
 
 // flakyStorage fails Load on the first call and succeeds (empty ledger) after,

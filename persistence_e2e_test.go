@@ -57,8 +57,6 @@ func (holdStrategy) Run(ctx context.Context, u strategy.Universe, _ broker.Submi
 }
 
 func (holdStrategy) NotifyOrder(order.Order) {}
-func (holdStrategy) NotifyTrade()            {}
-func (holdStrategy) NotifyFund()             {}
 
 // TestCerebro_PersistsAndRestoresLedgerAcrossRestart runs the whole stack twice
 // against a shared store. The first run buys and holds, persisting an open lot;

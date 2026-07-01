@@ -101,8 +101,6 @@ func (s *spread) Run(ctx context.Context, u strategy.Universe, b broker.Submitte
 }
 
 func (s *spread) NotifyOrder(order.Order) {}
-func (s *spread) NotifyTrade()            {}
-func (s *spread) NotifyFund()             {}
 
 // series builds candles whose OHLC all equal the given closing prices.
 func series(code string, prices ...int64) indicator.Candles {

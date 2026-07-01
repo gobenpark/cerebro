@@ -31,8 +31,6 @@ func (stubStrategy) Run(ctx context.Context, _ strategy.Universe, _ broker.Submi
 	<-ctx.Done()
 }
 func (stubStrategy) NotifyOrder(order.Order) {}
-func (stubStrategy) NotifyTrade()            {}
-func (stubStrategy) NotifyFund()             {}
 
 // TestEngine_ConcurrentSpawnAndListen drives a writer (Spawn) and reader (Listen)
 // against the channels map simultaneously. Without the RWMutex this panics with
@@ -94,8 +92,6 @@ func (s *recordingStrategy) Name() string { return s.name }
 func (s *recordingStrategy) Run(context.Context, strategy.Universe, broker.Submitter) {
 }
 func (s *recordingStrategy) NotifyOrder(order.Order) { s.mu.Lock(); s.got++; s.mu.Unlock() }
-func (s *recordingStrategy) NotifyTrade()            {}
-func (s *recordingStrategy) NotifyFund()             {}
 func (s *recordingStrategy) count() int              { s.mu.Lock(); defer s.mu.Unlock(); return s.got }
 
 // TestEngine_NotifyOrderRoutesToOwningStrategy verifies an attributed order is
@@ -151,8 +147,6 @@ func (s *tickRecorder) Run(ctx context.Context, u strategy.Universe, _ broker.Su
 	}
 }
 func (s *tickRecorder) NotifyOrder(order.Order) {}
-func (s *tickRecorder) NotifyTrade()            {}
-func (s *tickRecorder) NotifyFund()             {}
 func (s *tickRecorder) seen(code string) int {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -215,8 +209,6 @@ func (s *bookRecorder) Run(ctx context.Context, u strategy.Universe, _ broker.Su
 	}
 }
 func (s *bookRecorder) NotifyOrder(order.Order) {}
-func (s *bookRecorder) NotifyTrade()            {}
-func (s *bookRecorder) NotifyFund()             {}
 func (s *bookRecorder) seen(code string) int {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -387,8 +379,6 @@ func (s *extraRecorder) Run(ctx context.Context, u strategy.Universe, _ broker.S
 	}
 }
 func (s *extraRecorder) NotifyOrder(order.Order) {}
-func (s *extraRecorder) NotifyTrade()            {}
-func (s *extraRecorder) NotifyFund()             {}
 func (s *extraRecorder) seen(code string) int {
 	s.mu.Lock()
 	defer s.mu.Unlock()

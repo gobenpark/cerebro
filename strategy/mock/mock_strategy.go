@@ -61,18 +61,6 @@ func (mr *MockStrategyMockRecorder) Name() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Name", reflect.TypeOf((*MockStrategy)(nil).Name))
 }
 
-// NotifyFund mocks base method.
-func (m *MockStrategy) NotifyFund() {
-	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "NotifyFund")
-}
-
-// NotifyFund indicates an expected call of NotifyFund.
-func (mr *MockStrategyMockRecorder) NotifyFund() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NotifyFund", reflect.TypeOf((*MockStrategy)(nil).NotifyFund))
-}
-
 // NotifyOrder mocks base method.
 func (m *MockStrategy) NotifyOrder(o order.Order) {
 	m.ctrl.T.Helper()
@@ -83,18 +71,6 @@ func (m *MockStrategy) NotifyOrder(o order.Order) {
 func (mr *MockStrategyMockRecorder) NotifyOrder(o any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NotifyOrder", reflect.TypeOf((*MockStrategy)(nil).NotifyOrder), o)
-}
-
-// NotifyTrade mocks base method.
-func (m *MockStrategy) NotifyTrade() {
-	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "NotifyTrade")
-}
-
-// NotifyTrade indicates an expected call of NotifyTrade.
-func (mr *MockStrategyMockRecorder) NotifyTrade() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NotifyTrade", reflect.TypeOf((*MockStrategy)(nil).NotifyTrade))
 }
 
 // Run mocks base method.
@@ -161,18 +137,6 @@ func (mr *MockRiskAwareMockRecorder) Name() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Name", reflect.TypeOf((*MockRiskAware)(nil).Name))
 }
 
-// NotifyFund mocks base method.
-func (m *MockRiskAware) NotifyFund() {
-	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "NotifyFund")
-}
-
-// NotifyFund indicates an expected call of NotifyFund.
-func (mr *MockRiskAwareMockRecorder) NotifyFund() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NotifyFund", reflect.TypeOf((*MockRiskAware)(nil).NotifyFund))
-}
-
 // NotifyOrder mocks base method.
 func (m *MockRiskAware) NotifyOrder(o order.Order) {
 	m.ctrl.T.Helper()
@@ -183,18 +147,6 @@ func (m *MockRiskAware) NotifyOrder(o order.Order) {
 func (mr *MockRiskAwareMockRecorder) NotifyOrder(o any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NotifyOrder", reflect.TypeOf((*MockRiskAware)(nil).NotifyOrder), o)
-}
-
-// NotifyTrade mocks base method.
-func (m *MockRiskAware) NotifyTrade() {
-	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "NotifyTrade")
-}
-
-// NotifyTrade indicates an expected call of NotifyTrade.
-func (mr *MockRiskAwareMockRecorder) NotifyTrade() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NotifyTrade", reflect.TypeOf((*MockRiskAware)(nil).NotifyTrade))
 }
 
 // Run mocks base method.

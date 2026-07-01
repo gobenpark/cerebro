@@ -85,8 +85,6 @@ func (s *pairBuyer) Run(ctx context.Context, u strategy.Universe, b broker.Submi
 }
 
 func (s *pairBuyer) NotifyOrder(order.Order) {}
-func (s *pairBuyer) NotifyTrade()            {}
-func (s *pairBuyer) NotifyFund()             {}
 
 // TestCerebro_PortfolioStrategyTradesBothLegs registers one strategy over a
 // two-code universe and verifies it sees both legs and books a position in each,
@@ -157,8 +155,6 @@ func (s *codeBuyer) Run(ctx context.Context, u strategy.Universe, b broker.Submi
 }
 
 func (s *codeBuyer) NotifyOrder(order.Order) {}
-func (s *codeBuyer) NotifyTrade()            {}
-func (s *codeBuyer) NotifyFund()             {}
 
 // TestCerebro_ForEachReplicatesPerItem verifies WithStrategyForEach instantiates
 // one strategy per watchlist with isolated state and attribution: each instance
@@ -266,8 +262,6 @@ type dupStub struct{ id, name string }
 func (s dupStub) Name() string                                                     { return s.name }
 func (s dupStub) Run(ctx context.Context, _ strategy.Universe, _ broker.Submitter) { <-ctx.Done() }
 func (s dupStub) NotifyOrder(order.Order)                                          {}
-func (s dupStub) NotifyTrade()                                                     {}
-func (s dupStub) NotifyFund()                                                      {}
 
 // TestStart_RejectsDuplicateStrategyName guards the uniqueness check: two
 // strategies sharing a Name() would mis-route order notifications, so Start fails.

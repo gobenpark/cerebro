@@ -53,8 +53,6 @@ func (s *signalStrategy) Run(ctx context.Context, _ strategy.Universe, _ broker.
 	s.once.Do(func() { close(s.done) })
 }
 func (s *signalStrategy) NotifyOrder(order.Order) {}
-func (s *signalStrategy) NotifyTrade()            {}
-func (s *signalStrategy) NotifyFund()             {}
 
 // feedMock builds a MockMarket whose Events stream is the supplied channel, with the
 // account/commission/subscribe/order calls stubbed so a Cerebro can run against it.

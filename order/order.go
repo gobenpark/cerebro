@@ -20,7 +20,7 @@ import (
 	"sync"
 	"time"
 
-	uuid "github.com/satori/go.uuid"
+	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 
 	"github.com/gobenpark/cerebro/item"
@@ -111,7 +111,7 @@ func NewOrder(item *item.Item, action Action, execType OrderType, size, price de
 		action:        action,
 		OrderType:     execType,
 		item:          item,
-		uuid:          uuid.NewV4().String(),
+		uuid:          uuid.NewString(),
 		size:          size,
 		price:         price,
 		createdAt:     time.Now(),

@@ -2,12 +2,10 @@ module github.com/gobenpark/cerebro
 
 go 1.26
 
-require (
-	github.com/satori/go.uuid v1.2.0
-	github.com/stretchr/testify v1.9.0
-)
+require github.com/stretchr/testify v1.9.0
 
 require (
+	github.com/google/uuid v1.6.0
 	github.com/samber/lo v1.38.1
 	github.com/shopspring/decimal v1.4.0
 	go.uber.org/goleak v1.2.0

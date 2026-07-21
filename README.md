@@ -1,16 +1,14 @@
 ## Cerebro
 
-> ⚠️ This project is still in progress and is not yet a stable release. The public API may change.
-
 A Go live-trading framework
 ---
 [![made-with-Go](https://img.shields.io/badge/Made%20with-Go-1f425f.svg)](http://golang.org)
-[![codecov](https://codecov.io/gh/gobenpark/cerebro/branch/master/graph/badge.svg?token=4UWNV7BMZ3)](https://codecov.io/gh/gobenpark/cerebro)
+[![codecov](https://codecov.io/gh/gobenpark/cerebro/branch/main/graph/badge.svg?token=4UWNV7BMZ3)](https://codecov.io/gh/gobenpark/cerebro)
 [![GitHub go.mod Go version of a Go module](https://img.shields.io/github/go-mod/go-version/gobenpark/cerebro.svg)](https://github.com/gobenpark/cerebro)
 [![GitHub release](https://img.shields.io/github/v/release/gobenpark/cerebro)](https://github.com/gobenpark/cerebro/releases)
 [![Go Report Card](https://goreportcard.com/badge/github.com/gobenpark/cerebro?style=flat-square)](https://goreportcard.com/report/github.com/gobenpark/cerebro)
 [![Godoc](http://img.shields.io/badge/go-documentation-blue.svg?style=flat-square)](https://godoc.org/github.com/gobenpark/cerebro)
-[![LICENSE](https://img.shields.io/github/license/gobenpark/cerebro.svg?style=flat-square)](https://github.com/gobenpark/cerebro/blob/master/LICENSE)
+[![LICENSE](https://img.shields.io/github/license/gobenpark/cerebro.svg?style=flat-square)](https://github.com/gobenpark/cerebro/blob/main/LICENSE)
 
 ## Introduction
 
@@ -40,6 +38,8 @@ go run ./examples/backtest
 
 ```
 running backtest over 13 bars ...
+  notify [dip] AAA status=2
+  notify [dip] AAA status=5
   notify [dip] AAA status=2
   notify [dip] AAA status=5
 
@@ -376,7 +376,7 @@ Cerebro is composed of a few cooperating parts:
 
 ## Roadmap
 
-Toward production live-trading safety:
+Planned for future releases:
 
 1. Runtime kill switch / control surface
 2. Broker slippage modeling

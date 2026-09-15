@@ -1,3 +1,5 @@
+
+
 ## Cerebro
 
 A Go live-trading framework
@@ -50,6 +52,8 @@ performance
   trades=1  winRate=100%  profitFactor=0.00  netPnL=118.82
   maxDrawdown=40.60 (0.40%)  sharpe=7.62  totalReturn=1.19%
 ```
+
+The zero `profitFactor` is expected: with no losses it is undefined and reported as zero.
 
 That example ([`examples/backtest/main.go`](examples/backtest/main.go)) wires the
 replay market, a small dip-buying strategy, and a risk gate through Cerebro and

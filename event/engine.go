@@ -21,10 +21,6 @@ import (
 	"sync"
 )
 
-// listenerBuffer bounds how many events may queue per listener before the
-// dispatch loop applies backpressure.
-const listenerBuffer = 64
-
 // registration hands a listener to the dispatch loop together with an ack channel
 // that the loop closes once the listener is live. Register blocks on that ack, so
 // a producer can register and then broadcast without racing its own registration.
@@ -38,7 +34,7 @@ type Engine struct {
 	register  chan registration
 	// listeners maps each registered listener to its private delivery queue.
 	// Only Start touches this map, so it needs no lock.
-	listeners map[Listener]chan any
+	listeners map[Listener]*mailbox
 	// deliverWg tracks the per-listener delivery goroutines so Start can wait for
 	// them to finish draining on shutdown, making Start a barrier: once it returns,
 	// every dispatched event has been processed by every listener.
@@ -49,21 +45,21 @@ func NewEventEngine() *Engine {
 	return &Engine{
 		broadcast: make(chan any, 10),
 		register:  make(chan registration),
-		listeners: make(map[Listener]chan any),
+		listeners: make(map[Listener]*mailbox),
 	}
 }
 
 // Start runs the dispatch loop; it must run in its own goroutine. Each listener
-// is fed by a dedicated worker goroutine so that a slow (or re-entrant) listener
-// cannot block the loop or other listeners — a listener may safely BroadCast
-// from within its own Listen.
+// is fed by a dedicated worker goroutine from an unbounded mailbox, so the loop
+// never blocks on a listener: a slow listener cannot stall the others, and a
+// listener may BroadCast from within its own Listen even while backlogged.
 func (e *Engine) Start(ctx context.Context) {
 	defer func() {
 		// Stop the delivery queues, then wait for every worker to finish draining.
 		// This makes Start a barrier: a caller that joins it (Cerebro.Shutdown) is
 		// then guaranteed that all dispatched events have been processed.
-		for cli, ch := range e.listeners {
-			close(ch)
+		for cli, box := range e.listeners {
+			box.close()
 			delete(e.listeners, cli)
 		}
 		e.deliverWg.Wait()
@@ -85,10 +81,10 @@ func (e *Engine) Start(ctx context.Context) {
 			// never closed — and the shutdown barrier (deliverWg.Wait) would then wait
 			// on it forever.
 			if _, ok := e.listeners[reg.listener]; !ok {
-				ch := make(chan any, listenerBuffer)
-				e.listeners[reg.listener] = ch
+				box := newMailbox(reg.listener)
+				e.listeners[reg.listener] = box
 				e.deliverWg.Go(func() {
-					deliver(ctx, reg.listener, ch)
+					deliver(ctx, reg.listener, box)
 				})
 			}
 			// Signal Register that the listener is live and will receive every
@@ -98,18 +94,18 @@ func (e *Engine) Start(ctx context.Context) {
 	}
 }
 
-// fanout delivers evt to every listener's queue, blocking until each accepts.
-// The workers drain continuously, so this applies backpressure rather than
-// dropping events; a full queue slows the dispatcher instead of losing a fill.
+// fanout queues evt for every listener without blocking. Nothing is dropped: a
+// bounded queue here once let a backlogged listener that broadcast from Listen
+// deadlock the loop, freezing the whole event pipeline at a market-open burst.
 func (e *Engine) fanout(evt any) {
-	for _, ch := range e.listeners {
-		ch <- evt
+	for _, box := range e.listeners {
+		box.push(evt)
 	}
 }
 
 // drainToListeners flushes the remaining broadcast queue to the listeners during
 // shutdown, so events already accepted into broadcast are delivered before the
-// queues are closed. The workers are still draining here, so the sends complete.
+// queues are closed.
 func (e *Engine) drainToListeners() {
 	for {
 		select {
@@ -121,13 +117,22 @@ func (e *Engine) drainToListeners() {
 	}
 }
 
-// deliver feeds one listener its events in order until its queue is closed,
-// draining whatever is buffered first. Start closes the queue only after the
+// deliver feeds one listener its events in order until its mailbox is closed,
+// draining whatever is queued first. Start closes the mailbox only after the
 // dispatch loop has flushed every pending broadcast into it, so a worker that
 // runs to completion has processed every event routed to its listener.
-func deliver(ctx context.Context, l Listener, ch <-chan any) {
-	for evt := range ch {
-		l.Listen(ctx, evt)
+func deliver(ctx context.Context, l Listener, box *mailbox) {
+	for {
+		batch, ok := box.take()
+		if !ok {
+			return
+		}
+		for i, evt := range batch {
+			// Drop the reference as soon as it is handled, so a callback that
+			// blocks late in a big batch does not pin the events already done.
+			batch[i] = nil
+			l.Listen(ctx, evt)
+		}
 	}
 }
 

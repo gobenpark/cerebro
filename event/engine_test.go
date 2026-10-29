@@ -149,3 +149,117 @@ func TestEngine_ListenerCanBroadcastWithoutDeadlock(t *testing.T) {
 		}
 	}, 2*time.Second, 10*time.Millisecond)
 }
+
+// TestEngine_ListenerCanBroadcastWhileBackloggedWithoutDeadlock locks the fix for
+// the backlog deadlock seen live at market open: a listener stuck on one event
+// while a burst arrives, which then broadcasts from inside Listen. With bounded
+// queues the dispatcher blocked handing the burst to that very listener, so the
+// burst producer (the market feed) and the re-entrant broadcast both hung.
+func TestEngine_ListenerCanBroadcastWhileBackloggedWithoutDeadlock(t *testing.T) {
+	defer goleak.VerifyNone(t)
+
+	eng := event.NewEventEngine()
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan struct{})
+	go func() {
+		eng.Start(ctx)
+		close(done)
+	}()
+
+	busy := make(chan struct{})
+	release := make(chan struct{})
+	echoed := make(chan struct{})
+	eng.Register(ctx, &captureListener{fn: func(ctx context.Context, e any) {
+		switch e {
+		case "fill":
+			close(busy)
+			<-release
+			eng.BroadCastContext(ctx, "notify") // re-entrant, like broker.notifyOrder
+		case "notify":
+			close(echoed)
+		}
+	}})
+	var releaseOnce sync.Once
+	releaseListener := func() { releaseOnce.Do(func() { close(release) }) }
+	defer func() {
+		releaseListener()
+		cancel()
+		waitClosed(t, done, "Start did not return after cancel")
+	}()
+
+	eng.BroadCast("fill")
+	waitClosed(t, busy, "listener never received the first event")
+
+	burstDone := broadcastInts(ctx, eng, 1000)
+	waitClosed(t, burstDone, "broadcast blocked behind a busy listener")
+
+	releaseListener()
+	waitClosed(t, echoed, "re-entrant broadcast from a backlogged listener never arrived")
+}
+
+// TestEngine_PreservesOrderForBackloggedListener locks per-listener FIFO across a
+// backlog far deeper than any fixed buffer: fills and order updates must reach the
+// broker in the order they were broadcast.
+func TestEngine_PreservesOrderForBackloggedListener(t *testing.T) {
+	defer goleak.VerifyNone(t)
+
+	eng := event.NewEventEngine()
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan struct{})
+	go func() {
+		eng.Start(ctx)
+		close(done)
+	}()
+
+	release := make(chan struct{})
+	var got []int
+	eng.Register(ctx, &captureListener{fn: func(_ context.Context, e any) {
+		<-release
+		if i, ok := e.(int); ok {
+			got = append(got, i)
+		}
+	}})
+
+	const n = 5000
+	burstDone := broadcastInts(ctx, eng, n)
+	select {
+	case <-burstDone:
+	case <-time.After(2 * time.Second):
+		t.Error("broadcast blocked behind a busy listener")
+	}
+	close(release)
+	cancel()
+	waitClosed(t, done, "Start did not return after cancel")
+
+	want := make([]int, n)
+	for i := range want {
+		want[i] = i
+	}
+	assert.Equal(t, want, got)
+}
+
+// broadcastInts broadcasts 0..n-1 from its own goroutine and closes the returned
+// channel once every send is accepted or ctx is canceled.
+func broadcastInts(ctx context.Context, eng *event.Engine, n int) <-chan struct{} {
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		for i := range n {
+			if !eng.BroadCastContext(ctx, i) {
+				return
+			}
+		}
+	}()
+	return done
+}
+
+// waitClosed fails the test if ch is not closed within a bounded time, so a
+// deadlock regression reports instead of hanging the run.
+func waitClosed(t *testing.T, ch <-chan struct{}, msg string) {
+	t.Helper()
+	select {
+	case <-ch:
+	case <-time.After(2 * time.Second):
+		t.Fatal(msg)
+	}
+}
